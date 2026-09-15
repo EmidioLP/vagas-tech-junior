@@ -25,11 +25,28 @@ nada. Alguns exemplos diretos:
 
 # Resultados
 
-> **Coleta de 03/08/2026** — 1.397 vagas brutas de **cinco portais** (Gupy,
-> Vagas.com.br, ProgramaThor, Trampos.co e LinkedIn), das quais **374**
-> sobraram após filtrar nível de entrada, remover duplicatas e descartar vagas
-> fora de tecnologia. Os números abaixo são um retrato dessa data; rodar
-> `python main.py` gera um novo.
+> **Coleta de 15/09/2026** — 1.597 vagas brutas de **sete portais** (Gupy,
+> Vagas.com.br, ProgramaThor, Trampos.co, LinkedIn, Quero Vagas Tech e
+> GeekHunter), das quais **597** sobraram depois de filtrar nível de entrada,
+> remover duplicatas e descartar vagas fora de tecnologia. Os números abaixo
+> são um retrato dessa data; rodar `python main.py` gera um novo.
+
+| Etapa | Vagas |
+|---|---|
+| Coletadas nos sete portais | 1.597 |
+| Depois do filtro de nível de entrada | 1.254 (−343) |
+| Depois de remover duplicatas | 911 (−343) |
+| Depois de descartar vagas fora de tecnologia | **597** (−314) |
+
+| Portal | Vagas no resultado final |
+|---|---|
+| LinkedIn | 244 (40,9%) |
+| Quero Vagas Tech | 163 (27,3%) |
+| Gupy | 130 (21,8%) |
+| GeekHunter | 35 (5,9%) |
+| Vagas.com.br | 19 (3,2%) |
+| ProgramaThor | 5 (0,8%) |
+| Trampos.co | 1 (0,2%) |
 
 ## Qual área mais contrata júnior
 
@@ -37,32 +54,36 @@ nada. Alguns exemplos diretos:
 
 | # | Área | Vagas | % |
 |---|------|-------|---|
-| 1 | Outros/TI Geral | 144 | 38,5% |
-| 2 | Suporte/Infra | 87 | 23,3% |
-| 3 | Backend | 49 | 13,1% |
-| 4 | Fullstack | 23 | 6,1% |
-| 5 | Data | 20 | 5,3% |
-| 6 | QA | 17 | 4,5% |
-| 7 | Frontend | 12 | 3,2% |
-| 8 | Mobile | 8 | 2,1% |
-| 9 | DevOps | 8 | 2,1% |
-| 10 | Segurança | 6 | 1,6% |
+| 1 | Outros/TI Geral | 199 | 33,3% |
+| 2 | Suporte/Infra | 122 | 20,4% |
+| 3 | Backend | 94 | 15,7% |
+| 4 | Data | 57 | 9,5% |
+| 5 | QA | 39 | 6,5% |
+| 6 | Frontend | 25 | 4,2% |
+| 7 | Fullstack | 24 | 4,0% |
+| 8 | DevOps | 16 | 2,7% |
+| 9 | Mobile | 14 | 2,3% |
+| 10 | Segurança | 7 | 1,2% |
 
-**Entre as áreas identificáveis, Suporte/Infra lidera com folga** — 87 vagas
-contra 49 de Backend, a segunda colocada. É a porta mais larga para quem está
+**Entre as áreas identificáveis, Suporte/Infra continua na frente** — 122 vagas
+contra 94 de Backend, a segunda colocada. É a porta mais larga para quem está
 começando, e não costuma ser a primeira escolha de quem entra na área.
 
-Vale registrar que **esse resultado se manteve ao dobrar a base**: na coleta
-anterior, com duas fontes e 182 vagas, Suporte/Infra também liderava (29,7%).
-Somar três portais e 192 vagas não mudou a resposta — o que é um indício de que
-ela não era artefato de uma amostra pequena.
+É a **terceira coleta seguida com a mesma resposta**, cada uma com mais fontes:
+182 vagas de 2 portais, depois 374 de 5 e agora 597 de 7. A distância para
+Backend diminuiu, mas a ordem nunca inverteu — um indício de que o resultado não
+é artefato de amostra pequena.
+
+As áreas que mais ganharam espaço foram **Data** (de 5,3% para 9,5%) e **QA**
+(de 4,5% para 6,5%).
 
 O primeiro lugar da tabela, "Outros/TI Geral", **não é uma área** — é o balde
 das vagas cujo título não permite inferir a área ("ANALISTA DE SISTEMAS JR",
-"Analista de Desenvolvimento Júnior"). Ele cresceu de 23,6% para 38,5% por um
-motivo específico: **101 das suas 144 vagas vêm do LinkedIn**, cujo card de
-busca não traz descrição, deixando só o título para classificar. Preferi
-mantê-las explícitas a distribuí-las por chute.
+"Analista de Desenvolvimento Júnior"). **110 das suas 199 vagas vêm do
+LinkedIn**, cujo card de busca não traz descrição e deixa só o título para
+classificar. O balde encolheu de 38,5% para 33,3% porque as duas fontes novas
+trazem a descrição completa. Preferi manter essas vagas explícitas a
+distribuí-las por chute.
 
 ## Remoto, híbrido ou presencial
 
@@ -70,20 +91,25 @@ mantê-las explícitas a distribuí-las por chute.
 
 | Modalidade | Vagas | % do total | % entre as informadas |
 |---|---|---|---|
-| Não informado | 226 | 60,4% | — |
-| Presencial | 96 | 25,7% | 64,9% |
-| Híbrido | 31 | 8,3% | 20,9% |
-| Remoto | 21 | 5,6% | 14,2% |
+| Não informado | 264 | 44,2% | — |
+| Presencial | 180 | 30,2% | 54,1% |
+| Remoto | 96 | 16,1% | 28,8% |
+| Híbrido | 57 | 9,5% | 17,1% |
 
-Aqui as fontes novas **pioraram** a qualidade do dado, e vale ser explícito: nem
-o LinkedIn nem o Vagas.com distinguem presencial de híbrido no card de listagem,
-então 60% das vagas ficaram sem modalidade. A leitura honesta é a última coluna,
-restrita às 148 vagas em que o portal informa: **quase dois terços presenciais e
-só 14% remotas**.
+A fatia sem modalidade caiu de 60% para 44%, porque as duas fontes novas
+informam a modalidade em praticamente toda vaga. O que continua sem informação é
+o LinkedIn inteiro (244 vagas) e 19 do Vagas.com — nenhum dos dois distingue
+presencial de híbrido no card de listagem.
 
-A distribuição por área é mais reveladora que o total: **Backend concentra 9 das
-21 vagas remotas** — mais que todas as outras áreas de desenvolvimento somadas.
-Quem busca trabalho remoto júnior está, na prática, olhando para Backend.
+A leitura honesta é a última coluna, restrita às 333 vagas em que o portal
+informa: **mais da metade é presencial**. As remotas subiram de 14% para 29%,
+mas isso pede cuidado: **64 das 96 vagas remotas vêm da Quero Vagas Tech**, um
+agregador com muita vaga remota. Sem ela, seriam 32 remotas em 171 informadas —
+19%. Boa parte do salto é mudança na mistura de fontes, não no mercado.
+
+Por área, **Backend concentra 26 das 96 vagas remotas**, seguido de Frontend
+(14), Data (9) e QA (9). Quem busca trabalho remoto júnior continua, na
+prática, olhando para Backend.
 
 ## Tecnologias mais pedidas
 
@@ -91,55 +117,56 @@ Quem busca trabalho remoto júnior está, na prática, olhando para Backend.
 
 | Tecnologia | Vagas | | Tecnologia | Vagas |
 |---|---|---|---|---|
-| Inglês | 57 | | Java | 26 |
-| SQL | 40 | | JavaScript | 25 |
-| Git | 36 | | Metodologias Ágeis | 24 |
-| Python | 35 | | Inteligência Artificial | 24 |
-| Windows | 35 | | PostgreSQL | 22 |
-| ITIL | 29 | | Redes/TCP-IP | 22 |
+| SQL | 102 | | Metodologias Ágeis | 54 |
+| Git | 98 | | JavaScript | 54 |
+| Python | 79 | | Inteligência Artificial | 51 |
+| Inglês | 65 | | Java | 48 |
+| Redes/TCP-IP | 65 | | Hardware | 48 |
+| API REST | 55 | | Excel | 46 |
 
-**SQL segue como a habilidade mais transferível** entre as áreas com mais vagas,
-e **Inglês** lidera o geral, aparecendo em praticamente toda área.
-
-A novidade em relação à coleta anterior é **Inteligência Artificial no top 10**,
-com 24 menções — não aparecia antes porque o vocabulário de tecnologias não a
-cobria. Ela só entrou depois de aparecer em dados reais das fontes novas.
+**SQL passou a liderar o geral** e segue como a habilidade mais transferível
+entre as áreas com mais vagas. Inglês, que liderava na coleta anterior, caiu para
+o quarto lugar. **Inteligência Artificial** chegou a 51 menções, mais que o dobro
+das 24 anteriores.
 
 ### O gráfico por área é percentual, não contagem
 
-As áreas têm tamanhos muito diferentes (144 vagas em "Outros/TI Geral" contra 8
-em Mobile), então contagem absoluta não deixa comparar um painel com o outro. E
-a base do percentual **não é o total da área**: é o número de vagas que
+As áreas têm tamanhos muito diferentes (199 vagas em "Outros/TI Geral" contra 7
+em Segurança), então contagem absoluta não deixa comparar um painel com o outro.
+E a base do percentual **não é o total da área**: é o número de vagas que
 *informam* alguma tecnologia. Nem toda vaga informa — o card do LinkedIn não traz
-descrição, então em "Outros/TI Geral" só 31 das 144 vagas têm tecnologia. Cada
-painel declara a própria base.
+descrição, então em "Outros/TI Geral" só 56 das 199 vagas têm tecnologia. Cada
+painel declara a própria base, e áreas com menos de 6 vagas nessa base ficam
+fora do gráfico.
 
-A mudança inverte uma leitura: em números absolutos, **SQL parecia mais forte em
-Backend (17 menções) que em Data (9)**. Em proporção, é o contrário — **60% das
-vagas de Data pedem SQL, contra 37% das de Backend**. Data é a área mais
-concentrada em SQL do dataset; Backend é a que mais distribui entre linguagens.
+A proporção muda a leitura: em números absolutos, **SQL aparece em mais vagas de
+Backend (43) que de Data (20)**. Em proporção, é o contrário — **80% das vagas
+de Data pedem SQL, contra 51% das de Backend**. Data é a área mais concentrada
+em SQL do dataset; Backend distribui mais entre linguagens (Python 39%, C# 34%,
+Java 32%).
 
-Para quem mira Data, o dado desconfortável continua: depois de SQL (60%) e
-Python (53%) vêm **Excel e Power BI, ambos em 47%** das vagas. Airflow, Spark e
-dbt não aparecem. O que o mercado brasileiro chama de "Data júnior" hoje é
-majoritariamente perfil de BI/analista, não de engenharia de dados.
+**Para quem mira Data**, depois de SQL (80%) e Python (64%) vêm Power BI e Git
+(32% cada), e o Excel caiu de 47% para 24%. Ferramentas de engenharia de dados
+aparecem, mas ainda são minoria: Databricks em 4 das 25 vagas com tecnologia
+informada, Airflow e Spark em 3, dbt em 1. A base é pequena, então vale como
+indício, não como tendência.
 
-Duas áreas onde a proporção é mais reveladora que o total: **Suporte/Infra é
-dominada por Windows (65%), Inglês (62%) e ITIL (56%)** — nada de programação no
-topo; e **Mobile pede Kotlin em 71%** das vagas, o maior percentual de uma
-linguagem específica em qualquer área.
+Duas áreas onde a proporção diz mais que o total: **Suporte/Infra é dominada por
+Redes/TCP-IP (62%), Hardware (52%) e Windows (42%)** — nada de programação no
+topo; e **Frontend pede JavaScript em 86%** das vagas, o maior percentual de uma
+linguagem específica em qualquer área, seguido de CSS (82%) e HTML (77%).
 
 ## Como esses números foram apurados
 
 Cinco decisões afetaram o resultado mais que qualquer ajuste de código, e todas
 vieram de rodar contra dados reais:
 
-- **48% das vagas coletadas não eram de tecnologia** ("Analista Contábil Jr",
-  "Analista Fiscal Jr"). Sem um portão de relevância, o ranking mediria a
+- **Um terço das vagas de nível de entrada não era de tecnologia** (314 de 911
+  na coleta de 15/09/2026: "Analista Contábil Jr", "Analista Fiscal Jr"). Sem um portão de relevância, o ranking mediria a
   população errada.
 - **A área Segurança apareceu com 45 vagas, todas falso positivo**: a palavra
   `segurança` casava com "normas de segurança" no boilerplate de vagas de
-  suporte. Depois da correção, são 6 — o número real.
+  suporte. Depois da correção, a área voltou a um dígito — o número real.
 - **`data` não pode ser keyword de Data em português**: casa com "**data** de
   admissão".
 - **Keywords contidas em outras somavam duas vezes.** "DESENVOLVEDOR BACKEND
@@ -148,8 +175,9 @@ vieram de rodar contra dados reais:
   15 a 14 em vez de Backend.
 - **A mesma vaga aparecia duas vezes quando dois portais a anunciavam**, porque
   cada um escreve o nome da empresa do seu jeito ("Minsait" e "Minsait an Indra
-  Company", "FEI" e "Centro Universitário FEI"). Suporte/Infra caiu de 99 para
-  87 vagas depois da correção — era a Wyntech contada em dobro.
+  Company", "FEI" e "Centro Universitário FEI"). Na coleta de 03/08/2026,
+  Suporte/Infra caiu de 99 para 87 vagas com a correção — era a Wyntech contada
+  em dobro.
 
 As regras estão em três YAMLs comentados, e o CSV traz uma coluna `area_matches`
 com as keywords que dispararam cada classificação, para auditoria.
@@ -213,7 +241,7 @@ particularidades mudam a forma de integrar:
   **68 estavam vencidas (91%)**, e as de estágio estavam 100% expiradas. As
   ativas ficam nas primeiras páginas — da página 6 em diante não há nenhuma.
 
-O volume real é pequeno (**7 vagas júnior abertas** na coleta de 03/08/2026),
+O volume real é pequeno (**6 vagas júnior abertas** na coleta de 15/09/2026),
 mas o card traz **senioridade e tecnologias declaradas pelo próprio portal**, o
 que serve para conferir a classificação por keywords do projeto contra uma
 categorização nativa. A senioridade declarada é respeitada em vez do regex de
@@ -250,18 +278,17 @@ entrada, 3 remotas, 3 híbridas e 6 presenciais.
 É o endpoint que o próprio site chama para carregar mais resultados na busca
 pública. Devolve um fragmento HTML com 10 cards por chamada e responde `200` até
 com o User-Agent do projeto — não exige navegador nem sessão. É a fonte de maior
-volume: **292 vagas** numa coleta real.
+volume: **647 vagas brutas** na coleta de 15/09/2026, 244 no resultado final.
 
 **A localização precisa ser o `geoId`.** Passar `location=Brasil` em português
 falha em silêncio: a API responde `200` e devolve vagas dos Estados Unidos
 ("Brooklyn, NY", "San Francisco Bay Area"). `location=Brazil` em inglês filtra
 quase tudo; `geoId=106057199` acertou 10 de 10 nos testes, e é o que o código
-usa. Numa coleta de 292 vagas, nenhuma veio de fora do Brasil.
+usa. Das 244 vagas da coleta de 15/09/2026, nenhuma veio de fora do Brasil.
 
 Limitação importante: o card da busca **não traz a descrição da vaga**, então a
-classificação desta fonte se apoia só no título. O efeito é visível — **49% das
-vagas do LinkedIn caem em "Outros/TI Geral"**, contra 24% nas fontes com
-descrição, porque títulos como "ANALISTA DE SISTEMAS JR" ou "Analista de
+classificação desta fonte se apoia só no título. O efeito é visível — **45% das
+vagas do LinkedIn caem em "Outros/TI Geral"**, contra 25% nas demais fontes, porque títulos como "ANALISTA DE SISTEMAS JR" ou "Analista de
 Desenvolvimento Júnior" realmente não dizem a área. Buscar a descrição exigiria
 uma requisição por vaga, multiplicando a carga no portal.
 
@@ -589,7 +616,7 @@ Fora da máquina que coletou, o nome do arquivo pode não ter o timestamp e o
 deploy). Por isso o snapshot é importado com a data fixa:
 
 ```bash
-python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-08-03
+python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
 ```
 
 ### Deploy
@@ -598,7 +625,7 @@ python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-08-03
 serviço para o repositório.
 
 O disco do plano free é efêmero, então **o banco não é persistido**: ele é
-reconstruído do snapshot em `seed/vagas.csv` toda vez que o serviço sobe (182
+reconstruído do snapshot em `seed/vagas.csv` toda vez que o serviço sobe (597
 linhas, ~1s). O build usa `requirements-api.txt`, sem matplotlib, que a API
 nunca importa.
 
