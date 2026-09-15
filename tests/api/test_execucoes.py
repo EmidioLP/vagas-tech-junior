@@ -19,7 +19,7 @@ from api.models import CollectionRun, JobRecord
 from scraper import pipeline
 from scraper.config import Settings
 from scraper.models import Job, SourceStats
-from scraper.sources import AVAILABLE_SOURCES
+from scraper.sources import DEFAULT_SOURCES
 
 INICIO = datetime(2026, 9, 15, 9, 5, tzinfo=timezone.utc)
 X = 2
@@ -101,7 +101,7 @@ def test_primeira_execucao_agendada_coleta_registra_e_agenda(monkeypatch, relogi
     assert (execucao.status, execucao.triggered_by, execucao.full_scope,
             execucao.interval_days, execucao.next_run_on) == (
         "success", "schedule", True, X, date(2026, 9, 17))
-    assert execucao.jobs_count == 2 * len(AVAILABLE_SOURCES)
+    assert execucao.jobs_count == 2 * len(DEFAULT_SOURCES)
     assert execucao.summary["fontes"]["gupy"]["status"] == "ok"
     assert execucao.summary["fontes"]["gupy"]["jobs_criados"] == 2
 
@@ -181,7 +181,7 @@ def test_fonte_com_falha_nao_impede_as_demais_de_gravar(monkeypatch, relogio, ba
 def test_todas_as_fontes_falhando_da_status_claro_e_nao_conta_para_a_guarda(
     monkeypatch, relogio, banco_historico,
 ):
-    resultado, _ = _rodar(monkeypatch, banco_historico, coleta=Coleta(falham=AVAILABLE_SOURCES),
+    resultado, _ = _rodar(monkeypatch, banco_historico, coleta=Coleta(falham=DEFAULT_SOURCES),
                           respeitar_intervalo=True)
 
     assert (resultado.status, resultado.exit_code) == ("failed", 1)

@@ -45,9 +45,12 @@ class Settings:
     """Parametros de execucao. Sobrescritos pela CLI em `main.py`."""
 
     search_terms: list[str] = field(default_factory=lambda: list(SEARCH_TERMS))
-    # Todos os portais que funcionam hoje. Ver `scraper/sources/__init__.py`.
+    # As fontes da coleta padrao: `scraper.sources.DEFAULT_SOURCES`, repetida aqui
+    # porque importar `scraper.sources` criaria import circular (um teste confere
+    # que as duas listas batem). A ProgramaThor fica de fora: responde HTTP 403
+    # para IPs de nuvem.
     sources: list[str] = field(
-        default_factory=lambda: ["gupy", "vagas", "programathor", "trampos",
+        default_factory=lambda: ["gupy", "vagas", "trampos",
                                  "linkedin", "querovagastech", "geekhunter"]
     )
     output_dir: Path = DEFAULT_OUTPUT_DIR

@@ -50,7 +50,7 @@ def overview(carregar: Callable[[], ResumoGeral]) -> None:
     st.title("Vagas Tech Júnior")
     st.write(
         "Qual área de tecnologia mais contrata júnior no Brasil, com dados "
-        "coletados de sete portais de vagas."
+        "coletados de portais públicos de vagas."
     )
 
     try:

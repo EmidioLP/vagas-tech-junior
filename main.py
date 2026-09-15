@@ -25,7 +25,7 @@ from pathlib import Path
 from scraper.config import SEARCH_TERMS, ConfiguracaoError, Settings
 from scraper.execucao import GATILHOS, OK, ROTULOS
 from scraper.pipeline import PipelineResult, run
-from scraper.sources import AVAILABLE_SOURCES
+from scraper.sources import AVAILABLE_SOURCES, DEFAULT_SOURCES, FORA_DA_COLETA_PADRAO
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,9 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=__doc__,
     )
     parser.add_argument(
-        "--sources", nargs="+", default=list(AVAILABLE_SOURCES),
+        "--sources", nargs="+", default=list(DEFAULT_SOURCES),
         choices=AVAILABLE_SOURCES,
-        help=f"Portais a consultar (padrão: todos — {' '.join(AVAILABLE_SOURCES)}).",
+        help=f"Portais a consultar (padrão: {' '.join(DEFAULT_SOURCES)}; "
+             f"fora do padrão, só se pedidos: {' '.join(FORA_DA_COLETA_PADRAO)}).",
     )
     parser.add_argument(
         "--terms", nargs="+", default=None,
