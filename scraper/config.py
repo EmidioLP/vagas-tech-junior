@@ -6,8 +6,13 @@ esta neste arquivo ou nos YAMLs em `scraper/rules/`.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from dotenv import dotenv_values
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RULES_DIR = Path(__file__).resolve().parent / "rules"
@@ -64,3 +69,119 @@ class Settings:
     def ensure_output_dir(self) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         return self.output_dir
+
+
+# ---------------------------------------------------------------------------
+# Banco de dados
+# ---------------------------------------------------------------------------
+
+# Em ordem de precedencia, depois das variaveis ja definidas no ambiente.
+# `.env.local` e o que `neon env pull` gera; `.env` e o formato legado.
+ARQUIVOS_ENV: tuple[Path, ...] = (PROJECT_ROOT / ".env.local", PROJECT_ROOT / ".env")
+
+_ESQUEMAS_POSTGRES = {"postgres", "postgresql", "postgresql+psycopg"}
+
+_MENSAGEM_AUSENTE = (
+    "DATABASE_URL não definida. Defina a variável no ambiente ou gere o "
+    ".env.local com `neon env pull --service postgres` "
+    "(veja docs/neon-setup.md)."
+)
+
+
+class ConfiguracaoError(RuntimeError):
+    """Configuracao obrigatoria ausente ou invalida.
+
+    A mensagem nunca inclui o valor recebido: uma URL de banco carrega senha.
+    """
+
+
+def _fontes(
+    environ: Mapping[str, str] | None,
+    arquivos: Sequence[Path] | None,
+) -> Iterator[Mapping[str, str | None]]:
+    """Ambiente, depois cada arquivo existente, lidos so quando necessarios.
+
+    Os arquivos sao lidos sem tocar em `os.environ`, para que carregar a
+    configuracao nao vaze a URL para subprocessos nem entre testes.
+    """
+    yield os.environ if environ is None else environ
+    for arquivo in ARQUIVOS_ENV if arquivos is None else arquivos:
+        if Path(arquivo).is_file():
+            yield dotenv_values(arquivo)
+
+
+def _valor(fonte: Mapping[str, str | None], chave: str) -> str:
+    return (fonte.get(chave) or "").strip()
+
+
+def _validar_postgres(valor: str) -> str:
+    partes = urlsplit(valor)
+    if partes.scheme not in _ESQUEMAS_POSTGRES:
+        raise ConfiguracaoError(
+            "DATABASE_URL precisa ser uma URL PostgreSQL, começando com "
+            "postgresql:// ou postgres://."
+        )
+    if not partes.hostname:
+        raise ConfiguracaoError(
+            "DATABASE_URL não tem host. Gere a URL novamente com "
+            "`neon env pull --service postgres`."
+        )
+    return valor
+
+
+def obter_database_url(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> str:
+    """DATABASE_URL, na ordem: ambiente > `.env.local` > `.env`."""
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "DATABASE_URL")
+        if valor:
+            return _validar_postgres(valor)
+    raise ConfiguracaoError(_MENSAGEM_AUSENTE)
+
+
+_MENSAGEM_INTERVALO_AUSENTE = (
+    "COLLECTION_INTERVAL_DAYS não definida. Ela é obrigatória com --respect-interval: "
+    "defina o número de dias entre coletas completas (inteiro positivo) no ambiente "
+    "ou no .env.local; no GitHub Actions, como Variable do repositório "
+    "(veja docs/automation.md)."
+)
+
+
+def obter_intervalo_dias(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> int:
+    """COLLECTION_INTERVAL_DAYS, na ordem: ambiente > `.env.local` > `.env`.
+
+    Sem valor padrao: o intervalo efetivo nunca fica implicito no codigo.
+    """
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "COLLECTION_INTERVAL_DAYS")
+        if not valor:
+            continue
+        if not (valor.isascii() and valor.isdigit()) or int(valor) < 1:
+            raise ConfiguracaoError(
+                "COLLECTION_INTERVAL_DAYS precisa ser um inteiro positivo de dias "
+                f"(recebido: {valor[:20]!r})."
+            )
+        return int(valor)
+    raise ConfiguracaoError(_MENSAGEM_INTERVALO_AUSENTE)
+
+
+def obter_url_migrations(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> str:
+    """URL para migrations: a conexao direta (DATABASE_URL_UNPOOLED) quando existir.
+
+    No Neon, DATABASE_URL passa pelo PgBouncer em modo transacao, que quebra
+    DDL e estado de sessao. A primeira fonte que define qualquer uma das duas
+    variaveis decide, para nunca combinar bancos de fontes diferentes.
+    """
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "DATABASE_URL_UNPOOLED") or _valor(fonte, "DATABASE_URL")
+        if valor:
+            return _validar_postgres(valor)
+    raise ConfiguracaoError(_MENSAGEM_AUSENTE)

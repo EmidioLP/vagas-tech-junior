@@ -18,7 +18,9 @@ class PoliteSession:
 
     - Retry automatico (com backoff exponencial) em 429/5xx e erros de conexao.
     - Delay minimo entre requests, com jitter para nao criar um padrao robotico.
-    - Nunca levanta excecao para o chamador: devolve `None` quando desiste.
+    - Nunca levanta excecao para o chamador: devolve `None` quando desiste, e conta
+      a desistencia em `failed_count`. As fontes so param de paginar ao receber
+      `None`; sem esse contador, um portal bloqueado pareceria so "0 vagas".
     """
 
     def __init__(
@@ -33,6 +35,7 @@ class PoliteSession:
         self.timeout_seconds = timeout_seconds
         self._last_request_at = 0.0
         self.request_count = 0
+        self.failed_count = 0
 
         self.session = requests.Session()
         self.session.headers.update(
@@ -74,9 +77,11 @@ class PoliteSession:
             response = self.session.get(url, **kwargs)
         except requests.RequestException as exc:
             logger.warning("Falha de rede em %s: %s", url, exc)
+            self.failed_count += 1
             return None
 
         if response.status_code >= 400:
+            self.failed_count += 1
             logger.warning(
                 "HTTP %s em %s (params=%s)",
                 response.status_code,
@@ -93,6 +98,7 @@ class PoliteSession:
         try:
             return response.json()
         except ValueError:
+            self.failed_count += 1
             logger.warning("Resposta nao-JSON em %s (content-type=%s)", url,
                            response.headers.get("content-type"))
             return None

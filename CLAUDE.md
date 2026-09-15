@@ -1,0 +1,272 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A Python scraper that answers, with real data, which tech area (Backend, Frontend,
+Data, Mobile, DevOps, QA, Fullstack, Suporte/Infra, Segurança) hires the most
+entry-level developers in Brazil. It collects jobs from seven public portals,
+filters to entry-level, classifies each job into a tech area by keyword rules,
+dedupes, and exports CSVs/charts/a report. A read-only FastAPI sits on top of
+the collected data. Comments, docstrings, and commit messages in this repo are
+in Portuguese — follow that convention when editing existing files.
+
+## Commands
+
+```bash
+# Run the full scraper (all 7 sources, 13 default search terms) and write to the DB.
+# Needs DATABASE_URL + `alembic upgrade head`; checked BEFORE collecting.
+python main.py
+
+# Common flags
+python main.py --csv                          # also export CSVs + .md report + charts
+python main.py --no-db --csv                  # files only, no database
+python main.py --db data/teste.db             # other DB (URL or SQLite path), beats DATABASE_URL
+python main.py --sources gupy vagas          # only specific portals
+python main.py --terms "estagio dados" "..."  # override search terms
+python main.py --max-pages 2 --delay 3        # smaller/slower run
+python main.py --strict                       # drop mixed titles like "Júnior/Pleno"
+python main.py --all-levels                   # skip seniority filter entirely
+python main.py --csv --no-charts              # skip matplotlib PNG generation
+python main.py -v                             # DEBUG logging
+python main.py --resumo coleta/resumo.md      # also write a non-sensitive Markdown summary (used by collect.yml)
+python main.py --respect-interval             # skip (recorded) if COLLECTION_INTERVAL_DAYS hasn't passed since the last full run
+
+# Tests (no network — sources are tested against captured real responses)
+python -m pytest -q
+python -m pytest tests/test_classifier.py -q          # single file
+python -m pytest tests/test_classifier.py::test_name  # single test
+python -m pytest tests/api -q                          # API tests only (auto-skipped if fastapi isn't installed)
+
+# Dashboard (read-only Streamlit over jobs/collection_runs; DATABASE_URL, or DASHBOARD_DB to override)
+streamlit run dashboard/app.py
+python -m pytest tests/dashboard -q
+
+# API (read-only REST over the collected data)
+pip install -r requirements.txt
+python scripts/import_csv.py            # CSV (newest in output/) -> DATABASE_URL (required) or --db
+uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs
+
+# Migrations (Alembic; URL comes from scraper/config.py, never alembic.ini)
+alembic upgrade head --sql              # review SQL without connecting
+alembic upgrade head                    # apply (uses DATABASE_URL_UNPOOLED when present)
+alembic revision --autogenerate -m "..."  # then review by hand, see docs/migrations.md
+python -m pytest tests/api/test_migrations.py -q
+
+# API + Postgres via Docker (handles healthcheck + seed import automatically)
+docker compose up --build
+docker compose down          # add -v to also drop the db volume
+```
+
+There is no lint/format tooling configured in this repo (no ruff/black/mypy config) — don't invent one.
+
+## Architecture
+
+### Pipeline (`scraper/pipeline.py`)
+
+```
+collect (per source, per search term)
+  -> seniority filter        (scraper/seniority.py)   keep júnior/estágio/trainee/aprendiz
+  -> deduplicate             (scraper/dedupe.py)       by source+id, then title+company
+  -> tech relevance gate     (scraper/classifier.py)   drop "Analista Contábil Jr" etc.
+  -> area classification     (scraper/classifier.py)   weighted keyword scoring
+  -> skill extraction        (scraper/skills.py)       must run BEFORE export truncates description
+  -> persist                 (persistence/)            jobs + job_snapshots, idempotent (default on)
+  -> export                  (scraper/export.py)       3 CSVs + .md report + charts.py PNGs (only with --csv)
+```
+
+The database is the source of truth; CSV export is optional and never a
+prerequisite for persisting. `pipeline.preparar_banco` validates the DB
+(URL, connectivity, current schema) before `collect` so a bad config doesn't
+waste a multi-minute scrape. One `collected_at` (UTC) per run.
+
+Execution policy lives in `scraper/execucao.py` (pure) and every DB run is
+recorded in `collection_runs` (`persistence/execucoes.py`), skips included:
+- `--respect-interval` needs `COLLECTION_INTERVAL_DAYS` (no default) and skips
+  unless X days (compared by UTC date) passed since the last run with
+  `full_scope` (all sources, default terms, ≥5 pages) and status
+  `success`/`partial`.
+- With X known (always under the guard; forced runs if the env var is set),
+  `calcular_agenda` fills `result.agenda`, printed/summarized as `Última coleta:
+  dia DD/MM/AAAA e próxima: dia DD/MM/AAAA` and stored in `next_run_on`: next =
+  last full run + X, or tomorrow if that date passed. The project uses X=2
+  (GitHub Repository Variable).
+- `PoliteSession.failed_count` counts requests that gave up (sources only stop
+  paginating on `None`), so a blocked portal shows as `failed`, not "0 jobs".
+- `collect` isolates whole-source exceptions. Run status: `failed` (exit 1) if
+  all sources failed or no jobs; `partial` (exit 0, or 1 with job write
+  failures) if any source isn't `ok`; else `success`.
+
+`main.py` only builds a `Settings` (scraper/config.py) and calls `pipeline.run()`.
+`Settings` and the YAML rule files below are the two places to change behavior
+without touching the pipeline itself.
+
+### Sources (`scraper/sources/`)
+
+Every portal is a class inheriting `JobSource` (`base.py`), implementing
+`fetch_term(term) -> list[Job]`, registered in `sources/__init__.py`'s
+`SOURCE_REGISTRY`. `JobSource.fetch()` isolates failures per-term so one bad
+portal/term never aborts the whole run. Adding a new source is: one new file +
+one registry line, and it automatically gets seniority filtering, dedup,
+classification, and export for free.
+
+Each source has non-obvious integration details discovered by live testing
+(documented at length in README.md under "Fontes de dados") — read that
+section before touching a source file, e.g.:
+- Gupy: unofficial public JSON endpoint, `limit` capped at 100, `pagination.total`
+  is unreliable so paginate until an empty page instead.
+- Vagas.com: server-rendered HTML (no Selenium needed); listing only exposes
+  full remote/on-site, not hybrid, in the card.
+- ProgramaThor: `?search=` is silently ignored; most listed jobs are expired
+  ("Vencida") and must be dropped.
+- Trampos.co: consumes an internal SPA JSON API (not officially documented);
+  mixes tech and non-tech job categories.
+- LinkedIn: guest API, requires numeric `geoId` (not `location=Brasil`, which
+  silently returns US jobs); listing has no description, title-only classification.
+- Quero Vagas Tech: no text search, lists the entire catalog; the portal's own
+  declared seniority is deliberately ignored (deep-dived in README — it mislabels
+  managers as "Intern").
+- GeekHunter: `robots.txt` disallows `/api/` and `/feeds/`, so it's collected via
+  sitemap -> per-job HTML page with structured `JobPosting` data, not an API call.
+
+Catho and Indeed BR are evaluated and deliberately excluded (hard-blocked by the
+portals) — no simulated data is ever substituted for a blocked source.
+
+### Classification rules (`scraper/rules/*.yml`)
+
+Business logic lives in three commented YAML files, editable without touching
+Python:
+- `areas.yml` — per-area keywords at two weight tiers (`peso_alto`=4.0,
+  `peso_medio`=1.0), plus `tech_gate` (title/description signals + exclusions)
+  that decides if a listing is even a tech job before it's scored.
+- `seniority.yml` — what counts as entry-level vs. above.
+- `skills.yml` — technologies/tools searched for and their aliases.
+
+Key scoring rules in `classifier.py`: a title match counts 3x a description
+match (`title_boost`); if any area matched in the title, only title-matched
+areas compete ("título dominante"); jobs scoring below `min_score` (3.0) fall
+into "Outros/TI Geral" rather than being force-assigned. Keywords match as
+whole words/phrases over normalized text (lowercased, accents stripped) to
+avoid substring false positives (e.g. "go" inside "Goiânia").
+
+Two documented traps when editing `areas.yml`: don't use bare `data` for the
+Data area (matches "data de admissão" in Portuguese), and don't use bare
+`seguranca` for Segurança (matches "normas de segurança" boilerplate in almost
+any support job listing — inflated that area 4x -> 45 in an early run).
+
+### Dashboard (`dashboard/`)
+
+Read-only Streamlit app; it never collects, transforms or writes. All DB access
+goes through `dashboard/consultas.py` (pure functions taking an engine; SQLAlchemy
+errors become `DadosIndisponiveis` carrying only the error type). `config.py`
+builds a read-only engine (`postgresql_readonly` per transaction, which works
+behind Neon's pooler; `PRAGMA query_only` on SQLite) from `DATABASE_URL`, or
+`DASHBOARD_DB` if set. "Last collection" uses the interval guard's rule (full
+scope, `success`/`partial`), "active jobs" is `jobs.is_active`. `app.py` caches
+the engine (`st.cache_resource`) and the summary (`st.cache_data`, 10 min TTL);
+Tecnologias/Histórico/Vagas pages are explicit "em construção" placeholders. The
+data layer must not import FastAPI, requests or bs4 (`requirements-dashboard.txt`
+omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`.
+
+### API (`api/`)
+
+Read-only FastAPI over the same data the scraper produces — no `POST`/`PUT`/`DELETE`
+(they respond 405 by design, since writes would just get overwritten by the next
+CSV import). `api/vocabulary.py` reads the same `scraper/rules/*.yml` files so
+area/technology names stay a single source of truth. `/areas` and `/tecnologias`
+are always computed live from the `vagas` table, never read from the pre-aggregated
+`ranking_areas.csv`/`skills_por_area.csv` (those are truncated top-N exports).
+
+The database is configured by a single required `DATABASE_URL` (Neon
+PostgreSQL), resolved in `scraper/config.py:obter_database_url` with precedence
+process env > `.env.local` (written by `neon env pull`) > `.env`. There is no
+default database: without it, the API lifespan and the importer raise
+`ConfiguracaoError`, whose message never includes the URL. An explicit
+destination argument (`make_engine(path)`, `import_csv.py --db`) still wins and
+may be a SQLite path — tests rely on this. The engine is lazy
+(`api/database.py:get_engine`) so importing the module doesn't require the
+variable. `postgres://`/`postgresql://` URLs are rewritten to
+`postgresql+psycopg://`. Tests never read the real `.env.local`:
+`tests/conftest.py` blanks `ARQUIVOS_ENV` and unsets `DATABASE_URL`. See
+`docs/neon-setup.md`; `.neon`, `.env*` (except `.env.example`) and
+`node_modules/` are git-ignored and must stay that way.
+
+History tables live in the same metadata: `jobs` (ORM `JobRecord` — identity and
+lifecycle only, unique `(source, external_id)`) and `job_snapshots` (ORM
+`JobSnapshot` — per-collection observed state, unique `(job_id, collected_at)`,
+FK `RESTRICT` so history can't be deleted silently), plus
+`job_snapshot_tecnologias`. The ORM name `JobRecord` exists to avoid clashing
+with the scraper dataclass `scraper.models.Job`. The pipeline writes them
+through `persistence/`; the API still reads `vagas`. Every model change needs an Alembic
+migration: `tests/api/test_migrations.py` runs `alembic check`. See
+`docs/data-model.md`.
+
+### Persistence (`persistence/`)
+
+SQL lives only here, never in sources or the pipeline; the pipeline imports it
+lazily, so `--no-db` works without SQLAlchemy. `repositorio.persistir_vagas`:
+- upserts `jobs` by `(source, external_id)` with dialect `INSERT ... ON CONFLICT`
+  (postgresql/sqlite) — the DB constraint, not in-memory dedupe, guarantees
+  integrity. `last_seen_at` never moves back, `first_seen_at` never forward,
+  seen jobs get `is_active=true`; the upsert never deactivates (it clears `missing_since`
+  and reopens closed jobs). `encerrar_ausentes` closes jobs
+  (`is_active=false`, `closed_at`) missing from the raw listing in two
+  consecutive trusted runs on different UTC days (full scope, source `ok` with
+  ≥1 listed job); the first absence only sets `missing_since`. Nothing is
+  deleted.
+- writes a snapshot only if `content_hash` differs from the previous snapshot
+  and there's none for this job at this `collected_at`. The hash
+  (`assinatura.py`, v1, pinned by `tests/test_assinatura.py`) covers exactly the
+  stored snapshot fields + sorted tecnologias; not `url`/`search_term`. Changing
+  it means bumping `VERSAO`, which re-snapshots every job.
+- one transaction per source + SAVEPOINT per job: data errors
+  (`IntegrityError`/`DataError`/`ValueError`) undo only that job and count as
+  failures; any other DB error undoes the whole source. Committed sources are
+  never affected. `make_engine` applies the pysqlite SAVEPOINT workaround for SQLite.
+- returns `ResumoPersistencia` (created/updated jobs, snapshots created/skipped,
+  failures, per source); `main.py` prints it and exits 1 on failures, 2 on
+  `ConfiguracaoError`.
+
+Import (`scripts/import_csv.py`) is the **legacy** flow: it only feeds `vagas`
+for the current API. It's idempotent — identity is `(source, external_id)`.
+`skills` (a CSV string column) is normalized into a `tecnologias` table +
+many-to-many association on import (`semear_tecnologias` lives in
+`persistence/repositorio.py`, hence `COPY persistence/` in the Dockerfile).
+
+Deploy (`render.yaml`, Render free tier): the API reads the Neon branch
+`dados-main`; `DATABASE_URL` is declared with `sync: false` (value only in the
+Render dashboard) and `startCommand` is just `uvicorn` — no seed import and never
+`--recriar` on boot (the DB persists; importing on every free-tier wake would take
+minutes). `seed/vagas.csv` was imported once into `dados-main` and is re-imported
+by hand when it changes (`docs/neon-setup.md`). `tests/test_render_yaml.py` pins
+this. Neon branches: `production` untouched, `feature-data-platform` for local
+dev, `dados-main` for main/Render/Actions. Build uses `requirements-api.txt` (no
+matplotlib — the API's import graph never touches `scraper/charts.py`).
+`external_id` is `VARCHAR(100)` (GeekHunter ids are 64-char hashes; ids are never
+truncated). Rollback: `docs/rollback-merge.md`.
+
+### Tests
+
+`tests/` needs no network — sources are tested against real captured responses
+fixtures (mainly in `test_sources.py`). `tests/api/` is a separate subtree
+guarded by `pytest.importorskip("fastapi")` so `pytest tests/` still works for
+someone who only installed the scraper deps. API tests use an in-memory SQLite
+(`StaticPool` to keep one connection alive) with `app.dependency_overrides[get_db]`,
+never the real `data/vagas.db`. Persistence tests use the `banco_historico`
+fixture (`tests/api/conftest.py`): a temp SQLite file built by `alembic upgrade
+head`, so they test the migration schema. The pipeline integration test
+(`tests/api/test_pipeline_persistencia.py`) monkeypatches `pipeline.collect`
+instead of hitting the network.
+
+### GitHub Actions (`.github/workflows/`)
+
+`ci.yml` runs `python -m pytest -q` on push/PR (Python 3.11 + 3.13) with no
+secrets. `collect.yml` has a daily `schedule` (09:00 UTC, only wakes it up) plus
+`workflow_dispatch`: scheduled runs pass `--trigger schedule --respect-interval`
+with `COLLECTION_INTERVAL_DAYS` from `vars` (a Repository Variable); manual runs
+force the collection unless `respeitar_intervalo=true`. It runs
+`python main.py ... --resumo coleta/resumo.md` with `DATABASE_URL` from Secrets,
+never runs migrations or `-v`, and on failure uploads only the log passed through
+`scripts/sanitizar_log.py`. `tests/test_workflows.py` pins these rules. See
+`docs/automation.md`.

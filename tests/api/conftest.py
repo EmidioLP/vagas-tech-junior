@@ -89,8 +89,13 @@ def seed(db_session):
 
 
 @pytest.fixture
-def client(seed):
-    """TestClient com o banco de teste injetado no lugar do banco real."""
+def client(seed, monkeypatch):
+    """TestClient com o banco de teste injetado no lugar do banco real.
+
+    O lifespan chama `init_db`, que exige DATABASE_URL; aqui as tabelas ja
+    existem no banco em memoria do `seed`.
+    """
+    monkeypatch.setattr("api.app.init_db", lambda: None)
     app.dependency_overrides[get_db] = lambda: seed
     with TestClient(app) as test_client:
         yield test_client

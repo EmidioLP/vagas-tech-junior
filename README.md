@@ -417,10 +417,34 @@ pip install -r requirements.txt
 
 ## Como rodar
 
-Coleta completa (Gupy + Vagas.com, 13 termos de busca):
+A coleta grava direto no banco, que é a fonte de verdade. Antes da primeira vez,
+configure a `DATABASE_URL` (veja [Banco](#banco)) e aplique as migrations:
+
+```bash
+alembic upgrade head
+```
+
+Coleta completa (7 portais, 13 termos de busca):
 
 ```bash
 python main.py
+```
+
+O banco é validado **antes** de coletar: sem `DATABASE_URL`, sem conexão ou com
+o schema desatualizado, o comando para na hora com uma mensagem clara. Rodar de
+novo é seguro, porque a gravação é idempotente e não duplica vagas nem histórico
+(detalhes em [docs/data-model.md](docs/data-model.md#persistência)).
+
+Para também gerar CSVs, relatório e gráficos:
+
+```bash
+python main.py --csv
+```
+
+Só arquivos, sem banco:
+
+```bash
+python main.py --no-db --csv
 ```
 
 Outros exemplos:
@@ -450,12 +474,24 @@ python main.py --strict --delay 3
 | `--strict` | Descarta títulos mistos como "Desenvolvedor Júnior/Pleno" |
 | `--all-levels` | Não filtra por senioridade |
 | `--keep-non-tech` | Mantém vagas fora de tecnologia que a busca solta devolve |
-| `--no-charts` | Não gera os gráficos PNG |
+| `--csv` | Também exporta CSVs, relatório e gráficos em `--output` |
+| `--no-db` | Não grava no banco (exige `--csv`) |
+| `--db DESTINO` | Outro banco: URL ou arquivo SQLite (vence a `DATABASE_URL`) |
+| `--no-charts` | Com `--csv`, não gera os gráficos PNG |
 | `-v` | Log detalhado |
+
+No fim, o comando mostra o resumo da gravação: vagas criadas e atualizadas,
+snapshots criados e ignorados (sem mudança) e falhas. Com alguma falha, sai com
+código 1.
 
 ## Saídas
 
-Gravadas em `output/` (ignorado pelo git), com timestamp no nome:
+**Banco:** `jobs` guarda a identidade e o ciclo de vida de cada vaga, e
+`job_snapshots` o estado observado. Um snapshot novo só é gravado quando a vaga
+muda. Veja [docs/data-model.md](docs/data-model.md).
+
+**Arquivos**, só com `--csv`, gravados em `output/` (ignorado pelo git) com
+timestamp no nome:
 
 - `vagas_<timestamp>.csv` — todas as vagas classificadas, uma por linha, com
   área, senioridade, empresa, local, URL, tecnologias citadas (coluna `skills`)
@@ -485,7 +521,8 @@ pipeline: as vagas continuam entrando pelo scraper, e a API só as expõe por HT
 **No ar em [vagas-tech-junior-api.onrender.com/docs](https://vagas-tech-junior-api.onrender.com/docs)**
 (primeiro acesso pode levar ~1 min — o plano gratuito hiberna).
 
-Para rodar na sua máquina:
+Para rodar na sua máquina, configure antes a `DATABASE_URL` (veja [Banco](#banco)
+e [docs/neon-setup.md](docs/neon-setup.md)):
 
 ```bash
 pip install -r requirements.txt
@@ -561,19 +598,21 @@ docker compose exec db psql -U vagas -d vagas -c "SELECT area, COUNT(*) FROM vag
 
 ### Banco
 
-O projeto roda em **SQLite ou PostgreSQL** — a escolha é só de configuração,
-nenhuma linha de código muda entre os dois. A precedência é:
+O banco é configurado por **uma única variável, `DATABASE_URL`**, que aponta
+para um PostgreSQL — o destino é o [Neon](docs/neon-setup.md). Ela é procurada
+nesta ordem:
 
-1. o destino passado no argumento (usado pelo importador e pelos testes);
-2. `DATABASE_URL` — é o que o `docker-compose` define;
-3. `VAGAS_DB` — caminho de arquivo SQLite;
-4. o padrão: `data/vagas.db`.
+1. variável já definida no ambiente — é o que o `docker-compose` define;
+2. `.env.local`, gerado por `neon env pull --service postgres`;
+3. `.env`, legado.
 
-**Sem nenhuma variável definida, o comportamento é o de sempre: SQLite.** É o
-que o deploy no Render continua usando, e o que roda ao chamar
-`uvicorn api.app:app` direto.
+**Sem `DATABASE_URL`, a API e o importador falham na inicialização**, com
+mensagem clara, em vez de cair num banco padrão. Nenhum desses arquivos é
+versionado; o `.env.example` mostra o formato com valores fictícios. O passo a
+passo do Neon está em [docs/neon-setup.md](docs/neon-setup.md).
 
-O importador aceita os dois destinos:
+O importador ainda aceita um destino explícito, que vence a variável — inclusive
+um arquivo SQLite, útil para testar a importação:
 
 ```bash
 python scripts/import_csv.py --db postgresql://vagas:vagas@localhost:5432/vagas
@@ -583,7 +622,8 @@ URLs com o prefixo histórico `postgres://` (que Render e Heroku ainda entregam,
 e que o SQLAlchemy recusa) são convertidas automaticamente. A senha nunca
 aparece nos logs.
 
-SQLite em `data/vagas.db` (ignorado pelo git — é reconstruível a partir do CSV).
+Um SQLite local via `--db data/vagas.db` fica ignorado pelo git — é reconstruível
+a partir do CSV.
 `scripts/import_csv.py` pega o CSV mais recente de `output/`, ou um específico
 com `--csv`; `--recriar` zera as tabelas antes.
 
@@ -624,15 +664,15 @@ python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
 `render.yaml` sobe a API no [Render](https://render.com) — basta apontar o
 serviço para o repositório.
 
-O disco do plano free é efêmero, então **o banco não é persistido**: ele é
-reconstruído do snapshot em `seed/vagas.csv` toda vez que o serviço sobe (597
-linhas, ~1s). O build usa `requirements-api.txt`, sem matplotlib, que a API
-nunca importa.
+O banco é o **Neon** (branch `dados-main`). A `DATABASE_URL` fica só no painel do
+Render; o `render.yaml` declara a variável sem valor. O boot só sobe a API: a
+tabela que ela lê foi importada uma vez de `seed/vagas.csv` e persiste no banco.
+O build usa `requirements-api.txt`, sem matplotlib, que a API nunca importa.
 
-O scraper **não roda no servidor**, de propósito: portais de vaga costumam
-bloquear IP de nuvem. O deploy serve um snapshot datado. Para atualizar, rode
-a coleta na sua máquina e faça commit de um novo `seed/vagas.csv`, ajustando
-`--referencia` no `render.yaml`.
+O scraper **não roda no servidor da API**, de propósito: portais de vaga
+costumam bloquear IP de nuvem. A coleta automática roda no GitHub Actions
+(`docs/automation.md`). Branches Neon, variáveis e como reimportar o seed:
+`docs/neon-setup.md`.
 
 No plano free o serviço hiberna após 15 minutos parado, e o primeiro acesso
 depois disso leva ~50s para responder.
@@ -820,11 +860,14 @@ vagas-tech-junior/
 │   ├── dates.py             # normalização das datas para DATE
 │   ├── vocabulary.py        # áreas e tecnologias, lidas dos YAMLs
 │   └── routers/
+├── persistence/             # gravação no histórico (jobs + job_snapshots)
+│   ├── repositorio.py       # upsert idempotente, transações, resumo
+│   └── assinatura.py        # hash que decide se há snapshot novo
 ├── Dockerfile               # imagem da API
 ├── docker-compose.yml       # API + PostgreSQL
 ├── scripts/
-│   └── import_csv.py        # CSV → banco, idempotente
-└── tests/                   # 263 testes, sem rede
+│   └── import_csv.py        # CSV → tabela vagas (fluxo legado da API)
+└── tests/                   # testes sem rede
     └── api/                 # testes da API (pulados sem FastAPI)
 ```
 
@@ -843,8 +886,9 @@ classificação, dedupe e exportação.
 python -m pytest -q
 ```
 
-São 263 testes e nenhum acessa a rede: os parsers são testados contra respostas
-reais capturadas dos portais e fixadas em `tests/test_sources.py`.
+Nenhum teste acessa a rede. Os parsers são testados contra respostas reais
+capturadas dos portais e fixadas em `tests/test_sources.py`. A persistência roda
+contra um SQLite temporário criado pelas migrations.
 
 ---
 
