@@ -180,11 +180,20 @@ def test_falha_no_meio_da_vaga_desfaz_a_vaga_inteira(engine, monkeypatch):
 
 def test_dado_invalido_conta_falha_sem_derrubar_o_lote(engine):
     resumo = persistir_vagas(
-        [_vaga(external_id="x" * 41), _vaga(title="  "), _vaga()], engine, COLETA_1
+        [_vaga(external_id="x" * 101), _vaga(title="  "), _vaga()], engine, COLETA_1
     )
 
     assert _contagens(resumo) == (1, 0, 1, 0, 2)
     assert _contar(engine, JobRecord) == 1
+
+
+def test_id_longo_da_geekhunter_e_gravado_sem_corte(engine):
+    """O portal publica o `identifier` do JobPosting como hash de 64 caracteres."""
+    externo = "5f6eab294e8177773f3676900be149658eba55631166f6626e88192b3aadf4b7"
+    resumo = persistir_vagas([_vaga(source="geekhunter", external_id=externo)], engine, COLETA_1)
+
+    assert _contagens(resumo) == (1, 0, 1, 0, 0)
+    assert _job(engine, source="geekhunter", external_id=externo) is not None
 
 
 def test_falha_de_uma_fonte_nao_desfaz_fontes_ja_confirmadas(engine, monkeypatch):

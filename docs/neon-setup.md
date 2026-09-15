@@ -121,11 +121,45 @@ disparar a coleta e o que cada workflow faz: `docs/automation.md`.
 | `.env.example` | valores fictícios | versionado |
 | `neon.ts` | configuração declarativa, sem segredo | versionado |
 
-## Deploy no Render: atenção
+## Branches Neon e onde fica cada URL
 
-O `render.yaml` ainda não define `DATABASE_URL`. Quando esta branch chegar à
-`main`, o serviço deixa de subir até a variável ser configurada, e isso fica para
-a etapa 15.
+| Branch Neon | Para quê | Quem usa | Onde a `DATABASE_URL` fica |
+|---|---|---|---|
+| `production` | ponto de partida do projeto; **nada é aplicado nela** | ninguém | — |
+| `feature-data-platform` | desenvolvimento e testes manuais | máquina local | `.env.local` (`neon env pull`) |
+| `dados-main` | dados reais da `main` | API no Render e coleta no GitHub Actions | painel do Render e GitHub Secret `DATABASE_URL` (URL **pooled** nos dois) |
 
-**Não aponte o Render para o Neon com o `startCommand` atual:** ele roda
-`import_csv.py --recriar`, que faz `drop_all` a cada boot.
+- **Migrations na `dados-main`** rodam da máquina local, com a URL **direta**
+  carregada só no ambiente do comando, como em `docs/migrations.md`
+  ("Testar numa branch Neon temporária"):
+
+  ```powershell
+  neon env pull --branch dados-main --service postgres --file <fora-do-repo>/dados-main.env
+  # carregue DATABASE_URL_UNPOOLED desse arquivo só no ambiente do comando
+  alembic upgrade head
+  ```
+
+  Aplique sempre **antes** do merge que traz a migration: a coleta e a API param
+  com "schema atual" se o banco estiver atrasado.
+- **Reimportar o seed.** A tabela legada `vagas`, que a API lê, foi importada uma
+  vez de `seed/vagas.csv`. O Render não importa nada no boot. Se o seed mudar,
+  carregue a `DATABASE_URL` da `dados-main` só no ambiente do comando e rode:
+
+  ```powershell
+  python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
+  ```
+
+  Sem `--recriar`, a importação só cria o que falta e atualiza as vagas
+  existentes. **Nunca use `--recriar` na `dados-main`.**
+- **Variável no Render.** Pegue a URL pooled no seu terminal com
+  `neon connection-string dados-main --pooled` e cadastre em *Render →
+  vagas-tech-junior-api → Environment*. O `render.yaml` só declara a variável
+  (`sync: false`), sem valor.
+
+  Na primeira vez, cadastrada antes do merge, o Render redeploya o código antigo
+  da `main`, que lê `DATABASE_URL` e roda `import_csv.py --recriar`. Esse deploy
+  **falha** com `InternalError` sem apagar nada: o PostgreSQL recusa derrubar
+  `tecnologias`, que o histórico referencia, e desfaz a transação. O Render mantém
+  o deploy anterior no ar. Faça o merge logo depois.
+
+Rollback do merge e do deploy: `docs/rollback-merge.md`.

@@ -130,7 +130,8 @@ Use uma branch Neon própria para a automação, nunca a `production`
 versionado:
 
 - **Interface web:** *Settings → Secrets and variables → Actions → New repository
-  secret*. Nome `DATABASE_URL`; cole a URL **pooled** da branch Neon.
+  secret*. Nome `DATABASE_URL`; cole a URL **pooled** da branch Neon `dados-main`,
+  a branch de dados reais da `main` (veja `docs/neon-setup.md`).
 - **GitHub CLI:** `gh secret set DATABASE_URL`, **sem** `--body`. O `gh` pede o
   valor interativamente, e a URL não fica no histórico do shell.
 
@@ -298,6 +299,26 @@ retenção de 7 dias:
 
 O log bruto **nunca** sobe. O GitHub mascara o valor exato dos secrets no log do
 job, mas não em artefatos, e não mascara pedaços da URL, como o host.
+
+### 7. Primeiro merge na `main`
+
+Antes do merge, a `dados-main` precisa estar com `alembic upgrade head` e com o
+seed importado, e a `DATABASE_URL` cadastrada no Render e no Secret. Depois do
+merge, verifique nesta ordem:
+
+1. **API:** o Render faz o deploy da `main`. `/health` responde `200`, e `/areas`
+   e `/vagas?limit=1` respondem com dados.
+2. **Portais contra o IP do GitHub, sem tocar no banco:**
+   `gh workflow run collect.yml --ref main -f modo=sem-banco -f fontes="gupy" -f max_paginas=1`
+3. **Coleta completa com banco**, forçada:
+   `gh workflow run collect.yml --ref main`. O *Summary* mostra status, fontes e
+   "Última coleta: dia … e próxima: dia …".
+4. **Registro:** `collection_runs` na `dados-main` tem a execução. Conte só
+   números e datas.
+5. **Agendamento:** `gh workflow view collect.yml` mostra o workflow habilitado.
+   A próxima execução é às 09:00 UTC, e a guarda pula até completar 2 dias.
+
+Se algo der errado: `docs/rollback-merge.md`.
 
 ## Segurança
 

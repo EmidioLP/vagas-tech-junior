@@ -664,15 +664,15 @@ python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
 `render.yaml` sobe a API no [Render](https://render.com) — basta apontar o
 serviço para o repositório.
 
-O disco do plano free é efêmero, então **o banco não é persistido**: ele é
-reconstruído do snapshot em `seed/vagas.csv` toda vez que o serviço sobe (597
-linhas, ~1s). O build usa `requirements-api.txt`, sem matplotlib, que a API
-nunca importa.
+O banco é o **Neon** (branch `dados-main`). A `DATABASE_URL` fica só no painel do
+Render; o `render.yaml` declara a variável sem valor. O boot só sobe a API: a
+tabela que ela lê foi importada uma vez de `seed/vagas.csv` e persiste no banco.
+O build usa `requirements-api.txt`, sem matplotlib, que a API nunca importa.
 
-O scraper **não roda no servidor**, de propósito: portais de vaga costumam
-bloquear IP de nuvem. O deploy serve um snapshot datado. Para atualizar, rode
-a coleta na sua máquina e faça commit de um novo `seed/vagas.csv`, ajustando
-`--referencia` no `render.yaml`.
+O scraper **não roda no servidor da API**, de propósito: portais de vaga
+costumam bloquear IP de nuvem. A coleta automática roda no GitHub Actions
+(`docs/automation.md`). Branches Neon, variáveis e como reimportar o seed:
+`docs/neon-setup.md`.
 
 No plano free o serviço hiberna após 15 minutos parado, e o primeiro acesso
 depois disso leva ~50s para responder.

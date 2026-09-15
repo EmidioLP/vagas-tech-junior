@@ -74,7 +74,8 @@ class Vaga(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     source: Mapped[str] = mapped_column(String(20), nullable=False)
-    external_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    # 100: a GeekHunter publica o id como hash de 64 caracteres, e identidade nunca e cortada.
+    external_id: Mapped[str] = mapped_column(String(100), nullable=False)
 
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     company: Mapped[str | None] = mapped_column(String(200))
@@ -137,7 +138,8 @@ class JobRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source: Mapped[str] = mapped_column(String(20), nullable=False)
-    external_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    # 100: a GeekHunter publica o id como hash de 64 caracteres, e identidade nunca e cortada.
+    external_id: Mapped[str] = mapped_column(String(100), nullable=False)
     url: Mapped[str | None] = mapped_column(Text)
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

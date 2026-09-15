@@ -234,12 +234,17 @@ for the current API. It's idempotent — identity is `(source, external_id)`.
 many-to-many association on import (`semear_tecnologias` lives in
 `persistence/repositorio.py`, hence `COPY persistence/` in the Dockerfile).
 
-Deploy (`render.yaml`, Render free tier): the scraper never runs on the server
-(cloud IPs get blocked by job portals); the DB is rebuilt from the committed
-`seed/vagas.csv` snapshot on every boot since the disk is ephemeral. Build uses
-`requirements-api.txt` (no matplotlib — the API's import graph never touches
-`scraper/charts.py`). To publish new data: run the scraper locally with `--csv`,
-commit an updated `seed/vagas.csv`, and update `--referencia` in `render.yaml`.
+Deploy (`render.yaml`, Render free tier): the API reads the Neon branch
+`dados-main`; `DATABASE_URL` is declared with `sync: false` (value only in the
+Render dashboard) and `startCommand` is just `uvicorn` — no seed import and never
+`--recriar` on boot (the DB persists; importing on every free-tier wake would take
+minutes). `seed/vagas.csv` was imported once into `dados-main` and is re-imported
+by hand when it changes (`docs/neon-setup.md`). `tests/test_render_yaml.py` pins
+this. Neon branches: `production` untouched, `feature-data-platform` for local
+dev, `dados-main` for main/Render/Actions. Build uses `requirements-api.txt` (no
+matplotlib — the API's import graph never touches `scraper/charts.py`).
+`external_id` is `VARCHAR(100)` (GeekHunter ids are 64-char hashes; ids are never
+truncated). Rollback: `docs/rollback-merge.md`.
 
 ### Tests
 

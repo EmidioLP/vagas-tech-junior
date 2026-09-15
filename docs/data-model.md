@@ -100,7 +100,7 @@ vaga em memória durante a coleta.
 |---|---|---|
 | `id` | inteiro | PK |
 | `source` | `varchar(20)` | obrigatório; portal (`gupy`, `linkedin`, …) |
-| `external_id` | `varchar(40)` | obrigatório; id da vaga no portal |
+| `external_id` | `varchar(100)` | obrigatório; id da vaga no portal. 100 porque a GeekHunter publica o id como hash de 64 caracteres; um id nunca é cortado (o mesmo tamanho vale para `vagas.external_id`) |
 | `url` | `text` | opcional |
 | `first_seen_at` | `timestamptz` | obrigatório; primeira coleta que viu a vaga |
 | `last_seen_at` | `timestamptz` | obrigatório; última coleta que viu a vaga |

@@ -92,6 +92,9 @@ def test_migrations_sobem_conferem_e_descem(tmp_path):
         colunas = {c["name"]: c for c in inspetor.get_columns("job_snapshots")}
         assert colunas["content_hash"]["nullable"] is False
         assert colunas["content_hash"]["default"] is None
+        for tabela in ("jobs", "vagas"):
+            externo = {c["name"]: c for c in inspetor.get_columns(tabela)}["external_id"]
+            assert externo["type"].length == 100, tabela
 
         command.check(cfg)  # modelos e migrations sem diferenca
 
