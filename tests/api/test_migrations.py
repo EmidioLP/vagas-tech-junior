@@ -1,4 +1,4 @@
-"""Alembic: configuracao sem segredo, metadata descoberta e baseline reversivel."""
+"""Alembic: configuracao sem segredo, metadata descoberta e migrations reversiveis."""
 
 from __future__ import annotations
 
@@ -19,7 +19,9 @@ from api.database import Base  # noqa: E402
 from scraper.config import PROJECT_ROOT, ConfiguracaoError  # noqa: E402
 
 INI = PROJECT_ROOT / "alembic.ini"
-TABELAS = {"vagas", "tecnologias", "vaga_tecnologia"}
+BASELINE = {"vagas", "tecnologias", "vaga_tecnologia"}
+HISTORICO = {"jobs", "job_snapshots", "job_snapshot_tecnologias"}
+TABELAS = BASELINE | HISTORICO
 
 
 def _config(url: str | None = None, saida: io.StringIO | None = None) -> Config:
@@ -66,7 +68,7 @@ def test_url_vem_da_configuracao_central(monkeypatch):
     assert "senha-ficticia" not in sql
 
 
-def test_baseline_sobe_confere_e_desce(tmp_path):
+def test_migrations_sobem_conferem_e_descem(tmp_path):
     url = _sqlite(tmp_path)
     cfg = _config(url)
     engine = create_engine(url)
@@ -89,6 +91,18 @@ def test_baseline_sobe_confere_e_desce(tmp_path):
 
         command.downgrade(cfg, "base")
         assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_do_historico_preserva_a_baseline(tmp_path):
+    url = _sqlite(tmp_path, "historico.db")
+    cfg = _config(url)
+    engine = create_engine(url)
+    try:
+        command.upgrade(cfg, "head")
+        command.downgrade(cfg, "-1")
+        assert set(inspect(engine).get_table_names()) == BASELINE | {"alembic_version"}
     finally:
         engine.dispose()
 

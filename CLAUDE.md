@@ -145,6 +145,16 @@ variable. `postgres://`/`postgresql://` URLs are rewritten to
 `docs/neon-setup.md`; `.neon`, `.env*` (except `.env.example`) and
 `node_modules/` are git-ignored and must stay that way.
 
+History tables live in the same metadata: `jobs` (ORM `JobRecord` — identity and
+lifecycle only, unique `(source, external_id)`) and `job_snapshots` (ORM
+`JobSnapshot` — per-collection observed state, unique `(job_id, collected_at)`,
+FK `RESTRICT` so history can't be deleted silently), plus
+`job_snapshot_tecnologias`. The ORM name `JobRecord` exists to avoid clashing
+with the scraper dataclass `scraper.models.Job`. The pipeline doesn't write to
+them yet; the API still reads `vagas`. Every model change needs an Alembic
+migration: `tests/api/test_migrations.py` runs `alembic check`. See
+`docs/data-model.md`.
+
 Import (`scripts/import_csv.py`) is idempotent — job identity is `(source,
 external_id)`, so re-running updates rather than duplicates. `skills` (a CSV
 string column) is normalized into a `tecnologias` table + many-to-many
