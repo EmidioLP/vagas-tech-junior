@@ -1,0 +1,16 @@
+# Dependencias so do dashboard (dashboard/app.py), pensando no deploy da etapa 15.
+#
+# O dashboard importa `api.database`, `api.models` e `scraper.config`, que so
+# precisam de SQLAlchemy e python-dotenv -- nao de FastAPI, requests nem bs4
+# (verificado em tests/dashboard/test_consultas.py).
+#
+# Para desenvolver localmente use `requirements.txt`, que tem tudo.
+
+streamlit>=1.40,<2
+SQLAlchemy>=2.0,<3
+
+# Driver do PostgreSQL (Neon).
+psycopg[binary]>=3.1
+
+# `scraper.config` le DATABASE_URL do .env.local/.env quando nao esta no ambiente.
+python-dotenv>=1.0,<2

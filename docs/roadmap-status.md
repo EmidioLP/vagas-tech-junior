@@ -10,7 +10,7 @@ Etapas definidas em `.llm/prompts/`. Todas acontecem na branch
 - [x] 04 — Persistência direta e idempotência
 - [x] 05 — GitHub Actions para CI e coleta manual
 - [x] 06 — Intervalo configurável e resiliência por fonte
-- [ ] 07 — Dashboard Streamlit base
+- [x] 07 — Dashboard Streamlit base
 - [ ] 08 — Analytics e histórico no dashboard
 - [ ] 09 — Camadas Bronze, Silver e Gold
 - [ ] 10 — dbt para transformações

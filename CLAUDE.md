@@ -39,6 +39,10 @@ python -m pytest tests/test_classifier.py -q          # single file
 python -m pytest tests/test_classifier.py::test_name  # single test
 python -m pytest tests/api -q                          # API tests only (auto-skipped if fastapi isn't installed)
 
+# Dashboard (read-only Streamlit over jobs/collection_runs; DATABASE_URL, or DASHBOARD_DB to override)
+streamlit run dashboard/app.py
+python -m pytest tests/dashboard -q
+
 # API (read-only REST over the collected data)
 pip install -r requirements.txt
 python scripts/import_csv.py            # CSV (newest in output/) -> DATABASE_URL (required) or --db
@@ -150,6 +154,20 @@ Two documented traps when editing `areas.yml`: don't use bare `data` for the
 Data area (matches "data de admissão" in Portuguese), and don't use bare
 `seguranca` for Segurança (matches "normas de segurança" boilerplate in almost
 any support job listing — inflated that area 4x -> 45 in an early run).
+
+### Dashboard (`dashboard/`)
+
+Read-only Streamlit app; it never collects, transforms or writes. All DB access
+goes through `dashboard/consultas.py` (pure functions taking an engine; SQLAlchemy
+errors become `DadosIndisponiveis` carrying only the error type). `config.py`
+builds a read-only engine (`postgresql_readonly` per transaction, which works
+behind Neon's pooler; `PRAGMA query_only` on SQLite) from `DATABASE_URL`, or
+`DASHBOARD_DB` if set. "Last collection" uses the interval guard's rule (full
+scope, `success`/`partial`), "active jobs" is `jobs.is_active`. `app.py` caches
+the engine (`st.cache_resource`) and the summary (`st.cache_data`, 10 min TTL);
+Tecnologias/Histórico/Vagas pages are explicit "em construção" placeholders. The
+data layer must not import FastAPI, requests or bs4 (`requirements-dashboard.txt`
+omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`.
 
 ### API (`api/`)
 
