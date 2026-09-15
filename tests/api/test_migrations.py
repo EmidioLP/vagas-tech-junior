@@ -12,7 +12,7 @@ pytest.importorskip("alembic", reason="Alembic não instalado; testes de migrati
 
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
-from sqlalchemy import create_engine, inspect  # noqa: E402
+from sqlalchemy import create_engine, inspect, text  # noqa: E402
 
 import api.models  # noqa: E402,F401  -- registra as tabelas em Base.metadata
 from api.database import Base  # noqa: E402
@@ -22,6 +22,8 @@ INI = PROJECT_ROOT / "alembic.ini"
 BASELINE = {"vagas", "tecnologias", "vaga_tecnologia"}
 HISTORICO = {"jobs", "job_snapshots", "job_snapshot_tecnologias"}
 TABELAS = BASELINE | HISTORICO
+BASELINE_REVISION = "8426f7230fd1"
+HISTORICO_REVISION = "d8ef8fde92b5"
 
 
 def _config(url: str | None = None, saida: io.StringIO | None = None) -> Config:
@@ -86,6 +88,9 @@ def test_migrations_sobem_conferem_e_descem(tmp_path):
         fks = inspetor.get_foreign_keys("vaga_tecnologia")
         assert {fk["referred_table"] for fk in fks} == {"vagas", "tecnologias"}
         assert all(fk["options"].get("ondelete") == "CASCADE" for fk in fks)
+        colunas = {c["name"]: c for c in inspetor.get_columns("job_snapshots")}
+        assert colunas["content_hash"]["nullable"] is False
+        assert colunas["content_hash"]["default"] is None
 
         command.check(cfg)  # modelos e migrations sem diferenca
 
@@ -101,8 +106,37 @@ def test_downgrade_do_historico_preserva_a_baseline(tmp_path):
     engine = create_engine(url)
     try:
         command.upgrade(cfg, "head")
-        command.downgrade(cfg, "-1")
+        command.downgrade(cfg, BASELINE_REVISION)
         assert set(inspect(engine).get_table_names()) == BASELINE | {"alembic_version"}
+    finally:
+        engine.dispose()
+
+
+def test_content_hash_aceita_snapshots_ja_gravados(tmp_path):
+    """Linhas anteriores a coluna recebem hash vazio, que nunca casa com um hash real."""
+    url = _sqlite(tmp_path, "com_linhas.db")
+    cfg = _config(url)
+    engine = create_engine(url)
+    try:
+        command.upgrade(cfg, HISTORICO_REVISION)
+        with engine.begin() as conexao:
+            conexao.execute(text(
+                "INSERT INTO jobs (id, source, external_id, first_seen_at, last_seen_at) "
+                "VALUES (1, 'gupy', '1', '2026-09-01 12:00:00', '2026-09-01 12:00:00')"
+            ))
+            conexao.execute(text(
+                "INSERT INTO job_snapshots (job_id, collected_at, title) "
+                "VALUES (1, '2026-09-01 12:00:00', 'Dev Jr')"
+            ))
+
+        command.upgrade(cfg, "head")
+        with engine.connect() as conexao:
+            assert conexao.execute(text("SELECT content_hash FROM job_snapshots")).scalar() == ""
+
+        command.downgrade(cfg, HISTORICO_REVISION)
+        assert "content_hash" not in {
+            c["name"] for c in inspect(engine).get_columns("job_snapshots")
+        }
     finally:
         engine.dispose()
 

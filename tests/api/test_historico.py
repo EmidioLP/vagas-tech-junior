@@ -65,7 +65,7 @@ def _job(**extra) -> JobRecord:
 def _snapshot(job: JobRecord, collected_at=COLETA_1, **extra) -> JobSnapshot:
     dados = dict(
         job=job, collected_at=collected_at, title="Desenvolvedor Python Júnior",
-        company="ACME", area="Backend", workplace_type="Remoto",
+        company="ACME", area="Backend", workplace_type="Remoto", content_hash="0" * 64,
     )
     dados.update(extra)
     return JobSnapshot(**dados)

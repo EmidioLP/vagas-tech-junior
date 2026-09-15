@@ -417,10 +417,34 @@ pip install -r requirements.txt
 
 ## Como rodar
 
-Coleta completa (Gupy + Vagas.com, 13 termos de busca):
+A coleta grava direto no banco, que é a fonte de verdade. Antes da primeira vez,
+configure a `DATABASE_URL` (veja [Banco](#banco)) e aplique as migrations:
+
+```bash
+alembic upgrade head
+```
+
+Coleta completa (7 portais, 13 termos de busca):
 
 ```bash
 python main.py
+```
+
+O banco é validado **antes** de coletar: sem `DATABASE_URL`, sem conexão ou com
+o schema desatualizado, o comando para na hora com uma mensagem clara. Rodar de
+novo é seguro, porque a gravação é idempotente e não duplica vagas nem histórico
+(detalhes em [docs/data-model.md](docs/data-model.md#persistência)).
+
+Para também gerar CSVs, relatório e gráficos:
+
+```bash
+python main.py --csv
+```
+
+Só arquivos, sem banco:
+
+```bash
+python main.py --no-db --csv
 ```
 
 Outros exemplos:
@@ -450,12 +474,24 @@ python main.py --strict --delay 3
 | `--strict` | Descarta títulos mistos como "Desenvolvedor Júnior/Pleno" |
 | `--all-levels` | Não filtra por senioridade |
 | `--keep-non-tech` | Mantém vagas fora de tecnologia que a busca solta devolve |
-| `--no-charts` | Não gera os gráficos PNG |
+| `--csv` | Também exporta CSVs, relatório e gráficos em `--output` |
+| `--no-db` | Não grava no banco (exige `--csv`) |
+| `--db DESTINO` | Outro banco: URL ou arquivo SQLite (vence a `DATABASE_URL`) |
+| `--no-charts` | Com `--csv`, não gera os gráficos PNG |
 | `-v` | Log detalhado |
+
+No fim, o comando mostra o resumo da gravação: vagas criadas e atualizadas,
+snapshots criados e ignorados (sem mudança) e falhas. Com alguma falha, sai com
+código 1.
 
 ## Saídas
 
-Gravadas em `output/` (ignorado pelo git), com timestamp no nome:
+**Banco:** `jobs` guarda a identidade e o ciclo de vida de cada vaga, e
+`job_snapshots` o estado observado. Um snapshot novo só é gravado quando a vaga
+muda. Veja [docs/data-model.md](docs/data-model.md).
+
+**Arquivos**, só com `--csv`, gravados em `output/` (ignorado pelo git) com
+timestamp no nome:
 
 - `vagas_<timestamp>.csv` — todas as vagas classificadas, uma por linha, com
   área, senioridade, empresa, local, URL, tecnologias citadas (coluna `skills`)
@@ -824,11 +860,14 @@ vagas-tech-junior/
 │   ├── dates.py             # normalização das datas para DATE
 │   ├── vocabulary.py        # áreas e tecnologias, lidas dos YAMLs
 │   └── routers/
+├── persistence/             # gravação no histórico (jobs + job_snapshots)
+│   ├── repositorio.py       # upsert idempotente, transações, resumo
+│   └── assinatura.py        # hash que decide se há snapshot novo
 ├── Dockerfile               # imagem da API
 ├── docker-compose.yml       # API + PostgreSQL
 ├── scripts/
-│   └── import_csv.py        # CSV → banco, idempotente
-└── tests/                   # 263 testes, sem rede
+│   └── import_csv.py        # CSV → tabela vagas (fluxo legado da API)
+└── tests/                   # testes sem rede
     └── api/                 # testes da API (pulados sem FastAPI)
 ```
 
@@ -847,8 +886,9 @@ classificação, dedupe e exportação.
 python -m pytest -q
 ```
 
-São 263 testes e nenhum acessa a rede: os parsers são testados contra respostas
-reais capturadas dos portais e fixadas em `tests/test_sources.py`.
+Nenhum teste acessa a rede. Os parsers são testados contra respostas reais
+capturadas dos portais e fixadas em `tests/test_sources.py`. A persistência roda
+contra um SQLite temporário criado pelas migrations.
 
 ---
 

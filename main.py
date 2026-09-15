@@ -1,11 +1,16 @@
 """CLI do vagas-tech-junior.
 
 Exemplos:
-    python main.py                          # coleta completa (Gupy + Vagas.com)
+    python main.py                          # coleta completa, grava no banco
+    python main.py --csv                    # tambem exporta CSV, relatorio e graficos
+    python main.py --no-db --csv            # so arquivos, sem banco
+    python main.py --db data/teste.db       # outro banco (URL ou arquivo SQLite)
     python main.py --sources gupy           # so a Gupy
     python main.py --terms "estagio dados" "engenheiro de dados junior"
     python main.py --max-pages 2 --delay 2  # coleta menor e mais lenta
     python main.py --strict                 # descarta titulos "Junior/Pleno"
+
+O banco (DATABASE_URL, com `alembic upgrade head` aplicado) e a fonte de verdade.
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ import logging
 import sys
 from pathlib import Path
 
-from scraper.config import SEARCH_TERMS, Settings
+from scraper.config import SEARCH_TERMS, ConfiguracaoError, Settings
 from scraper.pipeline import run
 from scraper.sources import AVAILABLE_SOURCES
 
@@ -66,8 +71,22 @@ def build_parser() -> argparse.ArgumentParser:
              "solta dos portais devolve. Por padrao elas sao descartadas.",
     )
     parser.add_argument(
+        "--csv", action="store_true",
+        help="Exporta CSVs, relatorio .md e graficos em --output. Opcional: o "
+             "banco e a fonte de verdade.",
+    )
+    parser.add_argument(
+        "--no-db", action="store_true",
+        help="Nao grava no banco. Exige --csv, senao a execucao nao guardaria nada.",
+    )
+    parser.add_argument(
+        "--db", default=None, metavar="DESTINO",
+        help="Banco de destino: URL (postgresql://...) ou caminho de arquivo SQLite. "
+             "Padrao: DATABASE_URL.",
+    )
+    parser.add_argument(
         "--no-charts", action="store_true",
-        help="Nao gera os graficos PNG (util se matplotlib nao estiver instalado).",
+        help="Com --csv, nao gera os graficos PNG (util sem matplotlib).",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Log detalhado (DEBUG)."
@@ -76,7 +95,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.no_db and not args.csv:
+        parser.error("--no-db sem --csv não grava nada; use --csv junto.")
+    if args.no_db and args.db:
+        parser.error("--db e --no-db são incompatíveis.")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -96,12 +120,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         settings.output_dir = args.output
 
-    result = run(
-        settings,
-        strict_seniority=args.strict,
-        keep_non_tech=args.keep_non_tech,
-        with_charts=not args.no_charts,
-    )
+    try:
+        result = run(
+            settings,
+            strict_seniority=args.strict,
+            keep_non_tech=args.keep_non_tech,
+            with_charts=not args.no_charts,
+            persistir=not args.no_db,
+            destino_db=args.db,
+            exportar_csv=args.csv,
+        )
+    except ConfiguracaoError as exc:
+        # A mensagem nunca inclui a URL do banco.
+        print(f"\nErro de configuração: {exc}", file=sys.stderr)
+        return 2
 
     if not result.jobs:
         print("\nNenhuma vaga encontrada. Verifique conexao e termos de busca.")
@@ -117,9 +149,21 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 62)
     print(f"\n  Area com mais demanda junior: {result.top_area}")
 
-    print("\n  Arquivos gerados:")
-    for label, path in result.files.items():
-        print(f"    - {label:<12} {path}")
+    resumo = result.persistencia
+    if resumo is not None:
+        print("\n  Banco (jobs / job_snapshots):")
+        print(f"    Vagas criadas ........ {resumo.jobs_criados}")
+        print(f"    Vagas atualizadas .... {resumo.jobs_atualizados}")
+        print(f"    Snapshots criados .... {resumo.snapshots_criados}")
+        print(f"    Snapshots ignorados .. {resumo.snapshots_ignorados}")
+        print(f"    Falhas ............... {resumo.falhas}")
+        for erro in resumo.erros[:10]:
+            print(f"    ! {erro}")
+
+    if result.files:
+        print("\n  Arquivos gerados:")
+        for label, path in result.files.items():
+            print(f"    - {label:<12} {path}")
 
     errors = [e for s in result.stats for e in s.errors]
     if errors:
@@ -127,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
         for err in errors[:10]:
             print(f"    ! {err}")
 
-    return 0
+    return 1 if resumo is not None and resumo.falhas else 0
 
 
 if __name__ == "__main__":

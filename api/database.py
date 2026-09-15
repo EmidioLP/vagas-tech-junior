@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, Session
 
@@ -63,6 +63,23 @@ class Base(DeclarativeBase):
     pass
 
 
+def _sqlite_com_savepoint(engine: Engine) -> None:
+    """Deixa o SQLAlchemy controlar as transacoes do SQLite.
+
+    O driver pysqlite abre e fecha transacoes por conta propria, o que quebra
+    SAVEPOINT (`Session.begin_nested`), usado pela persistencia para desfazer
+    uma vaga sem desfazer a fonte inteira. Correcao documentada pelo SQLAlchemy.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _sem_transacao_do_driver(conexao, _registro):
+        conexao.isolation_level = None
+
+    @event.listens_for(engine, "begin")
+    def _begin_explicito(conexao):
+        conexao.exec_driver_sql("BEGIN")
+
+
 def make_engine(destino: str | Path | None = None):
     url = database_url(destino)
     opcoes: dict = {"future": True}
@@ -78,7 +95,10 @@ def make_engine(destino: str | Path | None = None):
         # pode ter morrido enquanto o container do Postgres reiniciava.
         opcoes["pool_pre_ping"] = True
 
-    return create_engine(url, **opcoes)
+    engine = create_engine(url, **opcoes)
+    if url.startswith("sqlite"):
+        _sqlite_com_savepoint(engine)
+    return engine
 
 
 @lru_cache(maxsize=1)

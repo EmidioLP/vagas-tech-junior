@@ -5,8 +5,13 @@
     python scripts/import_csv.py --db data/outro.db --recriar
     python scripts/import_csv.py --db postgresql://vagas:vagas@localhost/vagas
 
-O CSV nao e alterado: o pipeline de raspagem continua sendo a fonte dos dados, e
-este script so espelha o ultimo resultado no banco.
+**Fluxo legado.** Este script so alimenta a tabela `vagas`, que a API ainda le
+(e que o deploy reconstroi a partir de seed/vagas.csv). O historico -- `jobs` e
+`job_snapshots` -- e gravado direto pelo pipeline (`python main.py`), sem passar
+por CSV. Quando a API passar a ler o historico, este script deixa de ser
+necessario.
+
+O CSV nao e alterado: este script so espelha o resultado dele no banco.
 
 A importacao e **idempotente**: a identidade da vaga e o par (source,
 external_id), entao rodar de novo atualiza as linhas existentes em vez de
@@ -28,7 +33,6 @@ from sqlalchemy.orm import Session
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from api import vocabulary  # noqa: E402
 from api.database import (  # noqa: E402
     Base,
     database_url,
@@ -36,7 +40,8 @@ from api.database import (  # noqa: E402
     url_sem_senha,
 )
 from api.dates import parse_published_date, reference_date_from_csv  # noqa: E402
-from api.models import Tecnologia, Vaga  # noqa: E402
+from api.models import Vaga  # noqa: E402
+from persistence.repositorio import semear_tecnologias  # noqa: E402
 from scraper.config import PROJECT_ROOT  # noqa: E402
 
 logger = logging.getLogger("import_csv")
@@ -66,21 +71,6 @@ def csv_mais_recente(output_dir: Path) -> Path:
             f"Nenhum CSV de vagas em {output_dir}. Rode `python main.py` primeiro."
         )
     return Path(encontrados[-1])
-
-
-def semear_tecnologias(db: Session) -> dict[str, Tecnologia]:
-    """Garante uma linha para cada tecnologia de skills.yml."""
-    existentes = {t.nome: t for t in db.scalars(select(Tecnologia))}
-    for nome, grupo in vocabulary.technologies().items():
-        atual = existentes.get(nome)
-        if atual is None:
-            atual = Tecnologia(nome=nome, grupo=grupo)
-            db.add(atual)
-            existentes[nome] = atual
-        elif atual.grupo != grupo:
-            atual.grupo = grupo
-    db.flush()
-    return existentes
 
 
 def _float_ou_none(valor: str | None) -> float | None:

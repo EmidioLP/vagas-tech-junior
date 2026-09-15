@@ -15,19 +15,23 @@ in Portuguese — follow that convention when editing existing files.
 ## Commands
 
 ```bash
-# Run the full scraper (all 7 sources, 13 default search terms)
+# Run the full scraper (all 7 sources, 13 default search terms) and write to the DB.
+# Needs DATABASE_URL + `alembic upgrade head`; checked BEFORE collecting.
 python main.py
 
 # Common flags
+python main.py --csv                          # also export CSVs + .md report + charts
+python main.py --no-db --csv                  # files only, no database
+python main.py --db data/teste.db             # other DB (URL or SQLite path), beats DATABASE_URL
 python main.py --sources gupy vagas          # only specific portals
 python main.py --terms "estagio dados" "..."  # override search terms
 python main.py --max-pages 2 --delay 3        # smaller/slower run
 python main.py --strict                       # drop mixed titles like "Júnior/Pleno"
 python main.py --all-levels                   # skip seniority filter entirely
-python main.py --no-charts                    # skip matplotlib PNG generation
+python main.py --csv --no-charts              # skip matplotlib PNG generation
 python main.py -v                             # DEBUG logging
 
-# Tests (263 tests, no network — sources are tested against captured real responses)
+# Tests (no network — sources are tested against captured real responses)
 python -m pytest -q
 python -m pytest tests/test_classifier.py -q          # single file
 python -m pytest tests/test_classifier.py::test_name  # single test
@@ -62,8 +66,14 @@ collect (per source, per search term)
   -> tech relevance gate     (scraper/classifier.py)   drop "Analista Contábil Jr" etc.
   -> area classification     (scraper/classifier.py)   weighted keyword scoring
   -> skill extraction        (scraper/skills.py)       must run BEFORE export truncates description
-  -> export                  (scraper/export.py)       3 CSVs + .md report + charts.py PNGs
+  -> persist                 (persistence/)            jobs + job_snapshots, idempotent (default on)
+  -> export                  (scraper/export.py)       3 CSVs + .md report + charts.py PNGs (only with --csv)
 ```
+
+The database is the source of truth; CSV export is optional and never a
+prerequisite for persisting. `pipeline.preparar_banco` validates the DB
+(URL, connectivity, current schema) before `collect` so a bad config doesn't
+waste a multi-minute scrape. One `collected_at` (UTC) per run.
 
 `main.py` only builds a `Settings` (scraper/config.py) and calls `pipeline.run()`.
 `Settings` and the YAML rule files below are the two places to change behavior
@@ -150,22 +160,45 @@ lifecycle only, unique `(source, external_id)`) and `job_snapshots` (ORM
 `JobSnapshot` — per-collection observed state, unique `(job_id, collected_at)`,
 FK `RESTRICT` so history can't be deleted silently), plus
 `job_snapshot_tecnologias`. The ORM name `JobRecord` exists to avoid clashing
-with the scraper dataclass `scraper.models.Job`. The pipeline doesn't write to
-them yet; the API still reads `vagas`. Every model change needs an Alembic
+with the scraper dataclass `scraper.models.Job`. The pipeline writes them
+through `persistence/`; the API still reads `vagas`. Every model change needs an Alembic
 migration: `tests/api/test_migrations.py` runs `alembic check`. See
 `docs/data-model.md`.
 
-Import (`scripts/import_csv.py`) is idempotent — job identity is `(source,
-external_id)`, so re-running updates rather than duplicates. `skills` (a CSV
-string column) is normalized into a `tecnologias` table + many-to-many
-association on import.
+### Persistence (`persistence/`)
+
+SQL lives only here, never in sources or the pipeline; the pipeline imports it
+lazily, so `--no-db` works without SQLAlchemy. `repositorio.persistir_vagas`:
+- upserts `jobs` by `(source, external_id)` with dialect `INSERT ... ON CONFLICT`
+  (postgresql/sqlite) — the DB constraint, not in-memory dedupe, guarantees
+  integrity. `last_seen_at` never moves back, `first_seen_at` never forward,
+  seen jobs get `is_active=true`; nothing is deactivated (deferred to stage 06,
+  since partial runs would deactivate open jobs).
+- writes a snapshot only if `content_hash` differs from the previous snapshot
+  and there's none for this job at this `collected_at`. The hash
+  (`assinatura.py`, v1, pinned by `tests/test_assinatura.py`) covers exactly the
+  stored snapshot fields + sorted tecnologias; not `url`/`search_term`. Changing
+  it means bumping `VERSAO`, which re-snapshots every job.
+- one transaction per source + SAVEPOINT per job: data errors
+  (`IntegrityError`/`DataError`/`ValueError`) undo only that job and count as
+  failures; any other DB error undoes the whole source. Committed sources are
+  never affected. `make_engine` applies the pysqlite SAVEPOINT workaround for SQLite.
+- returns `ResumoPersistencia` (created/updated jobs, snapshots created/skipped,
+  failures, per source); `main.py` prints it and exits 1 on failures, 2 on
+  `ConfiguracaoError`.
+
+Import (`scripts/import_csv.py`) is the **legacy** flow: it only feeds `vagas`
+for the current API. It's idempotent — identity is `(source, external_id)`.
+`skills` (a CSV string column) is normalized into a `tecnologias` table +
+many-to-many association on import (`semear_tecnologias` lives in
+`persistence/repositorio.py`, hence `COPY persistence/` in the Dockerfile).
 
 Deploy (`render.yaml`, Render free tier): the scraper never runs on the server
 (cloud IPs get blocked by job portals); the DB is rebuilt from the committed
 `seed/vagas.csv` snapshot on every boot since the disk is ephemeral. Build uses
 `requirements-api.txt` (no matplotlib — the API's import graph never touches
-`scraper/charts.py`). To publish new data: run the scraper locally, commit an
-updated `seed/vagas.csv`, and update `--referencia` in `render.yaml`.
+`scraper/charts.py`). To publish new data: run the scraper locally with `--csv`,
+commit an updated `seed/vagas.csv`, and update `--referencia` in `render.yaml`.
 
 ### Tests
 
@@ -174,4 +207,8 @@ fixtures (mainly in `test_sources.py`). `tests/api/` is a separate subtree
 guarded by `pytest.importorskip("fastapi")` so `pytest tests/` still works for
 someone who only installed the scraper deps. API tests use an in-memory SQLite
 (`StaticPool` to keep one connection alive) with `app.dependency_overrides[get_db]`,
-never the real `data/vagas.db`.
+never the real `data/vagas.db`. Persistence tests use the `banco_historico`
+fixture (`tests/api/conftest.py`): a temp SQLite file built by `alembic upgrade
+head`, so they test the migration schema. The pipeline integration test
+(`tests/api/test_pipeline_persistencia.py`) monkeypatches `pipeline.collect`
+instead of hitting the network.

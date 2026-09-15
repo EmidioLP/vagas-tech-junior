@@ -24,6 +24,22 @@ from api.models import Tecnologia, Vaga  # noqa: E402
 
 
 @pytest.fixture
+def banco_historico(tmp_path):
+    """Arquivo SQLite com `alembic upgrade head`: o schema das migrations, nao o do create_all."""
+    pytest.importorskip("alembic", reason="Alembic não instalado; testes de persistência pulados.")
+    from alembic import command
+    from alembic.config import Config
+
+    from scraper.config import PROJECT_ROOT
+
+    caminho = tmp_path / "historico.db"
+    cfg = Config(str(PROJECT_ROOT / "alembic.ini"))
+    cfg.attributes["database_url"] = f"sqlite:///{caminho.as_posix()}"
+    command.upgrade(cfg, "head")
+    return caminho
+
+
+@pytest.fixture
 def db_session():
     """SQLite em memoria. StaticPool mantem a mesma conexao entre as sessoes."""
     engine = create_engine(

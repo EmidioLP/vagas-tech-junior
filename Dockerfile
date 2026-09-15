@@ -18,8 +18,9 @@ RUN pip install --no-cache-dir -r requirements-api.txt
 
 # So o que a API precisa. `scraper/` entra porque a API le os YAMLs de regras
 # (areas e tecnologias) de la, e `scripts/` porque o compose importa o snapshot
-# no boot.
+# no boot. `persistence/` e de onde o importador semeia as tecnologias.
 COPY api/ ./api/
+COPY persistence/ ./persistence/
 COPY scraper/ ./scraper/
 COPY scripts/ ./scripts/
 COPY seed/ ./seed/

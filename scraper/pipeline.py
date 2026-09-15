@@ -1,13 +1,19 @@
-"""Orquestracao: coleta -> filtro de senioridade -> classificacao -> dedupe -> export."""
+"""Orquestracao: coleta -> senioridade -> dedupe -> classificacao -> banco -> CSV opcional.
+
+O banco (`jobs` + `job_snapshots`) e a fonte de verdade. A exportacao de CSV,
+relatorio e graficos e opcional e nao e pre-requisito da gravacao.
+"""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from .classifier import classify_jobs, default_classifier, filter_tech
-from .config import Settings
+from .config import ConfiguracaoError, Settings
 from .dedupe import deduplicate
 from .export import build_ranking, export_all
 from .http_client import PoliteSession
@@ -16,7 +22,13 @@ from .seniority import SeniorityFilter, filter_entry_level
 from .skills import attach_skills
 from .sources import SOURCE_REGISTRY
 
+if TYPE_CHECKING:  # pragma: no cover
+    from persistence.repositorio import ResumoPersistencia
+
 logger = logging.getLogger(__name__)
+
+# Tabela e coluna que a ultima migration exigida pela persistencia cria.
+_SCHEMA_EXIGIDO = {"jobs": None, "job_snapshots": "content_hash"}
 
 
 @dataclass
@@ -26,6 +38,7 @@ class PipelineResult:
     files: dict[str, Path] = field(default_factory=dict)
     stats: list[SourceStats] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
+    persistencia: ResumoPersistencia | None = None
 
     @property
     def top_area(self) -> str | None:
@@ -63,13 +76,74 @@ def collect(settings: Settings) -> tuple[list[Job], list[SourceStats], int]:
     return all_jobs, stats, total_requests
 
 
+def preparar_banco(destino: str | Path | None = None) -> Any:
+    """Engine pronto para gravar, validado ANTES da coleta.
+
+    Coletar leva minutos; descobrir so no fim que falta DATABASE_URL, que o banco
+    nao responde ou que as migrations nao rodaram jogaria esse tempo fora.
+    """
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from api.database import make_engine
+
+    engine = make_engine(destino)  # sem destino nem DATABASE_URL: ConfiguracaoError
+    try:
+        inspetor = inspect(engine)
+        for tabela, coluna in _SCHEMA_EXIGIDO.items():
+            if not inspetor.has_table(tabela) or (
+                coluna and coluna not in {c["name"] for c in inspetor.get_columns(tabela)}
+            ):
+                raise ConfiguracaoError(
+                    "O banco não está com o schema atual. Rode `alembic upgrade head` "
+                    "(veja docs/migrations.md)."
+                )
+    except SQLAlchemyError as exc:
+        engine.dispose()
+        # So o tipo do erro: a mensagem do driver pode citar host e usuario.
+        raise ConfiguracaoError(
+            f"Não foi possível acessar o banco ({type(getattr(exc, 'orig', None) or exc).__name__})."
+        ) from exc
+    except ConfiguracaoError:
+        engine.dispose()
+        raise
+    return engine
+
+
 def run(
     settings: Settings,
     strict_seniority: bool = False,
     keep_non_tech: bool = False,
     with_charts: bool = True,
+    persistir: bool = True,
+    destino_db: str | Path | None = None,
+    exportar_csv: bool = False,
 ) -> PipelineResult:
-    """Executa o fluxo completo e grava os arquivos de saida."""
+    """Executa o fluxo completo: grava no banco e, se pedido, exporta arquivos.
+
+    `destino_db` vence DATABASE_URL e aceita caminho SQLite (testes).
+    """
+    engine = preparar_banco(destino_db) if persistir else None
+    # Um instante por execucao: e o `collected_at` de todos os snapshots dela.
+    collected_at = datetime.now(timezone.utc)
+
+    try:
+        return _processar(settings, strict_seniority, keep_non_tech, with_charts,
+                          engine, collected_at, exportar_csv)
+    finally:
+        if engine is not None:
+            engine.dispose()
+
+
+def _processar(
+    settings: Settings,
+    strict_seniority: bool,
+    keep_non_tech: bool,
+    with_charts: bool,
+    engine: Any,
+    collected_at: datetime,
+    exportar_csv: bool,
+) -> PipelineResult:
     raw_jobs, stats, requests_made = collect(settings)
     logger.info("Total bruto: %d vagas", len(raw_jobs))
 
@@ -111,9 +185,19 @@ def run(
         "dropped_non_tech": dropped_non_tech,
         "duplicates": duplicates,
         "requests": requests_made,
+        "collected_at": collected_at.isoformat(),
     }
 
-    files = export_all(jobs, settings.ensure_output_dir(), meta,
-                       with_charts=with_charts)
+    persistencia = None
+    if engine is not None:
+        from persistence.repositorio import persistir_vagas
+
+        persistencia = persistir_vagas(jobs, engine, collected_at)
+        meta["persistencia"] = persistencia.como_dict()
+
+    files: dict[str, Path] = {}
+    if exportar_csv:
+        files = export_all(jobs, settings.ensure_output_dir(), meta,
+                           with_charts=with_charts)
     return PipelineResult(jobs=jobs, ranking=ranking, files=files,
-                          stats=stats, meta=meta)
+                          stats=stats, meta=meta, persistencia=persistencia)

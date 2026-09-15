@@ -5,7 +5,8 @@ mesmas migrations (`migrations/versions/`):
 
 - **Histórico** — `jobs`, `job_snapshots` e `job_snapshot_tecnologias`: identidade
   estável de cada vaga e o que foi observado nela a cada coleta. Criado na etapa
-  03; ainda **não é alimentado** pelo pipeline, o que acontece na etapa 04.
+  03 e **gravado direto pelo pipeline** desde a etapa 04 (veja
+  [Persistência](#persistência)).
 - **Legado** — `vagas` e `vaga_tecnologia`: o espelho do último CSV, que a API
   lê hoje. `tecnologias` é compartilhada pelos dois grupos.
 
@@ -40,6 +41,7 @@ erDiagram
         string area
         float area_score
         text area_matches
+        string content_hash "SHA-256 do estado"
     }
     job_snapshot_tecnologias {
         int snapshot_id PK "FK CASCADE"
@@ -108,6 +110,7 @@ Restrições e índices: `uq_jobs_source_external_id`, `ix_jobs_is_active`,
 | `area` | `varchar(40)` | área classificada naquela coleta |
 | `area_score` | `float` | |
 | `area_matches` | `text` | keywords que dispararam a área, para auditoria |
+| `content_hash` | `varchar(64)` | obrigatório; assinatura do estado gravado (veja [Assinatura](#assinatura-content_hash)) |
 
 Restrições e índices: `uq_job_snapshots_job_collected` sobre
 `(job_id, collected_at)`, `ix_job_snapshots_collected_at` e `ix_job_snapshots_area`.
@@ -139,20 +142,129 @@ para dar para contar e filtrar ao longo do tempo.
 - **Nenhum timestamp tem default no banco.** Quem grava informa a hora da coleta,
   a mesma para todas as vagas daquela execução.
 
-## O que ainda não existe
+## Persistência
 
-Fica para a etapa 04 (persistência e idempotência):
+O banco é a fonte de verdade. O pipeline grava direto nele, e o CSV virou
+exportação opcional (`python main.py --csv`), que não é pré-requisito de nada.
 
-- upsert de `jobs` por `(source, external_id)`, atualizando `last_seen_at` e
-  `is_active`;
-- a assinatura/hash que decide se uma coleta gera snapshot novo ou não;
-- a ligação do pipeline com o banco, deixando o CSV como exportação opcional.
+```
+coleta → senioridade → dedupe → portão de tecnologia → área → tecnologias
+       → persistence.persistir_vagas  (jobs + job_snapshots)
+       → export_all                   (só com --csv)
+```
 
-Até lá, a API continua lendo `vagas`, alimentada por `scripts/import_csv.py`.
+A gravação fica em `persistence/repositorio.py`. As fontes e o pipeline não
+escrevem SQL.
+
+**Idempotência:** rodar a mesma coleta de novo produz o mesmo estado final. Uma
+segunda execução idêntica não cria vagas nem snapshots; só avança `last_seen_at`.
+
+### Antes de coletar
+
+`pipeline.preparar_banco` confere três coisas antes de gastar minutos coletando:
+- a URL do banco (`DATABASE_URL` ou `--db`);
+- a conexão;
+- o schema atual (`jobs` e `job_snapshots.content_hash`).
+
+Qualquer problema gera `ConfiguracaoError`, e a mensagem nunca traz a URL. Cada
+execução usa **um único `collected_at`**, em UTC, para todas as vagas.
+
+### `jobs`: upsert por `(source, external_id)`
+
+- **Inserção.** Usa `INSERT … ON CONFLICT (source, external_id) DO NOTHING
+  RETURNING id`. Se outra execução gravou a mesma vaga no meio tempo, o conflito
+  vira atualização, nunca duplicata. A deduplicação em memória do pipeline só
+  reduz ruído dentro de uma coleta; a integridade vem da constraint.
+- **Vaga já existente.** `url` recebe o valor novo quando vier preenchida,
+  `last_seen_at = max(atual, coleta)`, `first_seen_at = min(atual, coleta)` e
+  `is_active = true`. Gravar uma coleta antiga depois de uma nova não faz as
+  datas retrocederem.
+- **Nenhuma vaga é desativada nesta etapa.** Uma coleta parcial (`--sources
+  gupy`, termo que falhou) desativaria vagas que continuam abertas. A regra de
+  desativação por fonte fica para a etapa 06.
+- **Identidade nunca é cortada.** `source` ou `external_id` maior que a coluna
+  conta como falha. Os campos de texto do snapshot são aparados e cortados no
+  tamanho da coluna.
+
+### Snapshot: só quando o estado muda
+
+Para cada vaga, o repositório pega o snapshot mais recente com `collected_at` até
+o desta coleta:
+
+| Situação | Resultado |
+|---|---|
+| Não existe snapshot anterior | grava |
+| O anterior é **desta mesma coleta** | ignora (no máximo um por coleta, mesmo com a vaga repetida na entrada) |
+| O anterior tem o **mesmo `content_hash`** | ignora |
+| O hash mudou | grava; os anteriores ficam intactos |
+
+A comparação é só com o imediatamente anterior. Uma vaga que vai de Remoto para
+Híbrido e volta para Remoto tem três snapshots, porque as mudanças são o histórico.
+
+### Assinatura (`content_hash`)
+
+A regra está em `persistence/assinatura.py`, versão 1.
+
+- **Algoritmo.** SHA-256 de um JSON canônico (chaves ordenadas, sem espaços,
+  UTF-8) contendo `"v": 1` e **exatamente os campos que o snapshot grava**:
+
+  `title`, `company`, `description`, `location`, `workplace_type`,
+  `published_date`, `seniority`, `area`, `area_score`, `area_matches`, `tecnologias`
+
+- **Normalização:**
+  - texto tem as bordas aparadas, e vazio vira `null`, então `""` e `null` são o mesmo estado;
+  - `published_date` vai em ISO;
+  - `area_score` vai com 4 casas decimais;
+  - `tecnologias` vão ordenadas e sem repetição.
+- **Fora do hash:**
+  - `url`: identidade, fica em `jobs`;
+  - `search_term`: depende de qual termo trouxe a vaga primeiro;
+  - `collected_at`.
+- **A classificação entra no hash.** Se as regras em `scraper/rules/*.yml`
+  mudarem a área ou as tecnologias de uma vaga, a próxima coleta grava um
+  snapshot novo. A reclassificação vira histórico, e nenhum campo gravado fica
+  desatualizado em silêncio.
+- **Datas relativas.** "Há 3 dias" é resolvida contra o dia da coleta, então
+  "Há 3 dias" hoje e "Há 4 dias" amanhã dão a mesma data. "Há mais de 30 dias"
+  continua andando com o tempo e pode gerar snapshot novo.
+- **Mudar o formato** (campos ou normalização) muda todos os hashes e faz a
+  próxima coleta regravar um snapshot por vaga. Se for intencional, suba `VERSAO`.
+  `tests/test_assinatura.py` fixa o hash v1 de um exemplo para que isso nunca
+  aconteça por acidente.
+- **Linhas antigas.** Snapshots anteriores à coluna ficaram com hash `''`, que
+  nunca casa com um hash real.
+
+### Transações e falhas
+
+- **Uma transação por fonte**, com um **SAVEPOINT por vaga**. A vaga, o snapshot e
+  as tecnologias gravam juntos ou nada grava.
+- **Erro de dado numa vaga** (`IntegrityError`, `DataError`, `ValueError`) desfaz
+  só aquela vaga, conta uma falha e o lote segue.
+- **Qualquer outro erro de banco na fonte** (conexão caiu, commit falhou) desfaz a
+  fonte inteira. Todas as vagas dela contam como falha.
+- **Fontes já confirmadas nunca são afetadas.**
+- **SQLite.** `api/database.make_engine` aplica a correção do pysqlite para
+  SAVEPOINT funcionar (testes e `--db arquivo.db`).
+
+### Resumo da execução
+
+`persistir_vagas` devolve um `ResumoPersistencia`: vagas criadas e atualizadas,
+snapshots criados e ignorados, falhas (no total e por fonte) e a lista de erros
+(`fonte:id: TipoDoErro`). O `main.py` imprime o resumo e sai com código 1 se
+houver falhas.
+
+### Legado: `vagas` e `import_csv.py`
+
+A API ainda lê `vagas`, que é alimentada por `scripts/import_csv.py` a partir de
+um CSV. No deploy, é o `seed/vagas.csv`. O pipeline **não** escreve em `vagas`.
+Esse fluxo fica até a API passar a ler o histórico.
 
 ## Onde estão as regras
 
 - Modelos: `api/models.py`
-- Migrations: `migrations/versions/`, com a baseline e o histórico
+- Migrations: `migrations/versions/` (baseline, histórico e `content_hash`)
+- Persistência: `persistence/repositorio.py` e `persistence/assinatura.py`
 - Testes do histórico: `tests/api/test_historico.py`
+- Testes da persistência: `tests/api/test_persistencia.py`,
+  `tests/api/test_pipeline_persistencia.py` e `tests/test_assinatura.py`
 - Como gerar e aplicar migrations: `docs/migrations.md`

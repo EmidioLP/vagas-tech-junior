@@ -181,6 +181,8 @@ class JobSnapshot(Base):
     area: Mapped[str | None] = mapped_column(String(40))
     area_score: Mapped[float | None] = mapped_column(Float)
     area_matches: Mapped[str | None] = mapped_column(Text)
+    # SHA-256 dos campos acima + tecnologias. Ver persistence/assinatura.py.
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     job: Mapped[JobRecord] = relationship(back_populates="snapshots")
     tecnologias: Mapped[list[Tecnologia]] = relationship(
