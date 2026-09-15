@@ -21,7 +21,8 @@ from scraper.config import PROJECT_ROOT, ConfiguracaoError  # noqa: E402
 INI = PROJECT_ROOT / "alembic.ini"
 BASELINE = {"vagas", "tecnologias", "vaga_tecnologia"}
 HISTORICO = {"jobs", "job_snapshots", "job_snapshot_tecnologias"}
-TABELAS = BASELINE | HISTORICO
+CONTROLE = {"collection_runs"}
+TABELAS = BASELINE | HISTORICO | CONTROLE
 BASELINE_REVISION = "8426f7230fd1"
 HISTORICO_REVISION = "d8ef8fde92b5"
 

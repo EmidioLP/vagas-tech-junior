@@ -9,7 +9,7 @@ Etapas definidas em `.llm/prompts/`. Todas acontecem na branch
 - [x] 03 — Schema histórico: jobs e snapshots
 - [x] 04 — Persistência direta e idempotência
 - [x] 05 — GitHub Actions para CI e coleta manual
-- [ ] 06 — Intervalo configurável e resiliência por fonte
+- [x] 06 — Intervalo configurável e resiliência por fonte
 - [ ] 07 — Dashboard Streamlit base
 - [ ] 08 — Analytics e histórico no dashboard
 - [ ] 09 — Camadas Bronze, Silver e Gold

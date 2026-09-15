@@ -141,6 +141,35 @@ def obter_database_url(
     raise ConfiguracaoError(_MENSAGEM_AUSENTE)
 
 
+_MENSAGEM_INTERVALO_AUSENTE = (
+    "COLLECTION_INTERVAL_DAYS não definida. Ela é obrigatória com --respect-interval: "
+    "defina o número de dias entre coletas completas (inteiro positivo) no ambiente "
+    "ou no .env.local; no GitHub Actions, como Variable do repositório "
+    "(veja docs/automation.md)."
+)
+
+
+def obter_intervalo_dias(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> int:
+    """COLLECTION_INTERVAL_DAYS, na ordem: ambiente > `.env.local` > `.env`.
+
+    Sem valor padrao: o intervalo efetivo nunca fica implicito no codigo.
+    """
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "COLLECTION_INTERVAL_DAYS")
+        if not valor:
+            continue
+        if not (valor.isascii() and valor.isdigit()) or int(valor) < 1:
+            raise ConfiguracaoError(
+                "COLLECTION_INTERVAL_DAYS precisa ser um inteiro positivo de dias "
+                f"(recebido: {valor[:20]!r})."
+            )
+        return int(valor)
+    raise ConfiguracaoError(_MENSAGEM_INTERVALO_AUSENTE)
+
+
 def obter_url_migrations(
     environ: Mapping[str, str] | None = None,
     arquivos: Sequence[Path] | None = None,

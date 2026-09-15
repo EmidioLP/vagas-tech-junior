@@ -7,9 +7,10 @@ Regras (detalhes em docs/data-model.md, secao "Persistência"):
   duas execucoes concorrentes nao duplicam a vaga. A deduplicacao em memoria do
   pipeline reduz ruido, mas nao e o que garante a integridade.
 - **Ciclo de vida.** Vaga vista: `last_seen_at` avanca (nunca retrocede),
-  `first_seen_at` so recua e `is_active` volta a true. Nenhuma vaga e desativada
-  aqui: uma coleta parcial (`--sources gupy`, termo que falhou) desativaria vagas
-  abertas.
+  `first_seen_at` so recua, a ausencia (`missing_since`) zera e uma vaga encerrada
+  volta a ativa. `persistir_vagas` nunca desativa nada: quem encerra vagas que
+  sumiram da listagem e `encerrar_ausentes`, chamada pelo pipeline so para fontes
+  confiaveis numa coleta completa.
 - **Snapshot.** So e gravado se a assinatura (`persistence/assinatura.py`) difere
   da do snapshot anterior. Se ja existe snapshot desta vaga nesta coleta, nada e
   gravado: no maximo um por coleta, mesmo que a vaga venha repetida na entrada.
@@ -21,11 +22,11 @@ Regras (detalhes em docs/data-model.md, secao "Persistência"):
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DataError, IntegrityError, SQLAlchemyError
@@ -193,8 +194,14 @@ def _upsert_job(db: Session, insert, job: Job, collected_at: datetime) -> tuple[
         registro.last_seen_at = collected_at
     if collected_at < _utc(registro.first_seen_at):
         registro.first_seen_at = collected_at
-    if not registro.is_active:
+    if not registro.is_active and (
+        registro.closed_at is None or collected_at > _utc(registro.closed_at)
+    ):
+        # Reapareceu depois de encerrada: a vaga continua aberta.
         registro.is_active = True
+        registro.closed_at = None
+    if registro.missing_since is not None and collected_at > _utc(registro.missing_since):
+        registro.missing_since = None
     return registro, False
 
 
@@ -327,4 +334,113 @@ def persistir_vagas(
             parcial.snapshots_criados, parcial.snapshots_ignorados, parcial.falhas,
         )
 
+    return resumo
+
+
+# ---------------------------------------------------------------------------
+# Encerramento: vagas que sumiram da listagem.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ResumoAusencias:
+    ausentes: int = 0    # sumiram da listagem pela primeira vez nesta coleta
+    encerradas: int = 0  # sumiram de novo, em outro dia: is_active = false
+
+
+@dataclass
+class ResumoEncerramento:
+    """Vagas que sumiram da listagem, por fonte avaliada."""
+
+    por_fonte: dict[str, ResumoAusencias] = field(default_factory=dict)
+    # "fonte: encerramento desfeito (TipoDoErro)". Nunca inclui a URL do banco.
+    erros: list[str] = field(default_factory=list)
+
+    @property
+    def ausentes(self) -> int:
+        return sum(r.ausentes for r in self.por_fonte.values())
+
+    @property
+    def encerradas(self) -> int:
+        return sum(r.encerradas for r in self.por_fonte.values())
+
+    def como_dict(self) -> dict:
+        return {
+            "ausentes": self.ausentes,
+            "encerradas": self.encerradas,
+            "por_fonte": {f: asdict(r) for f, r in self.por_fonte.items()},
+            "erros": list(self.erros),
+        }
+
+
+def _encerrar_fonte(
+    engine: Engine, fonte: str, vistas: set[str], collected_at: datetime,
+) -> ResumoAusencias:
+    with Session(engine) as db, db.begin():
+        ativas = db.execute(
+            select(JobRecord.id, JobRecord.external_id, JobRecord.last_seen_at,
+                   JobRecord.missing_since)
+            .where(JobRecord.source == fonte, JobRecord.is_active.is_(True))
+        ).all()
+
+        voltaram: list[int] = []
+        sumiram: list[int] = []
+        encerrar: list[int] = []
+        for vaga in ativas:
+            if vaga.external_id in vistas or _utc(vaga.last_seen_at) >= collected_at:
+                if vaga.missing_since is not None:
+                    voltaram.append(vaga.id)
+            elif vaga.missing_since is None:
+                sumiram.append(vaga.id)
+            elif _utc(vaga.missing_since).date() < collected_at.date():
+                encerrar.append(vaga.id)
+            # Ausente de novo no mesmo dia (UTC): conta como a mesma coleta.
+
+        for ids, valores in (
+            (voltaram, {"missing_since": None}),
+            (sumiram, {"missing_since": collected_at}),
+            (encerrar, {"is_active": False, "closed_at": collected_at}),
+        ):
+            if ids:
+                db.execute(update(JobRecord).where(JobRecord.id.in_(ids)).values(**valores))
+
+    return ResumoAusencias(ausentes=len(sumiram), encerradas=len(encerrar))
+
+
+def encerrar_ausentes(
+    engine: Engine,
+    vistas_por_fonte: Mapping[str, Iterable[str]],
+    collected_at: datetime,
+) -> ResumoEncerramento:
+    """Encerra as vagas que sumiram da listagem em duas coletas seguidas.
+
+    So deve receber fontes confiaveis nesta coleta; quem escolhe e o pipeline
+    (escopo completo, status ok, pelo menos uma vaga). `vistas_por_fonte` sao os
+    external_id brutos, antes dos filtros: uma vaga que o portal ainda lista nao
+    foi preenchida, mesmo que os filtros a descartem.
+
+    - vista: `missing_since` volta a nulo;
+    - ausente pela primeira vez: `missing_since = collected_at`;
+    - ausente de novo, em outro dia (UTC): `is_active = false` e
+      `closed_at = collected_at`. Nada e apagado: o historico fica.
+
+    Uma transacao por fonte. Erro de banco desfaz so aquela fonte e vira erro no
+    resumo; as outras seguem.
+    """
+    if collected_at.tzinfo is None:
+        raise ValueError("collected_at precisa ter fuso horário")
+    collected_at = collected_at.astimezone(timezone.utc)
+
+    resumo = ResumoEncerramento()
+    for fonte, vistas in vistas_por_fonte.items():
+        try:
+            parcial = _encerrar_fonte(engine, fonte, set(vistas), collected_at)
+        except SQLAlchemyError as exc:
+            resumo.erros.append(f"{fonte}: encerramento desfeito ({_nome_erro(exc)})")
+            logger.error("Encerramento de vagas desfeito em %s: %s", fonte, _nome_erro(exc))
+            logger.debug("Detalhe", exc_info=True)
+            continue
+        resumo.por_fonte[fonte] = parcial
+        logger.info("%s: %d vagas ausentes pela primeira vez, %d encerradas",
+                    fonte, parcial.ausentes, parcial.encerradas)
     return resumo

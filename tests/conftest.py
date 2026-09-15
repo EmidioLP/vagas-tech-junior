@@ -11,7 +11,8 @@ from scraper import config  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _sem_banco_da_maquina(monkeypatch):
-    """Nenhum teste le a DATABASE_URL do shell nem o .env.local/.env reais.
+    """Nenhum teste le a DATABASE_URL (nem o intervalo de coleta) do shell nem o
+    .env.local/.env reais.
 
     Sem isso, um .env.local gerado pelo Neon faria os testes apontarem para o
     banco remoto.
@@ -19,3 +20,4 @@ def _sem_banco_da_maquina(monkeypatch):
     monkeypatch.setattr(config, "ARQUIVOS_ENV", ())
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL_UNPOOLED", raising=False)
+    monkeypatch.delenv("COLLECTION_INTERVAL_DAYS", raising=False)

@@ -1,4 +1,5 @@
-"""Workflows do GitHub Actions: permissoes minimas e DATABASE_URL so via Secret."""
+"""Workflows do GitHub Actions: permissoes minimas, DATABASE_URL so via Secret e
+agendamento diario que so acorda a guarda de intervalo."""
 
 from __future__ import annotations
 
@@ -57,9 +58,31 @@ def test_ci_roda_a_suite_em_push_e_pr_sem_segredos():
     assert any(p.get("run") == "python -m pytest -q" for p in _passos(workflow))
 
 
-def test_coleta_e_so_manual():
-    assert set(_gatilhos(_carregar("collect.yml"))) == {"workflow_dispatch"}
-    assert "schedule" not in _texto("collect.yml")
+def test_coleta_acorda_todo_dia_e_pode_ser_disparada_manualmente():
+    gatilhos = _gatilhos(_carregar("collect.yml"))
+    assert set(gatilhos) == {"schedule", "workflow_dispatch"}
+
+    crons = [item["cron"] for item in gatilhos["schedule"]]
+    # Um cron diario fixo: a frequencia efetiva e da guarda, nunca do YAML.
+    assert len(crons) == 1
+    assert re.fullmatch(r"\d{1,2} \d{1,2} \* \* \*", crons[0])
+
+
+def test_agendada_respeita_o_intervalo_e_manual_forca_por_padrao():
+    workflow = _carregar("collect.yml")
+    script = _passo(workflow, "Coletar")["run"]
+    assert "--trigger schedule --respect-interval" in script
+    assert "--trigger manual" in script
+
+    entrada = _gatilhos(workflow)["workflow_dispatch"]["inputs"]["respeitar_intervalo"]
+    assert entrada["type"] == "boolean"
+    assert entrada["default"] is False
+
+
+def test_intervalo_vem_de_variable_e_nao_de_secret():
+    env = _passo(_carregar("collect.yml"), "Coletar")["env"]
+    assert env["COLLECTION_INTERVAL_DAYS"] == "${{ vars.COLLECTION_INTERVAL_DAYS }}"
+    assert "secrets.COLLECTION_INTERVAL_DAYS" not in _texto("collect.yml")
 
 
 def test_database_url_so_vem_do_secret_nos_passos():

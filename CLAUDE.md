@@ -31,6 +31,7 @@ python main.py --all-levels                   # skip seniority filter entirely
 python main.py --csv --no-charts              # skip matplotlib PNG generation
 python main.py -v                             # DEBUG logging
 python main.py --resumo coleta/resumo.md      # also write a non-sensitive Markdown summary (used by collect.yml)
+python main.py --respect-interval             # skip (recorded) if COLLECTION_INTERVAL_DAYS hasn't passed since the last full run
 
 # Tests (no network — sources are tested against captured real responses)
 python -m pytest -q
@@ -75,6 +76,23 @@ The database is the source of truth; CSV export is optional and never a
 prerequisite for persisting. `pipeline.preparar_banco` validates the DB
 (URL, connectivity, current schema) before `collect` so a bad config doesn't
 waste a multi-minute scrape. One `collected_at` (UTC) per run.
+
+Execution policy lives in `scraper/execucao.py` (pure) and every DB run is
+recorded in `collection_runs` (`persistence/execucoes.py`), skips included:
+- `--respect-interval` needs `COLLECTION_INTERVAL_DAYS` (no default) and skips
+  unless X days (compared by UTC date) passed since the last run with
+  `full_scope` (all sources, default terms, ≥5 pages) and status
+  `success`/`partial`.
+- With X known (always under the guard; forced runs if the env var is set),
+  `calcular_agenda` fills `result.agenda`, printed/summarized as `Última coleta:
+  dia DD/MM/AAAA e próxima: dia DD/MM/AAAA` and stored in `next_run_on`: next =
+  last full run + X, or tomorrow if that date passed. The project uses X=2
+  (GitHub Repository Variable).
+- `PoliteSession.failed_count` counts requests that gave up (sources only stop
+  paginating on `None`), so a blocked portal shows as `failed`, not "0 jobs".
+- `collect` isolates whole-source exceptions. Run status: `failed` (exit 1) if
+  all sources failed or no jobs; `partial` (exit 0, or 1 with job write
+  failures) if any source isn't `ok`; else `success`.
 
 `main.py` only builds a `Settings` (scraper/config.py) and calls `pipeline.run()`.
 `Settings` and the YAML rule files below are the two places to change behavior
@@ -173,8 +191,12 @@ lazily, so `--no-db` works without SQLAlchemy. `repositorio.persistir_vagas`:
 - upserts `jobs` by `(source, external_id)` with dialect `INSERT ... ON CONFLICT`
   (postgresql/sqlite) — the DB constraint, not in-memory dedupe, guarantees
   integrity. `last_seen_at` never moves back, `first_seen_at` never forward,
-  seen jobs get `is_active=true`; nothing is deactivated (deferred to stage 06,
-  since partial runs would deactivate open jobs).
+  seen jobs get `is_active=true`; the upsert never deactivates (it clears `missing_since`
+  and reopens closed jobs). `encerrar_ausentes` closes jobs
+  (`is_active=false`, `closed_at`) missing from the raw listing in two
+  consecutive trusted runs on different UTC days (full scope, source `ok` with
+  ≥1 listed job); the first absence only sets `missing_since`. Nothing is
+  deleted.
 - writes a snapshot only if `content_hash` differs from the previous snapshot
   and there's none for this job at this `collected_at`. The hash
   (`assinatura.py`, v1, pinned by `tests/test_assinatura.py`) covers exactly the
@@ -217,7 +239,10 @@ instead of hitting the network.
 ### GitHub Actions (`.github/workflows/`)
 
 `ci.yml` runs `python -m pytest -q` on push/PR (Python 3.11 + 3.13) with no
-secrets. `collect.yml` is `workflow_dispatch` only (no `schedule` yet): it runs
+secrets. `collect.yml` has a daily `schedule` (09:00 UTC, only wakes it up) plus
+`workflow_dispatch`: scheduled runs pass `--trigger schedule --respect-interval`
+with `COLLECTION_INTERVAL_DAYS` from `vars` (a Repository Variable); manual runs
+force the collection unless `respeitar_intervalo=true`. It runs
 `python main.py ... --resumo coleta/resumo.md` with `DATABASE_URL` from Secrets,
 never runs migrations or `-v`, and on failure uploads only the log passed through
 `scripts/sanitizar_log.py`. `tests/test_workflows.py` pins these rules. See

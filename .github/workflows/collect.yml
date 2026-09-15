@@ -1,5 +1,13 @@
-# Coleta manual: roda o mesmo comando da maquina local (`python main.py`) e grava
-# no banco do Secret DATABASE_URL. Sem agendamento nesta etapa.
+# Coleta: roda o mesmo comando da maquina local (`python main.py`) e grava no
+# banco do Secret DATABASE_URL.
+#
+# Dois gatilhos:
+# - schedule: acorda todo dia. A guarda (--respect-interval) consulta a ultima
+#   coleta completa em collection_runs e so coleta se ja passaram
+#   COLLECTION_INTERVAL_DAYS dias (Variable do repositorio); senao registra a
+#   execucao como pulada. O cron do GitHub e estatico e em UTC: ele so acorda,
+#   quem decide e a guarda.
+# - workflow_dispatch: manual. Forca a coleta, a menos que respeitar_intervalo=true.
 #
 # Regras de seguranca (verificadas em tests/test_workflows.py):
 # - DATABASE_URL so vem de secrets e so entra no env dos passos que precisam dela;
@@ -9,9 +17,13 @@
 #   vale para o log do job, nao para arquivos enviados.
 #
 # Guia: docs/automation.md
-name: Coleta manual
+name: Coleta de vagas
 
 on:
+  schedule:
+    # 09:00 UTC = 06:00 em Brasilia. O GitHub pode atrasar ou descartar execucoes
+    # agendadas; uma execucao perdida so adia a coleta para o dia seguinte.
+    - cron: "0 9 * * *"
   workflow_dispatch:
     inputs:
       modo:
@@ -29,6 +41,11 @@ on:
         type: string
         required: false
         default: "5"
+      respeitar_intervalo:
+        description: "Pular se COLLECTION_INTERVAL_DAYS ainda nao passou (padrao: forcar a coleta)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -60,9 +77,13 @@ jobs:
         shell: bash
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          MODO: ${{ inputs.modo }}
+          COLLECTION_INTERVAL_DAYS: ${{ vars.COLLECTION_INTERVAL_DAYS }}
+          EVENTO: ${{ github.event_name }}
+          # No schedule os inputs chegam vazios: valem os padroes.
+          MODO: ${{ inputs.modo || 'banco' }}
           FONTES: ${{ inputs.fontes }}
-          MAX_PAGINAS: ${{ inputs.max_paginas }}
+          MAX_PAGINAS: ${{ inputs.max_paginas || '5' }}
+          RESPEITAR: ${{ inputs.respeitar_intervalo }}
           PYTHONUNBUFFERED: "1"
         run: |
           mkdir -p coleta
@@ -72,12 +93,21 @@ jobs:
           fi
 
           args=(--max-pages "$MAX_PAGINAS" --resumo coleta/resumo.md)
-          if [[ -n "${FONTES// /}" ]]; then
-            read -ra fontes <<< "$FONTES"
-            args+=(--sources "${fontes[@]}")
-          fi
-          if [[ "$MODO" == "sem-banco" ]]; then
-            args+=(--no-db --csv --no-charts)
+          if [[ "$EVENTO" == "schedule" ]]; then
+            # Agendada: todas as fontes, no banco, so se o intervalo ja passou.
+            args+=(--trigger schedule --respect-interval)
+          else
+            args+=(--trigger manual)
+            if [[ -n "${FONTES// /}" ]]; then
+              read -ra fontes <<< "$FONTES"
+              args+=(--sources "${fontes[@]}")
+            fi
+            if [[ "$MODO" == "sem-banco" ]]; then
+              args+=(--no-db --csv --no-charts)
+            fi
+            if [[ "$RESPEITAR" == "true" ]]; then
+              args+=(--respect-interval)
+            fi
           fi
 
           # shell: bash roda com pipefail: o exit code do main.py nao se perde no tee.

@@ -24,6 +24,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    JSON,
     Index,
     Integer,
     String,
@@ -141,6 +142,12 @@ class JobRecord(Base):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true(), nullable=False)
+    # Primeira coleta completa (com a fonte ok) em que a vaga nao apareceu na
+    # listagem; volta a nulo quando ela reaparece. Ausente de novo em outro dia, a
+    # vaga e encerrada: `is_active = false` e `closed_at` com a data da coleta.
+    # Veja persistence/repositorio.encerrar_ausentes.
+    missing_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # passive_deletes="all": o ORM nao tenta anular job_id dos snapshots ao
     # apagar a vaga; quem decide e o RESTRICT do banco.
@@ -191,3 +198,40 @@ class JobSnapshot(Base):
 
     def __repr__(self) -> str:  # pragma: no cover - conveniencia no shell
         return f"<JobSnapshot job={self.job_id} {self.collected_at:%Y-%m-%d}>"
+
+
+# ---------------------------------------------------------------------------
+# Controle: uma linha por execucao do pipeline com banco.
+# ---------------------------------------------------------------------------
+
+
+class CollectionRun(Base):
+    """Uma execucao da coleta, feita ou pulada pela guarda de intervalo.
+
+    E o que a guarda consulta (`persistence/execucoes.py`) e o registro auditavel
+    de cada disparo, agendado, manual ou local. Veja docs/data-model.md.
+    """
+
+    __tablename__ = "collection_runs"
+    __table_args__ = (
+        Index("ix_collection_runs_status_started_at", "status", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # schedule / manual / local
+    triggered_by: Mapped[str] = mapped_column(String(20), nullable=False)
+    # success / partial / failed / skipped
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    full_scope: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    interval_days: Mapped[int | None] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(Text)
+    next_run_on: Mapped[date | None] = mapped_column(Date)
+    jobs_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    failures: Mapped[int] = mapped_column(Integer, nullable=False)
+    # So contagens por fonte; nunca mensagens de erro.
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover - conveniencia no shell
+        return f"<CollectionRun {self.id} {self.status} {self.started_at:%Y-%m-%d}>"

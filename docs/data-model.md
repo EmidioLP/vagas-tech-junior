@@ -9,6 +9,9 @@ mesmas migrations (`migrations/versions/`):
   [Persistência](#persistência)).
 - **Legado** — `vagas` e `vaga_tecnologia`: o espelho do último CSV, que a API
   lê hoje. `tecnologias` é compartilhada pelos dois grupos.
+- **Controle** — `collection_runs`: uma linha por execução do pipeline com banco,
+  inclusive as puladas pela guarda de intervalo. Criada na etapa 06 (veja
+  [Controle de execuções](#controle-de-execuções-collection_runs)).
 
 ```mermaid
 erDiagram
@@ -26,6 +29,8 @@ erDiagram
         timestamptz first_seen_at
         timestamptz last_seen_at
         bool is_active
+        timestamptz missing_since
+        timestamptz closed_at
     }
     job_snapshots {
         int id PK
@@ -59,6 +64,17 @@ erDiagram
         string title
         string area
     }
+    collection_runs {
+        int id PK
+        timestamptz started_at
+        timestamptz finished_at
+        string triggered_by
+        string status
+        bool full_scope
+        int interval_days
+        date next_run_on
+        json summary
+    }
 ```
 
 ## Identidade × estado
@@ -88,7 +104,9 @@ vaga em memória durante a coleta.
 | `url` | `text` | opcional |
 | `first_seen_at` | `timestamptz` | obrigatório; primeira coleta que viu a vaga |
 | `last_seen_at` | `timestamptz` | obrigatório; última coleta que viu a vaga |
-| `is_active` | `boolean` | obrigatório; padrão `true` |
+| `is_active` | `boolean` | obrigatório; padrão `true`; `false` quando a vaga é encerrada (veja [Vagas encerradas](#vagas-encerradas-is_active--false)) |
+| `missing_since` | `timestamptz` | primeira coleta confiável em que a vaga sumiu da listagem; nulo quando ela reaparece |
+| `closed_at` | `timestamptz` | coleta que encerrou a vaga; nulo enquanto ativa |
 
 Restrições e índices: `uq_jobs_source_external_id`, `ix_jobs_is_active`,
 `ix_jobs_last_seen_at`.
@@ -164,7 +182,7 @@ segunda execução idêntica não cria vagas nem snapshots; só avança `last_se
 `pipeline.preparar_banco` confere três coisas antes de gastar minutos coletando:
 - a URL do banco (`DATABASE_URL` ou `--db`);
 - a conexão;
-- o schema atual (`jobs` e `job_snapshots.content_hash`).
+- o schema atual (`jobs`, `job_snapshots.content_hash` e `collection_runs`).
 
 Qualquer problema gera `ConfiguracaoError`, e a mensagem nunca traz a URL. Cada
 execução usa **um único `collected_at`**, em UTC, para todas as vagas.
@@ -179,12 +197,40 @@ execução usa **um único `collected_at`**, em UTC, para todas as vagas.
   `last_seen_at = max(atual, coleta)`, `first_seen_at = min(atual, coleta)` e
   `is_active = true`. Gravar uma coleta antiga depois de uma nova não faz as
   datas retrocederem.
-- **Nenhuma vaga é desativada nesta etapa.** Uma coleta parcial (`--sources
-  gupy`, termo que falhou) desativaria vagas que continuam abertas. A regra de
-  desativação por fonte fica para a etapa 06.
+- **O upsert nunca desativa.** Uma vaga vista tem a ausência zerada e, se estava
+  encerrada, volta a ativa. Quem encerra é um passo separado, só com fontes
+  confiáveis (veja [Vagas encerradas](#vagas-encerradas-is_active--false)).
 - **Identidade nunca é cortada.** `source` ou `external_id` maior que a coluna
   conta como falha. Os campos de texto do snapshot são aparados e cortados no
   tamanho da coluna.
+
+### Vagas encerradas (`is_active = false`)
+
+Portais não avisam que uma vaga foi preenchida. O sinal usado é a vaga **sumir
+da listagem em duas coletas seguidas**. `persistence.repositorio.encerrar_ausentes`
+roda depois da gravação, só quando dá para confiar na ausência:
+
+- a coleta tem escopo completo e não falhou;
+- a fonte terminou com status `ok` e listou pelo menos uma vaga. Fonte vazia sem
+  erro pode ser mudança no HTML do portal.
+
+Para cada vaga ativa dessa fonte:
+
+| Situação | Resultado |
+|---|---|
+| O portal ainda lista a vaga (mesmo que os filtros a descartem) | `missing_since = null` |
+| Sumiu e `missing_since` é nulo | `missing_since = collected_at` (primeira ausência) |
+| Sumiu de novo, em **outro dia** (UTC) | `is_active = false`, `closed_at = collected_at` |
+| Sumiu de novo no mesmo dia | nada: duas coletas no mesmo dia contam como uma |
+
+- **Nada é apagado.** Snapshots e tecnologias ficam; análises históricas sabem
+  quando a vaga abriu (`first_seen_at`) e fechou (`closed_at`).
+- **Vaga encerrada que reaparece** volta a `is_active = true`, com `closed_at` e
+  `missing_since` nulos.
+- **Uma transação por fonte.** Erro de banco desfaz só o encerramento daquela
+  fonte, vira erro no resumo e faz a execução sair com código 1.
+- **Consumidores** (dashboard, análises) contam vagas abertas com
+  `is_active = true`.
 
 ### Snapshot: só quando o estado muda
 
@@ -251,7 +297,8 @@ A regra está em `persistence/assinatura.py`, versão 1.
 `persistir_vagas` devolve um `ResumoPersistencia`: vagas criadas e atualizadas,
 snapshots criados e ignorados, falhas (no total e por fonte) e a lista de erros
 (`fonte:id: TipoDoErro`). O `main.py` imprime o resumo e sai com código 1 se
-houver falhas.
+houver falhas. O status de cada fonte e da execução, e os demais códigos de
+saída, estão em `docs/automation.md`.
 
 ### Legado: `vagas` e `import_csv.py`
 
@@ -259,10 +306,54 @@ A API ainda lê `vagas`, que é alimentada por `scripts/import_csv.py` a partir 
 um CSV. No deploy, é o `seed/vagas.csv`. O pipeline **não** escreve em `vagas`.
 Esse fluxo fica até a API passar a ler o histórico.
 
+## Controle de execuções (`collection_runs`)
+
+Tabela de controle da automação, sem FK para as outras. Cada execução do pipeline
+**com banco** grava uma linha, inclusive quando a guarda de intervalo pula a
+coleta. É ela que a guarda consulta, e é o registro auditável de cada disparo:
+agendado, manual ou local (`docs/automation.md`).
+
+- Classe ORM: `CollectionRun`.
+- Leitura e gravação: `persistence/execucoes.py`.
+- Regras de intervalo e de status: `scraper/execucao.py`.
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `id` | inteiro | PK |
+| `started_at` | `timestamptz` | obrigatório; o `collected_at` da execução |
+| `finished_at` | `timestamptz` | obrigatório |
+| `triggered_by` | `varchar(20)` | obrigatório; `schedule`, `manual` ou `local` |
+| `status` | `varchar(20)` | obrigatório; `success`, `partial`, `failed` ou `skipped` |
+| `full_scope` | `boolean` | obrigatório; todas as fontes, termos padrão, ≥ 5 páginas por termo e filtro de senioridade |
+| `interval_days` | inteiro | X usado pela guarda; nulo em execução forçada |
+| `reason` | `text` | motivo do skip, das falhas ou da decisão da guarda |
+| `next_run_on` | `date` | próxima coleta prevista (UTC): última coleta completa + X dias, ou o dia seguinte se essa data já passou; nulo quando X não é conhecido |
+| `jobs_count` | inteiro | obrigatório; vagas processadas |
+| `failures` | inteiro | obrigatório; vagas não gravadas |
+| `summary` | `json` | obrigatório; por fonte: status, requests, requests falhos, vagas brutas, nº de avisos e contagens da gravação |
+
+Índice: `ix_collection_runs_status_started_at`, que serve à consulta da guarda.
+
+- **A guarda** usa o maior `started_at` com `full_scope` verdadeiro e status
+  `success` ou `partial`.
+- **Só contagens em `summary`.** Mensagens de erro ficam fora, porque podem citar
+  URL de portal ou dados da conexão.
+- **Registrar nunca desfaz a coleta.** Se a linha não puder ser gravada, as vagas
+  já gravadas ficam, o erro (só o tipo) aparece no resumo e a execução sai com
+  código 1.
+- **Execuções sem banco** (`--no-db`) não são registradas e, por isso, não podem
+  usar a guarda.
+
 ## Onde estão as regras
 
 - Modelos: `api/models.py`
-- Migrations: `migrations/versions/` (baseline, histórico e `content_hash`)
+- Migrations: `migrations/versions/` (baseline, histórico, `content_hash`,
+  `collection_runs` e encerramento de vagas)
+- Testes do encerramento: `tests/api/test_encerramento.py`
+- Guarda de intervalo e status por fonte: `scraper/execucao.py` e
+  `persistence/execucoes.py`
+- Testes da guarda e dos status: `tests/test_execucao.py` e
+  `tests/api/test_execucoes.py`
 - Persistência: `persistence/repositorio.py` e `persistence/assinatura.py`
 - Testes do histórico: `tests/api/test_historico.py`
 - Testes da persistência: `tests/api/test_persistencia.py`,
