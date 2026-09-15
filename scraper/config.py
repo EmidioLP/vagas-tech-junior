@@ -42,7 +42,8 @@ class Settings:
     search_terms: list[str] = field(default_factory=lambda: list(SEARCH_TERMS))
     # Todos os portais que funcionam hoje. Ver `scraper/sources/__init__.py`.
     sources: list[str] = field(
-        default_factory=lambda: ["gupy", "vagas", "programathor", "trampos", "linkedin"]
+        default_factory=lambda: ["gupy", "vagas", "programathor", "trampos",
+                                 "linkedin", "querovagastech"]
     )
     output_dir: Path = DEFAULT_OUTPUT_DIR
 

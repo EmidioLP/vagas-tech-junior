@@ -167,6 +167,7 @@ Limitações conhecidas estão em [Limitações honestas](#limitações-honestas
 | **ProgramaThor** | HTML da listagem (`/jobs?expertise=<nível>&page=<n>`), renderizado no servidor | Funcionando, volume pequeno |
 | **Trampos.co** | API JSON pública que a SPA consome: `GET https://trampos.co/api/v2/opportunities?tr=<termo>&page=<n>` | Funcionando, volume pequeno |
 | **LinkedIn Jobs** | API de convidado, sem login: `GET .../jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=<termo>&geoId=106057199` | Funcionando, maior volume |
+| **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
 | **Catho** | — | **Bloqueado** (ver abaixo) |
 | **Indeed BR** | — | **Bloqueado** (ver abaixo) |
 
@@ -266,6 +267,43 @@ uma requisição por vaga, multiplicando a carga no portal.
 É também a fonte com maior chance de passar a bloquear. Se isso acontecer, a
 sessão devolve `None`, o coletor entrega o que tiver e as outras fontes seguem
 normalmente.
+
+### Sobre o Quero Vagas Tech
+
+Agregador brasileiro de vagas tech. O `robots.txt` libera tudo (`Allow: /`, sem
+uma linha de `Disallow`) e a API que o front consome é pública, então a coleta
+é direta: listagem paginada e, para cada vaga, um endpoint com a descrição. A
+API não tem busca textual, então esta fonte lista o acervo inteiro em vez de
+percorrer os termos do projeto.
+
+A listagem não traz descrição, e o portão de relevância e o extrator de
+tecnologias dependem dela. Antes de buscar descrições há um pré-filtro de nível
+de entrada que chama a **mesma** função do pipeline — é economia de requisição,
+não regra própria. Medido em 15/09/2026: **686 vagas listadas, 192 com nível de
+entrada no título** (192 buscas de descrição, uns 6 minutos), 170 de tecnologia
+no fim.
+
+**A senioridade que o portal declara não é aproveitada, e isso é deliberado.**
+Numa medição de 741 vagas, 292 vinham marcadas como `Intern` — entre elas
+"Gerente de Infraestrutura de TI - LATAM" e "Analista de Produtos de TI Pleno".
+Na de 15/09, das 192 com nível de entrada no título, o portal chamava 4 de
+`Lead` e 4 de `Mid`. O filtro de nível deste projeto **respeita** nível
+declarado pela fonte e nem consulta o título, então aceitar esse campo faria
+passar gerente e pleno. A fonte deixa o campo vazio e quem decide é o título.
+
+Parte do acervo vem do mesmo portal da Gupy que este projeto já raspa direto
+(65 das 192), e a deduplicação por título+empresa colapsa essas quando as duas
+fontes rodam juntas. O ganho real é a curadoria manual do site, mais InfoJobs e
+Solides.
+
+Algumas vagas da curadoria manual não têm link navegável — vêm como
+`manual://jobs/<id>` ou com um e-mail de candidatura. Para essas, o link passa a
+ser a página da vaga no próprio portal, que existe para toda vaga e mostra como
+se candidatar.
+
+O envelope da listagem traz `isLimited` e `requiresAuthForMore`. Hoje os dois
+vêm `false` para cliente anônimo, mas os campos existem: se um dia começarem a
+morder, a coleta avisa em log em vez de silenciosamente trazer dez vagas.
 
 ### Sobre a Catho — bloqueada
 
@@ -705,7 +743,8 @@ vagas-tech-junior/
 │       ├── vagas_com.py
 │       ├── programathor.py
 │       ├── trampos.py
-│       └── linkedin.py
+│       ├── linkedin.py
+│       └── querovagastech.py
 ├── api/                     # API REST somente leitura (opcional)
 │   ├── app.py               # FastAPI, /docs, handlers de erro
 │   ├── database.py          # engine e sessão SQLAlchemy
@@ -719,7 +758,7 @@ vagas-tech-junior/
 ├── docker-compose.yml       # API + PostgreSQL
 ├── scripts/
 │   └── import_csv.py        # CSV → banco, idempotente
-└── tests/                   # 221 testes, sem rede
+└── tests/                   # 245 testes, sem rede
     └── api/                 # testes da API (pulados sem FastAPI)
 ```
 
@@ -738,7 +777,7 @@ classificação, dedupe e exportação.
 python -m pytest -q
 ```
 
-São 221 testes e nenhum acessa a rede: os parsers são testados contra respostas
+São 245 testes e nenhum acessa a rede: os parsers são testados contra respostas
 reais capturadas dos portais e fixadas em `tests/test_sources.py`.
 
 ---
