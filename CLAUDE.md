@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Python scraper that answers, with real data, which tech area (Backend, Frontend,
 Data, Mobile, DevOps, QA, Fullstack, Suporte/Infra, Segurança) hires the most
-entry-level developers in Brazil. It collects jobs from seven public portals,
+entry-level developers in Brazil. It collects jobs from public portals (six by default, seven registered),
 filters to entry-level, classifies each job into a tech area by keyword rules,
 dedupes, and exports CSVs/charts/a report. A read-only FastAPI sits on top of
 the collected data. Comments, docstrings, and commit messages in this repo are
@@ -15,7 +15,7 @@ in Portuguese — follow that convention when editing existing files.
 ## Commands
 
 ```bash
-# Run the full scraper (all 7 sources, 13 default search terms) and write to the DB.
+# Run the full scraper (the 6 default sources, 13 default search terms) and write to the DB.
 # Needs DATABASE_URL + `alembic upgrade head`; checked BEFORE collecting.
 python main.py
 
@@ -85,7 +85,7 @@ Execution policy lives in `scraper/execucao.py` (pure) and every DB run is
 recorded in `collection_runs` (`persistence/execucoes.py`), skips included:
 - `--respect-interval` needs `COLLECTION_INTERVAL_DAYS` (no default) and skips
   unless X days (compared by UTC date) passed since the last run with
-  `full_scope` (all sources, default terms, ≥5 pages) and status
+  `full_scope` (all `DEFAULT_SOURCES`, default terms, ≥5 pages) and status
   `success`/`partial`.
 - With X known (always under the guard; forced runs if the env var is set),
   `calcular_agenda` fills `result.agenda`, printed/summarized as `Última coleta:
@@ -119,7 +119,10 @@ section before touching a source file, e.g.:
 - Vagas.com: server-rendered HTML (no Selenium needed); listing only exposes
   full remote/on-site, not hybrid, in the card.
 - ProgramaThor: `?search=` is silently ignored; most listed jobs are expired
-  ("Vencida") and must be dropped.
+  ("Vencida") and must be dropped. Excluded from the default collection
+  (`FORA_DA_COLETA_PADRAO` / `DEFAULT_SOURCES` in `sources/__init__.py`) because it
+  returns HTTP 403 to cloud IPs; still registered, so `--sources programathor`
+  and the API's `source` filter keep working.
 - Trampos.co: consumes an internal SPA JSON API (not officially documented);
   mixes tech and non-tech job categories.
 - LinkedIn: guest API, requires numeric `geoId` (not `location=Brasil`, which

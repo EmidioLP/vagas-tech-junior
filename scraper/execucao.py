@@ -26,7 +26,7 @@ from typing import Any
 
 from .config import SEARCH_TERMS, Settings
 from .models import SourceStats
-from .sources import AVAILABLE_SOURCES
+from .sources import DEFAULT_SOURCES
 
 OK = "ok"
 SUCCESS = "success"
@@ -63,9 +63,13 @@ class Decisao:
 
 
 def escopo_completo(settings: Settings) -> bool:
-    """Coleta que representa o mercado inteiro, e nao uma amostra."""
+    """Coleta que representa o mercado inteiro, e nao uma amostra.
+
+    Exige as fontes da coleta padrao; as de `FORA_DA_COLETA_PADRAO` (bloqueadas
+    em nuvem) nao sao necessarias.
+    """
     return (
-        set(settings.sources) >= set(AVAILABLE_SOURCES)
+        set(settings.sources) >= set(DEFAULT_SOURCES)
         and list(settings.search_terms) == list(SEARCH_TERMS)
         and settings.max_pages_per_term >= PAGINAS_ESCOPO_COMPLETO
         and settings.only_junior

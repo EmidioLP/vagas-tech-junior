@@ -64,8 +64,8 @@ exige commit, cron novo nem mudança de lógica: basta alterar a Variable (passo
 - **Contam como "última coleta"** só as execuções que:
   - gravaram no banco;
   - terminaram com `success` ou `partial`;
-  - tinham **escopo completo**: todas as fontes, os termos padrão, pelo menos 5
-    páginas por termo e o filtro de senioridade ligado.
+  - tinham **escopo completo**: todas as fontes da coleta padrão, os termos
+    padrão, pelo menos 5 páginas por termo e o filtro de senioridade ligado.
 - **Não contam:**
   - `failed`, para a execução seguinte tentar de novo;
   - `skipped`;
@@ -94,12 +94,18 @@ python main.py --max-pages 1 --trigger manual --sources gupy --no-db --csv --no-
 | Input | Padrão | Vira |
 |---|---|---|
 | `modo` | `banco` | `sem-banco` acrescenta `--no-db --csv --no-charts` |
-| `fontes` | vazio (todas) | `--sources ...`; nomes separados por espaço, validados pelo `argparse` |
+| `fontes` | vazio (fontes padrão) | `--sources ...`; nomes separados por espaço, validados pelo `argparse` |
 | `max_paginas` | `5` | `--max-pages N`; precisa ser inteiro positivo |
 | `respeitar_intervalo` | `false` | `true` acrescenta `--respect-interval` |
 
-A execução agendada não tem inputs: sempre grava no banco, com todas as fontes, 5
+A execução agendada não tem inputs: sempre grava no banco, com as fontes padrão, 5
 páginas por termo e a guarda.
+
+**Fontes padrão:** Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero Vagas Tech e
+GeekHunter. A **ProgramaThor fica fora**: desde 15/09/2026 ela responde HTTP 403
+para os servidores do GitHub Actions. A fonte continua no código e funciona da
+máquina local com `--sources programathor`, e as vagas antigas dela continuam na
+API. A lista fica em `scraper/sources/__init__.py` (`FORA_DA_COLETA_PADRAO`).
 
 **Forçar uma coleta:** dispare manualmente com `respeitar_intervalo=false`, que é o
 padrão. A coleta roda mesmo dentro do intervalo. Se tiver escopo completo e não

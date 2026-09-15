@@ -192,7 +192,7 @@ Limitações conhecidas estão em [Limitações honestas](#limitações-honestas
 |--------|-----------------|--------|
 | **Gupy** (`portal.gupy.io`) | Endpoint JSON público que o front do portal usa: `GET https://employability-portal.gupy.io/api/v1/jobs?jobName=<termo>&limit=<n>&offset=<n>` | Funcionando, sem autenticação |
 | **Vagas.com.br** | HTML da busca (`/vagas-de-<termo>?pagina=<n>`), renderizado no servidor | Funcionando, sem Selenium |
-| **ProgramaThor** | HTML da listagem (`/jobs?expertise=<nível>&page=<n>`), renderizado no servidor | Funcionando, volume pequeno |
+| **ProgramaThor** | HTML da listagem (`/jobs?expertise=<nível>&page=<n>`), renderizado no servidor | **Fora da coleta automática** (HTTP 403 para IPs de nuvem); funciona localmente com `--sources programathor` |
 | **Trampos.co** | API JSON pública que a SPA consome: `GET https://trampos.co/api/v2/opportunities?tr=<termo>&page=<n>` | Funcionando, volume pequeno |
 | **LinkedIn Jobs** | API de convidado, sem login: `GET .../jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=<termo>&geoId=106057199` | Funcionando, maior volume |
 | **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
@@ -226,6 +226,12 @@ marketing), enquanto a Gupy devolve a descrição completa. O classificador leva
 isso em conta (veja "Portão de relevância" abaixo).
 
 ### Sobre a ProgramaThor
+
+> **Fora da coleta padrão desde 15/09/2026.** A primeira coleta pelo GitHub
+> Actions recebeu `HTTP 403` nas duas consultas: o portal bloqueia IPs de nuvem.
+> Da máquina local continua funcionando. A fonte segue no código e nos testes, e
+> as vagas antigas dela continuam na API; para coletar, rode
+> `python main.py --sources programathor`.
 
 Portal 100% de tecnologia, com listagem renderizada no servidor. Duas
 particularidades mudam a forma de integrar:

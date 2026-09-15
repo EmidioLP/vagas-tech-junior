@@ -20,6 +20,11 @@ Duas particularidades descobertas testando o site, e que mudam a integracao:
 O card traz senioridade e tecnologias declaradas pelo proprio portal, o que
 torna esta fonte util para conferir a classificacao por keywords do projeto
 contra uma categorizacao nativa.
+
+**Fora da coleta padrao desde 15/09/2026.** O portal responde HTTP 403 para IPs
+de nuvem: da maquina local funciona, do GitHub Actions nao. A fonte continua
+registrada e testada (`scraper.sources.FORA_DA_COLETA_PADRAO`); para usar,
+`python main.py --sources programathor`.
 """
 
 from __future__ import annotations

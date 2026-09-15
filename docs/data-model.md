@@ -324,7 +324,7 @@ agendado, manual ou local (`docs/automation.md`).
 | `finished_at` | `timestamptz` | obrigatório |
 | `triggered_by` | `varchar(20)` | obrigatório; `schedule`, `manual` ou `local` |
 | `status` | `varchar(20)` | obrigatório; `success`, `partial`, `failed` ou `skipped` |
-| `full_scope` | `boolean` | obrigatório; todas as fontes, termos padrão, ≥ 5 páginas por termo e filtro de senioridade |
+| `full_scope` | `boolean` | obrigatório; todas as fontes da coleta padrão, termos padrão, ≥ 5 páginas por termo e filtro de senioridade |
 | `interval_days` | inteiro | X usado pela guarda; nulo em execução forçada |
 | `reason` | `text` | motivo do skip, das falhas ou da decisão da guarda |
 | `next_run_on` | `date` | próxima coleta prevista (UTC): última coleta completa + X dias, ou o dia seguinte se essa data já passou; nulo quando X não é conhecido |
