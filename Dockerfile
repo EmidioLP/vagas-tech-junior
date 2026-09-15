@@ -32,6 +32,6 @@ USER vagas
 
 EXPOSE 8000
 
-# Sem DATABASE_URL a imagem sobe em SQLite, igual ao comportamento local.
-# O docker-compose sobrescreve isso para apontar ao Postgres.
+# DATABASE_URL e obrigatoria: sem ela a API falha no startup. O docker-compose
+# a define apontando para o Postgres do compose.
 CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

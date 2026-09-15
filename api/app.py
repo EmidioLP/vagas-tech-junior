@@ -7,7 +7,6 @@ escrita: as vagas entram pelo pipeline de raspagem e pelo script de importacao
 
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
@@ -18,11 +17,9 @@ from sqlalchemy.orm import Session
 
 from scraper import __version__
 
-from .database import database_url, get_db, init_db, url_sem_senha
+from .database import get_db, init_db
 from .models import Vaga
 from .routers import areas, tecnologias, vagas
-
-logger = logging.getLogger(__name__)
 
 DESCRIPTION = """
 API de consulta das vagas júnior de tecnologia coletadas pelo scraper.
@@ -38,8 +35,9 @@ atualizar, rode o scraper (`python main.py`) e depois a importação
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Resolve DATABASE_URL aqui: sem ela a API nao sobe, em vez de subir e
+    # falhar na primeira requisicao.
     init_db()
-    logger.info("Banco: %s", url_sem_senha(database_url()))
     yield
 
 

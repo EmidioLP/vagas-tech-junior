@@ -1,4 +1,4 @@
-"""Importa o CSV de vagas gerado pelo scraper para o SQLite.
+"""Importa o CSV de vagas gerado pelo scraper para o banco (DATABASE_URL ou --db).
 
     python scripts/import_csv.py                  # pega o CSV mais recente
     python scripts/import_csv.py --csv caminho.csv
@@ -173,14 +173,14 @@ def importar(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Importa o CSV de vagas do scraper para o SQLite.",
+        description="Importa o CSV de vagas do scraper para o banco.",
     )
     parser.add_argument("--csv", type=Path, default=None,
                         help="CSV a importar (padrão: o mais recente em output/).")
     parser.add_argument(
         "--db", default=None, metavar="DESTINO",
         help="Banco de destino: caminho de arquivo SQLite ou URL completa "
-             "(postgresql://...). Padrão: DATABASE_URL, ou data/vagas.db.",
+             "(postgresql://...). Padrão: DATABASE_URL, obrigatória sem --db.",
     )
     parser.add_argument("--recriar", action="store_true",
                         help="Apaga e recria as tabelas antes de importar.")

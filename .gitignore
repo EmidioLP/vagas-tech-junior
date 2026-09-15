@@ -50,3 +50,8 @@ desktop.ini
 .env
 .env.*
 !.env.example
+# Contexto local do CLI do Neon: guarda orgId e projectId reais.
+.neon
+
+# Pacotes do CLI do Neon (@neon/config), instalados por `neon config init`.
+node_modules/

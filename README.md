@@ -485,7 +485,8 @@ pipeline: as vagas continuam entrando pelo scraper, e a API só as expõe por HT
 **No ar em [vagas-tech-junior-api.onrender.com/docs](https://vagas-tech-junior-api.onrender.com/docs)**
 (primeiro acesso pode levar ~1 min — o plano gratuito hiberna).
 
-Para rodar na sua máquina:
+Para rodar na sua máquina, configure antes a `DATABASE_URL` (veja [Banco](#banco)
+e [docs/neon-setup.md](docs/neon-setup.md)):
 
 ```bash
 pip install -r requirements.txt
@@ -561,19 +562,21 @@ docker compose exec db psql -U vagas -d vagas -c "SELECT area, COUNT(*) FROM vag
 
 ### Banco
 
-O projeto roda em **SQLite ou PostgreSQL** — a escolha é só de configuração,
-nenhuma linha de código muda entre os dois. A precedência é:
+O banco é configurado por **uma única variável, `DATABASE_URL`**, que aponta
+para um PostgreSQL — o destino é o [Neon](docs/neon-setup.md). Ela é procurada
+nesta ordem:
 
-1. o destino passado no argumento (usado pelo importador e pelos testes);
-2. `DATABASE_URL` — é o que o `docker-compose` define;
-3. `VAGAS_DB` — caminho de arquivo SQLite;
-4. o padrão: `data/vagas.db`.
+1. variável já definida no ambiente — é o que o `docker-compose` define;
+2. `.env.local`, gerado por `neon env pull --service postgres`;
+3. `.env`, legado.
 
-**Sem nenhuma variável definida, o comportamento é o de sempre: SQLite.** É o
-que o deploy no Render continua usando, e o que roda ao chamar
-`uvicorn api.app:app` direto.
+**Sem `DATABASE_URL`, a API e o importador falham na inicialização**, com
+mensagem clara, em vez de cair num banco padrão. Nenhum desses arquivos é
+versionado; o `.env.example` mostra o formato com valores fictícios. O passo a
+passo do Neon está em [docs/neon-setup.md](docs/neon-setup.md).
 
-O importador aceita os dois destinos:
+O importador ainda aceita um destino explícito, que vence a variável — inclusive
+um arquivo SQLite, útil para testar a importação:
 
 ```bash
 python scripts/import_csv.py --db postgresql://vagas:vagas@localhost:5432/vagas
@@ -583,7 +586,8 @@ URLs com o prefixo histórico `postgres://` (que Render e Heroku ainda entregam,
 e que o SQLAlchemy recusa) são convertidas automaticamente. A senha nunca
 aparece nos logs.
 
-SQLite em `data/vagas.db` (ignorado pelo git — é reconstruível a partir do CSV).
+Um SQLite local via `--db data/vagas.db` fica ignorado pelo git — é reconstruível
+a partir do CSV.
 `scripts/import_csv.py` pega o CSV mais recente de `output/`, ou um específico
 com `--csv`; `--recriar` zera as tabelas antes.
 

@@ -1,30 +1,27 @@
 """Conexao e sessao do SQLAlchemy.
 
-Funciona com SQLite e com PostgreSQL sem mudar o resto do codigo. A escolha e
-so de configuracao, nesta ordem de precedencia:
+O banco e configurado por uma unica variavel, DATABASE_URL, resolvida em
+`scraper.config.obter_database_url` (ambiente > .env.local > .env). Sem ela, a
+API e o importador falham com mensagem clara em vez de cair num banco padrao.
 
-    1. o destino passado no argumento (usado pelo importador e pelos testes)
-    2. a variavel de ambiente DATABASE_URL  -- e o que o docker-compose usa
-    3. a variavel de ambiente VAGAS_DB      -- caminho de arquivo SQLite
-    4. o padrao: data/vagas.db
-
-Sem nenhuma variavel definida, o comportamento e exatamente o de antes: SQLite
-em `data/vagas.db`. E o que o deploy no Render continua usando.
+Um destino passado como argumento ainda vence a variavel. E o que os testes e o
+`import_csv.py --db` usam, e aceita caminho de arquivo SQLite.
 """
 
 from __future__ import annotations
 
-import os
+import logging
 from collections.abc import Iterator
+from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.orm import DeclarativeBase, Session
 
-from scraper.config import PROJECT_ROOT
+from scraper.config import obter_database_url
 
-DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "vagas.db"
+logger = logging.getLogger(__name__)
 
 
 def _normalizar(url: str) -> str:
@@ -51,11 +48,7 @@ def _como_url(destino: str | Path) -> str:
 def database_url(destino: str | Path | None = None) -> str:
     if destino is not None:
         return _como_url(destino)
-    for variavel in ("DATABASE_URL", "VAGAS_DB"):
-        valor = os.getenv(variavel)
-        if valor:
-            return _como_url(valor)
-    return _como_url(DEFAULT_DB_PATH)
+    return _normalizar(obter_database_url())
 
 
 def url_sem_senha(url: str) -> str:
@@ -88,17 +81,26 @@ def make_engine(destino: str | Path | None = None):
     return create_engine(url, **opcoes)
 
 
-engine = make_engine()
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+@lru_cache(maxsize=1)
+def get_engine() -> Engine:
+    """Engine da aplicacao, criado no primeiro uso.
+
+    Criar no import exigiria DATABASE_URL ate de quem so importa o modulo
+    passando um destino explicito (testes, `import_csv.py --db`).
+    """
+    return make_engine()
 
 
 def init_db(bind=None) -> None:
-    Base.metadata.create_all(bind=bind or engine)
+    if bind is None:
+        bind = get_engine()
+        logger.info("Banco: %s", bind.url.render_as_string(hide_password=True))
+    Base.metadata.create_all(bind=bind)
 
 
 def get_db() -> Iterator[Session]:
     """Dependencia do FastAPI: uma sessao por requisicao."""
-    db = SessionLocal()
+    db = Session(get_engine(), autoflush=False, expire_on_commit=False)
     try:
         yield db
     finally:

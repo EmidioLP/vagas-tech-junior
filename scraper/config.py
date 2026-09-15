@@ -6,8 +6,13 @@ esta neste arquivo ou nos YAMLs em `scraper/rules/`.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
+
+from dotenv import dotenv_values
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RULES_DIR = Path(__file__).resolve().parent / "rules"
@@ -64,3 +69,61 @@ class Settings:
     def ensure_output_dir(self) -> Path:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         return self.output_dir
+
+
+# ---------------------------------------------------------------------------
+# Banco de dados
+# ---------------------------------------------------------------------------
+
+# Em ordem de precedencia, depois das variaveis ja definidas no ambiente.
+# `.env.local` e o que `neon env pull` gera; `.env` e o formato legado.
+ARQUIVOS_ENV: tuple[Path, ...] = (PROJECT_ROOT / ".env.local", PROJECT_ROOT / ".env")
+
+_ESQUEMAS_POSTGRES = {"postgres", "postgresql", "postgresql+psycopg"}
+
+
+class ConfiguracaoError(RuntimeError):
+    """Configuracao obrigatoria ausente ou invalida.
+
+    A mensagem nunca inclui o valor recebido: uma URL de banco carrega senha.
+    """
+
+
+def obter_database_url(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> str:
+    """DATABASE_URL, na ordem: ambiente > `.env.local` > `.env`.
+
+    Os arquivos sao lidos sem tocar em `os.environ`, para que carregar a
+    configuracao nao vaze a URL para subprocessos nem entre testes.
+    """
+    environ = os.environ if environ is None else environ
+    arquivos = ARQUIVOS_ENV if arquivos is None else arquivos
+
+    valor = (environ.get("DATABASE_URL") or "").strip()
+    for arquivo in arquivos:
+        if valor:
+            break
+        if Path(arquivo).is_file():
+            valor = (dotenv_values(arquivo).get("DATABASE_URL") or "").strip()
+
+    if not valor:
+        raise ConfiguracaoError(
+            "DATABASE_URL não definida. Defina a variável no ambiente ou gere o "
+            ".env.local com `neon env pull --service postgres` "
+            "(veja docs/neon-setup.md)."
+        )
+
+    partes = urlsplit(valor)
+    if partes.scheme not in _ESQUEMAS_POSTGRES:
+        raise ConfiguracaoError(
+            "DATABASE_URL precisa ser uma URL PostgreSQL, começando com "
+            "postgresql:// ou postgres://."
+        )
+    if not partes.hostname:
+        raise ConfiguracaoError(
+            "DATABASE_URL não tem host. Gere a URL novamente com "
+            "`neon env pull --service postgres`."
+        )
+    return valor

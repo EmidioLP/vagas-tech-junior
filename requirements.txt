@@ -2,12 +2,16 @@ requests>=2.31,<3
 beautifulsoup4>=4.12,<5
 PyYAML>=6.0,<7
 matplotlib>=3.7
+# `scraper.config` le DATABASE_URL do .env.local/.env quando nao esta no ambiente.
+python-dotenv>=1.0,<2
 
 # API REST (opcional -- so precisa se for rodar a API):
 fastapi>=0.115
 uvicorn>=0.30
 SQLAlchemy>=2.0,<3
 pydantic>=2.0,<3
+# Driver do PostgreSQL (Neon). DATABASE_URL e obrigatoria para API e importador.
+psycopg[binary]>=3.1
 
 # Testes (opcional em producao):
 pytest>=8.0

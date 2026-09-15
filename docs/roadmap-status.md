@@ -4,7 +4,7 @@ Etapas definidas em `.llm/prompts/`. Todas acontecem na branch
 `feature/data-platform`.
 
 - [x] 00 — Diagnóstico e linha de base
-- [ ] 01 — Neon e configuração segura
+- [x] 01 — Neon e configuração segura
 - [ ] 02 — Alembic e base de migrations
 - [ ] 03 — Schema histórico: jobs e snapshots
 - [ ] 04 — Persistência direta e idempotência

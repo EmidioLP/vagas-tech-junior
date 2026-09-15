@@ -35,7 +35,7 @@ python -m pytest tests/api -q                          # API tests only (auto-sk
 
 # API (read-only REST over the collected data)
 pip install -r requirements.txt
-python scripts/import_csv.py            # CSV (newest in output/, or seed/vagas.csv) -> SQLite/Postgres
+python scripts/import_csv.py            # CSV (newest in output/) -> DATABASE_URL (required) or --db
 uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs
 
 # API + Postgres via Docker (handles healthcheck + seed import automatically)
@@ -125,10 +125,19 @@ area/technology names stay a single source of truth. `/areas` and `/tecnologias`
 are always computed live from the `vagas` table, never read from the pre-aggregated
 `ranking_areas.csv`/`skills_por_area.csv` (those are truncated top-N exports).
 
-Database is SQLite or PostgreSQL purely by configuration (`scripts/import_csv.py`
-picks a target by: explicit arg > `DATABASE_URL` > `VAGAS_DB` > default
-`data/vagas.db`), no code branches on which one is active. `postgres://` URLs
-are rewritten to `postgresql://` for SQLAlchemy automatically.
+The database is configured by a single required `DATABASE_URL` (Neon
+PostgreSQL), resolved in `scraper/config.py:obter_database_url` with precedence
+process env > `.env.local` (written by `neon env pull`) > `.env`. There is no
+default database: without it, the API lifespan and the importer raise
+`ConfiguracaoError`, whose message never includes the URL. An explicit
+destination argument (`make_engine(path)`, `import_csv.py --db`) still wins and
+may be a SQLite path — tests rely on this. The engine is lazy
+(`api/database.py:get_engine`) so importing the module doesn't require the
+variable. `postgres://`/`postgresql://` URLs are rewritten to
+`postgresql+psycopg://`. Tests never read the real `.env.local`:
+`tests/conftest.py` blanks `ARQUIVOS_ENV` and unsets `DATABASE_URL`. See
+`docs/neon-setup.md`; `.neon`, `.env*` (except `.env.example`) and
+`node_modules/` are git-ignored and must stay that way.
 
 Import (`scripts/import_csv.py`) is idempotent — job identity is `(source,
 external_id)`, so re-running updates rather than duplicates. `skills` (a CSV
