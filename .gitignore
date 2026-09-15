@@ -33,6 +33,8 @@ output/
 *.csv
 *.xlsx
 relatorio_*.md
+# Log e resumo da coleta (`--resumo`), gerados no GitHub Actions ou localmente.
+coleta/
 
 # Excecao: o snapshot que alimenta o deploy precisa ser versionado, senao a
 # API sobe vazia no servidor (o disco do Render e efemero).

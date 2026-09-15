@@ -30,6 +30,7 @@ python main.py --strict                       # drop mixed titles like "Júnior/
 python main.py --all-levels                   # skip seniority filter entirely
 python main.py --csv --no-charts              # skip matplotlib PNG generation
 python main.py -v                             # DEBUG logging
+python main.py --resumo coleta/resumo.md      # also write a non-sensitive Markdown summary (used by collect.yml)
 
 # Tests (no network — sources are tested against captured real responses)
 python -m pytest -q
@@ -212,3 +213,12 @@ fixture (`tests/api/conftest.py`): a temp SQLite file built by `alembic upgrade
 head`, so they test the migration schema. The pipeline integration test
 (`tests/api/test_pipeline_persistencia.py`) monkeypatches `pipeline.collect`
 instead of hitting the network.
+
+### GitHub Actions (`.github/workflows/`)
+
+`ci.yml` runs `python -m pytest -q` on push/PR (Python 3.11 + 3.13) with no
+secrets. `collect.yml` is `workflow_dispatch` only (no `schedule` yet): it runs
+`python main.py ... --resumo coleta/resumo.md` with `DATABASE_URL` from Secrets,
+never runs migrations or `-v`, and on failure uploads only the log passed through
+`scripts/sanitizar_log.py`. `tests/test_workflows.py` pins these rules. See
+`docs/automation.md`.

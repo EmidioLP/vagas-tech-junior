@@ -9,6 +9,7 @@ Exemplos:
     python main.py --terms "estagio dados" "engenheiro de dados junior"
     python main.py --max-pages 2 --delay 2  # coleta menor e mais lenta
     python main.py --strict                 # descarta titulos "Junior/Pleno"
+    python main.py --resumo coleta/resumo.md  # resumo Markdown sem dados sensiveis
 
 O banco (DATABASE_URL, com `alembic upgrade head` aplicado) e a fonte de verdade.
 """
@@ -21,7 +22,7 @@ import sys
 from pathlib import Path
 
 from scraper.config import SEARCH_TERMS, ConfiguracaoError, Settings
-from scraper.pipeline import run
+from scraper.pipeline import PipelineResult, run
 from scraper.sources import AVAILABLE_SOURCES
 
 
@@ -89,9 +90,105 @@ def build_parser() -> argparse.ArgumentParser:
         help="Com --csv, nao gera os graficos PNG (util sem matplotlib).",
     )
     parser.add_argument(
+        "--resumo", type=Path, default=None, metavar="ARQUIVO",
+        help="Grava um resumo em Markdown, sem URL nem credenciais, em qualquer "
+             "desfecho (usado pelo GitHub Actions).",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Log detalhado (DEBUG)."
     )
     return parser
+
+
+def _escrever_resumo(
+    destino: Path | None,
+    settings: Settings,
+    codigo: int,
+    result: PipelineResult | None = None,
+    erro: str | None = None,
+) -> None:
+    """Grava o resumo pedido por `--resumo`.
+
+    So entram contagens, nomes de fonte e tipos de erro, os mesmos dados impressos
+    no terminal. Nada aqui carrega a URL do banco: `ConfiguracaoError` nunca a cita
+    e os erros de persistencia tem o formato "fonte:id: TipoDoErro".
+    """
+    if destino is None:
+        return
+
+    if erro:
+        status = "erro de configuração"
+    elif result is None or not result.jobs:
+        status = "nenhuma vaga encontrada"
+    elif codigo:
+        status = "concluída com falhas"
+    else:
+        status = "concluída"
+
+    linhas = [
+        "## Coleta de vagas",
+        "",
+        f"- **Status:** {status} (exit {codigo})",
+        f"- **Fontes:** {', '.join(settings.sources)}",
+        f"- **Termos de busca:** {len(settings.search_terms)}",
+        f"- **Páginas por termo:** {settings.max_pages_per_term}",
+    ]
+    if erro:
+        linhas.append(f"- **Erro:** {erro}")
+
+    if result is not None:
+        meta = result.meta
+        linhas += [
+            f"- **Coletada em (UTC):** {meta.get('collected_at', '-')}",
+            f"- **Requests:** {meta.get('requests', 0)}",
+            "",
+            "### Funil",
+            "",
+            "| Etapa | Vagas |",
+            "|---|---:|",
+            f"| Brutas | {meta.get('raw_jobs', 0)} |",
+            f"| Fora da senioridade | -{meta.get('dropped_seniority', 0)} |",
+            f"| Duplicadas | -{meta.get('duplicates', 0)} |",
+            f"| Fora de tecnologia | -{meta.get('dropped_non_tech', 0)} |",
+            f"| **Final** | **{len(result.jobs)}** |",
+            "",
+            "### Por fonte",
+            "",
+            "| Fonte | Requests | Vagas brutas | Avisos |",
+            "|---|---:|---:|---:|",
+        ]
+        linhas += [
+            f"| {s.source} | {s.requests_made} | {s.raw_jobs} | {len(s.errors)} |"
+            for s in result.stats
+        ]
+
+        if result.ranking:
+            linhas += ["", "### Ranking de áreas", "",
+                       "| # | Área | Vagas | % |", "|---:|---|---:|---:|"]
+            linhas += [
+                f"| {r['posicao']} | {r['area']} | {r['vagas']} | {r['percentual']:.1f} |"
+                for r in result.ranking
+            ]
+
+        resumo = result.persistencia
+        linhas += ["", "### Banco (jobs / job_snapshots)", ""]
+        if resumo is None:
+            linhas.append("Não gravado (`--no-db`).")
+        else:
+            linhas += [
+                "| Vagas criadas | Vagas atualizadas | Snapshots criados "
+                "| Snapshots ignorados | Falhas |",
+                "|---:|---:|---:|---:|---:|",
+                f"| {resumo.jobs_criados} | {resumo.jobs_atualizados} "
+                f"| {resumo.snapshots_criados} | {resumo.snapshots_ignorados} "
+                f"| {resumo.falhas} |",
+            ]
+            if resumo.erros:
+                linhas.append("")
+                linhas += [f"- `{e}`" for e in resumo.erros[:10]]
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text("\n".join(linhas) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -133,10 +230,12 @@ def main(argv: list[str] | None = None) -> int:
     except ConfiguracaoError as exc:
         # A mensagem nunca inclui a URL do banco.
         print(f"\nErro de configuração: {exc}", file=sys.stderr)
+        _escrever_resumo(args.resumo, settings, 2, erro=str(exc))
         return 2
 
     if not result.jobs:
         print("\nNenhuma vaga encontrada. Verifique conexao e termos de busca.")
+        _escrever_resumo(args.resumo, settings, 1, result=result)
         return 1
 
     print("\n" + "=" * 62)
@@ -171,7 +270,9 @@ def main(argv: list[str] | None = None) -> int:
         for err in errors[:10]:
             print(f"    ! {err}")
 
-    return 1 if resumo is not None and resumo.falhas else 0
+    codigo = 1 if resumo is not None and resumo.falhas else 0
+    _escrever_resumo(args.resumo, settings, codigo, result=result)
+    return codigo
 
 
 if __name__ == "__main__":

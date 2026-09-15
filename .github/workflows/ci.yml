@@ -1,0 +1,45 @@
+# CI: roda a suite de testes em push e pull request.
+#
+# Os testes nao usam rede nem banco remoto (tests/conftest.py apaga a variavel do
+# banco). Este workflow nao recebe nenhum segredo: a coleta real fica no workflow
+# manual collect.yml. Guia: docs/automation.md
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    name: Testes (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 e a do Dockerfile/render.yaml; 3.13 e a da maquina onde o scraper roda.
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Testes
+        run: python -m pytest -q

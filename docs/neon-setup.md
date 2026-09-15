@@ -108,7 +108,8 @@ URL passe pela linha de comando nem pelo histórico do shell:
 - **GitHub CLI:** `gh secret set DATABASE_URL` sem `--body`. O `gh` pede o valor
   de forma interativa.
 
-Prefira a URL de uma branch Neon própria para CI, nunca a da `production`.
+Prefira a URL de uma branch Neon própria para CI, nunca a da `production`. Como
+disparar a coleta e o que cada workflow faz: `docs/automation.md`.
 
 ## O que fica fora do git
 
