@@ -18,3 +18,4 @@ def _sem_banco_da_maquina(monkeypatch):
     """
     monkeypatch.setattr(config, "ARQUIVOS_ENV", ())
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL_UNPOOLED", raising=False)

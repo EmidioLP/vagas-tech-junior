@@ -7,7 +7,7 @@ esta neste arquivo ou nos YAMLs em `scraper/rules/`.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -81,6 +81,12 @@ ARQUIVOS_ENV: tuple[Path, ...] = (PROJECT_ROOT / ".env.local", PROJECT_ROOT / ".
 
 _ESQUEMAS_POSTGRES = {"postgres", "postgresql", "postgresql+psycopg"}
 
+_MENSAGEM_AUSENTE = (
+    "DATABASE_URL não definida. Defina a variável no ambiente ou gere o "
+    ".env.local com `neon env pull --service postgres` "
+    "(veja docs/neon-setup.md)."
+)
+
 
 class ConfiguracaoError(RuntimeError):
     """Configuracao obrigatoria ausente ou invalida.
@@ -89,32 +95,26 @@ class ConfiguracaoError(RuntimeError):
     """
 
 
-def obter_database_url(
-    environ: Mapping[str, str] | None = None,
-    arquivos: Sequence[Path] | None = None,
-) -> str:
-    """DATABASE_URL, na ordem: ambiente > `.env.local` > `.env`.
+def _fontes(
+    environ: Mapping[str, str] | None,
+    arquivos: Sequence[Path] | None,
+) -> Iterator[Mapping[str, str | None]]:
+    """Ambiente, depois cada arquivo existente, lidos so quando necessarios.
 
     Os arquivos sao lidos sem tocar em `os.environ`, para que carregar a
     configuracao nao vaze a URL para subprocessos nem entre testes.
     """
-    environ = os.environ if environ is None else environ
-    arquivos = ARQUIVOS_ENV if arquivos is None else arquivos
-
-    valor = (environ.get("DATABASE_URL") or "").strip()
-    for arquivo in arquivos:
-        if valor:
-            break
+    yield os.environ if environ is None else environ
+    for arquivo in ARQUIVOS_ENV if arquivos is None else arquivos:
         if Path(arquivo).is_file():
-            valor = (dotenv_values(arquivo).get("DATABASE_URL") or "").strip()
+            yield dotenv_values(arquivo)
 
-    if not valor:
-        raise ConfiguracaoError(
-            "DATABASE_URL não definida. Defina a variável no ambiente ou gere o "
-            ".env.local com `neon env pull --service postgres` "
-            "(veja docs/neon-setup.md)."
-        )
 
+def _valor(fonte: Mapping[str, str | None], chave: str) -> str:
+    return (fonte.get(chave) or "").strip()
+
+
+def _validar_postgres(valor: str) -> str:
     partes = urlsplit(valor)
     if partes.scheme not in _ESQUEMAS_POSTGRES:
         raise ConfiguracaoError(
@@ -127,3 +127,32 @@ def obter_database_url(
             "`neon env pull --service postgres`."
         )
     return valor
+
+
+def obter_database_url(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> str:
+    """DATABASE_URL, na ordem: ambiente > `.env.local` > `.env`."""
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "DATABASE_URL")
+        if valor:
+            return _validar_postgres(valor)
+    raise ConfiguracaoError(_MENSAGEM_AUSENTE)
+
+
+def obter_url_migrations(
+    environ: Mapping[str, str] | None = None,
+    arquivos: Sequence[Path] | None = None,
+) -> str:
+    """URL para migrations: a conexao direta (DATABASE_URL_UNPOOLED) quando existir.
+
+    No Neon, DATABASE_URL passa pelo PgBouncer em modo transacao, que quebra
+    DDL e estado de sessao. A primeira fonte que define qualquer uma das duas
+    variaveis decide, para nunca combinar bancos de fontes diferentes.
+    """
+    for fonte in _fontes(environ, arquivos):
+        valor = _valor(fonte, "DATABASE_URL_UNPOOLED") or _valor(fonte, "DATABASE_URL")
+        if valor:
+            return _validar_postgres(valor)
+    raise ConfiguracaoError(_MENSAGEM_AUSENTE)

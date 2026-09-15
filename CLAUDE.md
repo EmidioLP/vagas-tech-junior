@@ -38,6 +38,12 @@ pip install -r requirements.txt
 python scripts/import_csv.py            # CSV (newest in output/) -> DATABASE_URL (required) or --db
 uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs
 
+# Migrations (Alembic; URL comes from scraper/config.py, never alembic.ini)
+alembic upgrade head --sql              # review SQL without connecting
+alembic upgrade head                    # apply (uses DATABASE_URL_UNPOOLED when present)
+alembic revision --autogenerate -m "..."  # then review by hand, see docs/migrations.md
+python -m pytest tests/api/test_migrations.py -q
+
 # API + Postgres via Docker (handles healthcheck + seed import automatically)
 docker compose up --build
 docker compose down          # add -v to also drop the db volume

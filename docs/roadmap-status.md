@@ -5,7 +5,7 @@ Etapas definidas em `.llm/prompts/`. Todas acontecem na branch
 
 - [x] 00 — Diagnóstico e linha de base
 - [x] 01 — Neon e configuração segura
-- [ ] 02 — Alembic e base de migrations
+- [x] 02 — Alembic e base de migrations
 - [ ] 03 — Schema histórico: jobs e snapshots
 - [ ] 04 — Persistência direta e idempotência
 - [ ] 05 — GitHub Actions para CI e coleta manual

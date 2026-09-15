@@ -12,6 +12,8 @@ SQLAlchemy>=2.0,<3
 pydantic>=2.0,<3
 # Driver do PostgreSQL (Neon). DATABASE_URL e obrigatoria para API e importador.
 psycopg[binary]>=3.1
+# Migrations versionadas (alembic.ini, migrations/). A imagem da API nao usa.
+alembic>=1.13,<2
 
 # Testes (opcional em producao):
 pytest>=8.0
