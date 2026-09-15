@@ -43,7 +43,7 @@ class Settings:
     # Todos os portais que funcionam hoje. Ver `scraper/sources/__init__.py`.
     sources: list[str] = field(
         default_factory=lambda: ["gupy", "vagas", "programathor", "trampos",
-                                 "linkedin", "querovagastech"]
+                                 "linkedin", "querovagastech", "geekhunter"]
     )
     output_dir: Path = DEFAULT_OUTPUT_DIR
 

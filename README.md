@@ -168,6 +168,7 @@ Limitações conhecidas estão em [Limitações honestas](#limitações-honestas
 | **Trampos.co** | API JSON pública que a SPA consome: `GET https://trampos.co/api/v2/opportunities?tr=<termo>&page=<n>` | Funcionando, volume pequeno |
 | **LinkedIn Jobs** | API de convidado, sem login: `GET .../jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=<termo>&geoId=106057199` | Funcionando, maior volume |
 | **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
+| **GeekHunter** | Sitemap + página HTML de cada vaga, com dados estruturados JobPosting | Funcionando, volume pequeno |
 | **Catho** | — | **Bloqueado** (ver abaixo) |
 | **Indeed BR** | — | **Bloqueado** (ver abaixo) |
 
@@ -304,6 +305,43 @@ se candidatar.
 O envelope da listagem traz `isLimited` e `requiresAuthForMore`. Hoje os dois
 vêm `false` para cliente anônimo, mas os campos existem: se um dia começarem a
 morder, a coleta avisa em log em vez de silenciosamente trazer dez vagas.
+
+### Sobre a GeekHunter
+
+Coletada de um jeito diferente das outras, e a diferença vem do `robots.txt`:
+
+```
+Disallow: /api/
+Disallow: /feeds/
+```
+
+As superfícies de máquina são proibidas em texto explícito — a técnica usada na
+Gupy e no Quero Vagas Tech, de consumir a API que o front chama, está fora de
+questão aqui. O mesmo arquivo aponta o sitemap, que lista a página HTML de cada
+vaga com dados estruturados `JobPosting`. Então o caminho é sitemap → filtro
+pelo slug → página da vaga.
+
+O arquivo também tem `Disallow: /jobs`, e vale ser preciso: regra de
+`robots.txt` casa prefixo a partir da raiz, então cobre `/jobs...` e não
+`/pt/<empresa>/jobs/<vaga>`, que é exatamente o formato que o sitemap lista. Há
+ainda um bloco que proíbe tudo para crawlers de treinamento de IA (GPTBot,
+ClaudeBot e afins); este scraper se identifica com User-Agent próprio e segue
+as regras gerais.
+
+O pré-filtro pelo slug usa o **mesmo** `seniority.yml` que filtra títulos mais
+adiante — o slug é o título com hífens. Medido em 15/09/2026: 773 vagas em
+`/pt/`, 44 com nível de entrada no slug, **35 de tecnologia** depois do portão
+de relevância. A página traz um campo `skills` com as tecnologias declaradas,
+que entra na descrição como as tags da ProgramaThor: 34 das 35 vagas saíram com
+tecnologia extraída, e todas vieram com modalidade informada.
+
+As 9 descartadas pelo portão: 4 claramente fora de tecnologia (estágio em
+Pedagogia, administrativo, designer) e 5 de telecom, UX e operação de
+plataforma — áreas que as 10 categorias do projeto não cobrem.
+
+A limitação é conhecida: o slug só mostra o título. Vaga júnior anunciada como
+"Desenvolvedor Front-end", sem marca de nível no título, passa batido. Buscar as
+773 páginas resolveria e custaria uns 20 minutos de requisição.
 
 ### Sobre a Catho — bloqueada
 
@@ -744,7 +782,8 @@ vagas-tech-junior/
 │       ├── programathor.py
 │       ├── trampos.py
 │       ├── linkedin.py
-│       └── querovagastech.py
+│       ├── querovagastech.py
+│       └── geekhunter.py
 ├── api/                     # API REST somente leitura (opcional)
 │   ├── app.py               # FastAPI, /docs, handlers de erro
 │   ├── database.py          # engine e sessão SQLAlchemy
@@ -758,7 +797,7 @@ vagas-tech-junior/
 ├── docker-compose.yml       # API + PostgreSQL
 ├── scripts/
 │   └── import_csv.py        # CSV → banco, idempotente
-└── tests/                   # 245 testes, sem rede
+└── tests/                   # 263 testes, sem rede
     └── api/                 # testes da API (pulados sem FastAPI)
 ```
 
@@ -777,7 +816,7 @@ classificação, dedupe e exportação.
 python -m pytest -q
 ```
 
-São 245 testes e nenhum acessa a rede: os parsers são testados contra respostas
+São 263 testes e nenhum acessa a rede: os parsers são testados contra respostas
 reais capturadas dos portais e fixadas em `tests/test_sources.py`.
 
 ---
