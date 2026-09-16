@@ -12,6 +12,7 @@ conta (Neon e Streamlit) são manuais e estão descritos abaixo.
 
 | Item | Valor |
 |---|---|
+| URL | <https://vagas-tech-junior.streamlit.app/> |
 | Plataforma | Streamlit Community Cloud, plano gratuito |
 | Repositório / branch | `EmidioLP/vagas-tech-junior`, `main` |
 | Entrypoint | `dashboard/app.py` |

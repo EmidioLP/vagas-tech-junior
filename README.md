@@ -21,11 +21,16 @@ nada. Alguns exemplos diretos:
 > Hospedada no plano gratuito do Render, que hiberna após 15 minutos sem uso —
 > **o primeiro acesso pode levar cerca de 1 minuto**. Os seguintes são imediatos.
 
-### 📊 Dashboard: _link em breve_
+### 📊 Dashboard no ar: **[vagas-tech-junior.streamlit.app](https://vagas-tech-junior.streamlit.app/)**
 
-Dashboard Streamlit com KPIs, filtros, histórico por coleta e lista de vagas
-(`dashboard/README.md`). O deploy no Streamlit Community Cloud está preparado,
-com os passos em `docs/deploy.md`; este link entra aqui quando o app estiver no ar.
+Vagas ativas, empresas, % remoto e distribuição por área, modalidade e fonte, com
+filtros, histórico por dia de coleta, lista de vagas e tecnologias mais citadas
+(`dashboard/README.md`). Lê a branch Neon `dados-main` com um papel só de leitura;
+deploy, verificação e rollback em `docs/deploy.md`.
+
+> Hospedado no plano gratuito do Streamlit Community Cloud, que hiberna depois de
+> alguns dias sem acesso. Se aparecer o botão para acordar o app, a subida leva
+> cerca de 1 minuto.
 
 ---
 
