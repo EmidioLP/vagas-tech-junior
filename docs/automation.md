@@ -312,6 +312,11 @@ retenção de 7 dias:
 O log bruto **nunca** sobe. O GitHub mascara o valor exato dos secrets no log do
 job, mas não em artefatos, e não mascara pedaços da URL, como o host.
 
+Para ligar um job à linha do banco, o log e o resumo trazem o `GITHUB_RUN_ID` e o
+`collection_runs.id` da execução, e `summary.github_run_id` guarda o primeiro.
+Frescor dos dados, monitor externo e playbook de incidentes estão em
+[`docs/observability.md`](observability.md).
+
 ### 7. Primeiro merge na `main`
 
 Antes do merge, a `dados-main` precisa estar com `alembic upgrade head` e com o

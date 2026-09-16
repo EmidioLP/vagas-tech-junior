@@ -110,5 +110,31 @@ class TecnologiaOut(BaseModel):
     vagas: int = Field(description="Vagas ativas que citam esta tecnologia (estado atual).")
 
 
+class FrescorOut(BaseModel):
+    """Estado das coletas. Nunca inclui URL, host ou mensagem de erro do banco."""
+
+    estado: str = Field(
+        description=(
+            "`em_dia`, `vencido` (última coleta completa com mais de 2× o intervalo), "
+            "`coleta_parada` (nenhuma execução registrada há mais de 2 dias), "
+            "`sem_coleta`, `sem_intervalo` (sem régua para julgar) ou `indisponivel`."
+        ),
+        examples=["em_dia"],
+    )
+    saudavel: bool = Field(description="Verdadeiro só quando `estado` é `em_dia`.")
+    ultima_coleta: datetime | None = Field(
+        default=None, description="Início da última coleta completa bem-sucedida ou parcial (UTC).")
+    status_ultima_coleta: str | None = Field(default=None, examples=["success"])
+    dias_desde_ultima_coleta: int | None = None
+    intervalo_dias: int | None = Field(
+        default=None, description="Intervalo X entre coletas, gravado pela execução agendada.")
+    limite_dias: int | None = Field(default=None, description="Dias sem coleta completa até vencer (2× X).")
+    ultima_execucao: datetime | None = Field(
+        default=None, description="Última execução de qualquer status, inclusive pulada (UTC).")
+    status_ultima_execucao: str | None = Field(default=None, examples=["skipped"])
+    dias_desde_ultima_execucao: int | None = None
+    proxima_coleta: date | None = Field(default=None, description="Próxima coleta prevista (UTC).")
+
+
 class Erro(BaseModel):
     detail: str

@@ -195,6 +195,7 @@ def run(
     respeitar_intervalo: bool = False,
     intervalo_dias: int | None = None,
     gatilho: str = "local",
+    id_externo: str | None = None,
 ) -> PipelineResult:
     """Executa o fluxo completo: grava no banco e, se pedido, exporta arquivos.
 
@@ -207,6 +208,9 @@ def run(
     Com banco e X conhecido (sempre na guarda; na execucao forcada, se
     COLLECTION_INTERVAL_DAYS estiver definida), `result.agenda` informa a ultima
     coleta completa e a proxima prevista.
+
+    `id_externo` (o `GITHUB_RUN_ID` no Actions) vai para o log, o resumo e
+    `collection_runs.summary`, junto com o id da linha gravada: e o que liga os tres.
     """
     if respeitar_intervalo and not persistir:
         raise ConfiguracaoError(
@@ -257,6 +261,8 @@ def run(
                 _encerrar_vagas_ausentes(engine, result, settings, collected_at)
 
         result.meta["gatilho"] = gatilho
+        if id_externo:
+            result.meta["github_run_id"] = id_externo
         if engine is not None and intervalo_dias is not None:
             # Esta execucao vira a "ultima coleta" se tiver escopo completo e nao falhar.
             conta = result.status in STATUS_QUE_CONTAM and escopo_completo(settings)
@@ -449,8 +455,11 @@ def _sumario(result: PipelineResult) -> dict:
             item.update(asdict(result.encerramento.por_fonte[fonte]))
         fontes[fonte] = item
     # Alertas so levam regra, fonte e contagens; nunca URL nem dado de vaga.
-    return {"fontes": fontes, "vagas": len(result.jobs),
-            "qualidade": [a.como_dict() for a in result.alertas]}
+    sumario = {"fontes": fontes, "vagas": len(result.jobs),
+               "qualidade": [a.como_dict() for a in result.alertas]}
+    if result.meta.get("github_run_id"):
+        sumario["github_run_id"] = result.meta["github_run_id"]
+    return sumario
 
 
 def _registrar_execucao(
@@ -468,7 +477,7 @@ def _registrar_execucao(
 
     decisao = result.decisao
     try:
-        registrar_execucao(
+        execucao_id = registrar_execucao(
             engine,
             started_at=started_at,
             finished_at=_agora(),
@@ -482,6 +491,8 @@ def _registrar_execucao(
             failures=result.persistencia.falhas if result.persistencia is not None else 0,
             summary=_sumario(result),
         )
+        result.meta["execucao_id"] = execucao_id
+        logger.info("Execução registrada: collection_runs.id=%d", execucao_id)
     except SQLAlchemyError as exc:
         erro = type(getattr(exc, "orig", None) or exc).__name__
         logger.error("Execução não registrada em collection_runs: %s", erro)

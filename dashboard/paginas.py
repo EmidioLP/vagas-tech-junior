@@ -114,6 +114,27 @@ def frase_agenda(resumo: ResumoGeral) -> str | None:
     return f"Última coleta: {ultima} e próxima: dia {formatar_data(resumo.proxima_coleta)}"
 
 
+def aviso_frescor(resumo: ResumoGeral) -> str | None:
+    """Aviso de dado velho ou coleta parada, com a regra de `persistence/frescor.py`.
+
+    `sem_coleta` ja tem a tela propria de banco vazio, e `sem_intervalo` nao tem
+    regua para julgar; os dois nao geram aviso.
+    """
+    frescor = resumo.frescor
+    if frescor is None or frescor.estado not in ("vencido", "coleta_parada"):
+        return None
+    ultima = formatar_data(frescor.ultima_coleta.date())
+    dias = frescor.dias_desde_ultima_coleta
+    esperado = ("a cada 1 dia" if frescor.intervalo_dias == 1
+                else f"a cada {frescor.intervalo_dias} dias")
+    if frescor.estado == "vencido":
+        return (f"Dados possivelmente desatualizados: a última coleta completa foi em "
+                f"{ultima}, há {dias} dias (esperado: {esperado}).")
+    return (f"A coleta automática parece parada: nenhuma execução registrada há "
+            f"{frescor.dias_desde_ultima_execucao} dias. Os números abaixo são da "
+            f"coleta de {ultima}.")
+
+
 def _aviso_indisponivel(exc: DadosIndisponiveis) -> None:
     st.warning("Dados indisponíveis no momento. Tente de novo em alguns minutos.")
     st.caption(str(exc))
@@ -197,6 +218,9 @@ def overview(dados: Dados) -> None:
     frase = frase_agenda(resumo)
     if frase:
         st.markdown(f"**{frase}**")
+    aviso = aviso_frescor(resumo)
+    if aviso:
+        st.warning(aviso)
 
     execucao = resumo.ultima_execucao
     if execucao is not None:

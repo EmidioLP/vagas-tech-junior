@@ -41,12 +41,10 @@ from sqlalchemy.orm import Session
 
 from api.models import CollectionRun, JobRecord, JobSnapshot, Tecnologia, job_snapshot_tecnologias
 # SEM_AREA e reexportado: e o rotulo que a tela mostra para snapshot sem area.
+from persistence.frescor import STATUS_QUE_CONTAM, Frescor, estado_das_coletas
 from persistence.foto_atual import SEM_AREA, rotulo_area, rotulo_modalidade, vagas_atuais  # noqa: F401
 from scraper.models import NAO_INFORMADO, REMOTO, WORKPLACE_ORDER
 
-# Copia de `scraper.execucao.STATUS_QUE_CONTAM`: importar aquele modulo puxaria as
-# fontes (requests, bs4), que o dashboard nao usa.
-STATUS_QUE_CONTAM = ("success", "partial")
 
 # Abaixo disso o ranking de tecnologias oscila demais para ser lido (README, "Limitações").
 BASE_MINIMA_TECNOLOGIAS = 30
@@ -85,6 +83,8 @@ class ResumoGeral:
     proxima_coleta: date | None
     ultima_execucao: Execucao | None
     vagas_ativas: int
+    # Em dia, vencido ou coleta parada (persistence/frescor.py).
+    frescor: Frescor | None = None
 
     @property
     def vazio(self) -> bool:
@@ -275,12 +275,19 @@ def vagas_ativas(engine: Engine) -> int:
     return total or 0
 
 
+def frescor(engine: Engine) -> Frescor:
+    """A mesma regra de frescor de `/health/dados` na API."""
+    with _leitura(engine) as db:
+        return estado_das_coletas(db)
+
+
 def resumo_geral(engine: Engine) -> ResumoGeral:
     return ResumoGeral(
         ultima_coleta=ultima_coleta(engine),
         proxima_coleta=proxima_coleta(engine),
         ultima_execucao=ultima_execucao(engine),
         vagas_ativas=vagas_ativas(engine),
+        frescor=frescor(engine),
     )
 
 
