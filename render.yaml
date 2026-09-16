@@ -3,11 +3,10 @@
 # O banco e o Neon, branch `dados-main` (veja docs/neon-setup.md). A URL fica so
 # no painel do Render: `sync: false` declara a variavel sem valor no git.
 #
-# O boot so sobe a API. O snapshot `seed/vagas.csv` que alimenta a tabela legada
-# `vagas` foi importado uma unica vez na `dados-main`; como o banco persiste, nao
-# ha nada a reconstruir a cada boot. Importar no boot custaria minutos a cada vez
-# que o servico do plano free acorda. Para atualizar o seed, reimporte a mao
-# (docs/neon-setup.md, "Reimportar o seed").
+# O boot so sobe a API, que le o historico gravado pela coleta automatica na
+# `dados-main`. Nada e importado nem migrado no boot: o banco persiste, e fazer
+# isso a cada vez que o servico do plano free acorda custaria minutos. Migrations
+# na `dados-main` sao aplicadas a mao (docs/neon-setup.md).
 #
 # O scraper nao roda aqui de proposito: portais de vaga costumam bloquear IP de
 # nuvem. A coleta automatica roda no GitHub Actions (docs/automation.md).

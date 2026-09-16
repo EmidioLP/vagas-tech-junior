@@ -15,8 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class _TecnologiasComoNomes(BaseModel):
     """Serializa a relacao de tecnologias como uma lista simples de nomes.
 
-    No banco `Vaga.tecnologias` e uma lista de objetos `Tecnologia`; na resposta
-    da API interessa so `["Python", "SQL"]`.
+    Aceita objetos `Tecnologia` ou nomes (a consulta ja entrega nomes); na
+    resposta da API interessa so `["Python", "SQL"]`.
     """
 
     @field_validator("tecnologias", mode="before", check_fields=False)

@@ -3,9 +3,9 @@
 #     docker compose up --build
 #     -> http://localhost:8000/docs
 #
-# O banco e populado no boot a partir de seed/vagas.csv, o mesmo snapshot que
-# alimenta o deploy. A importacao e idempotente (a identidade da vaga e o par
-# source+external_id), entao subir de novo atualiza em vez de duplicar.
+# No boot, a API aplica as migrations e carrega seed/vagas.csv no historico
+# (jobs + job_snapshots), como se fosse a coleta de 15/09/2026. A carga e
+# idempotente, entao subir de novo nao duplica nada. Nao precisa de rede.
 
 services:
   db:
@@ -38,19 +38,19 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
-    # --referencia fixa a data da coleta: as vagas cujo portal informou data
-    # relativa ("Ontem", "Ha 3 dias") seriam calculadas contra a data do
-    # container e mudariam a cada `up`. Atualize junto com o seed/vagas.csv.
+    # A data da coleta do seed e fixa no script (`DATA_DO_SEED`): datas
+    # relativas ("Ontem") nao mudam a cada `up`. Atualize junto com o CSV.
     command: >-
-      sh -c "python scripts/import_csv.py --csv seed/vagas.csv
-      --referencia 2026-09-15 &&
+      sh -c "alembic upgrade head &&
+      python scripts/carregar_seed.py &&
       uvicorn api.app:app --host 0.0.0.0 --port 8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      # Migrations + carga de ~600 vagas antes do uvicorn subir.
+      start_period: 60s
 
 volumes:
   postgres_data:

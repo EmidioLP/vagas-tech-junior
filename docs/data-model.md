@@ -6,10 +6,8 @@ mesmas migrations (`migrations/versions/`):
 - **Histórico** — `jobs`, `job_snapshots` e `job_snapshot_tecnologias`: identidade
   estável de cada vaga e o que foi observado nela a cada coleta. Criado na etapa
   03 e **gravado direto pelo pipeline** desde a etapa 04 (veja
-  [Persistência](#persistência)). É o que a API e o dashboard leem.
-- **Legado** — `vagas` e `vaga_tecnologia`: o espelho do último CSV importado.
-  Ninguém mais lê essas tabelas; saem na etapa 10. `tecnologias` é compartilhada
-  pelos dois grupos.
+  [Persistência](#persistência)). É o que a API e o dashboard leem. As
+  tecnologias citadas ficam em `tecnologias`, semeada a partir de `skills.yml`.
 - **Controle** — `collection_runs`: uma linha por execução do pipeline com banco,
   inclusive as puladas pela guarda de intervalo. Criada na etapa 06 (veja
   [Controle de execuções](#controle-de-execuções-collection_runs)).
@@ -19,8 +17,6 @@ erDiagram
     jobs ||--o{ job_snapshots : "observada em"
     job_snapshots ||--o{ job_snapshot_tecnologias : cita
     tecnologias ||--o{ job_snapshot_tecnologias : ""
-    vagas ||--o{ vaga_tecnologia : cita
-    tecnologias ||--o{ vaga_tecnologia : ""
 
     jobs {
         int id PK
@@ -58,13 +54,6 @@ erDiagram
         string nome UK
         string grupo
     }
-    vagas {
-        int id PK
-        string source "UK com external_id"
-        string external_id
-        string title
-        string area
-    }
     collection_runs {
         int id PK
         timestamptz started_at
@@ -101,7 +90,7 @@ vaga em memória durante a coleta.
 |---|---|---|
 | `id` | inteiro | PK |
 | `source` | `varchar(20)` | obrigatório; portal (`gupy`, `linkedin`, …) |
-| `external_id` | `varchar(100)` | obrigatório; id da vaga no portal. 100 porque a GeekHunter publica o id como hash de 64 caracteres; um id nunca é cortado (o mesmo tamanho vale para `vagas.external_id`) |
+| `external_id` | `varchar(100)` | obrigatório; id da vaga no portal. 100 porque a GeekHunter publica o id como hash de 64 caracteres; um id nunca é cortado |
 | `url` | `text` | opcional |
 | `first_seen_at` | `timestamptz` | obrigatório; primeira coleta que viu a vaga |
 | `last_seen_at` | `timestamptz` | obrigatório; última coleta que viu a vaga |
@@ -134,13 +123,13 @@ Restrições e índices: `uq_jobs_source_external_id`, `ix_jobs_is_active`,
 Restrições e índices: `uq_job_snapshots_job_collected` sobre
 `(job_id, collected_at)`, `ix_job_snapshots_collected_at` e `ix_job_snapshots_area`.
 
-Os tamanhos de texto são os mesmos de `vagas`, para aceitar exatamente os dados
-que o scraper já produz.
+Os tamanhos de texto são os mesmos da antiga tabela `vagas`, para aceitar
+exatamente os dados que o scraper já produz.
 
 ### `job_snapshot_tecnologias`
 
 Associação N:N entre snapshot e `tecnologias`, com PK `(snapshot_id, tecnologia_id)`.
-Segue a mesma convenção de `vaga_tecnologia`: tecnologia é relação, não string,
+Tecnologia é relação, não string,
 para dar para contar e filtrar ao longo do tempo.
 
 ## Invariantes
@@ -310,12 +299,17 @@ snapshots criados e ignorados, falhas (no total e por fonte) e a lista de erros
 houver falhas. O status de cada fonte e da execução, e os demais códigos de
 saída, estão em `docs/automation.md`.
 
-### Legado: `vagas` e `import_csv.py`
+### Tabelas legadas removidas
 
-`vagas` é alimentada por `scripts/import_csv.py` a partir de um CSV (no Docker
-Compose, o `seed/vagas.csv`). O pipeline **não** escreve em `vagas`, e desde a
-etapa 09 a API também não lê: ela usa o [estado atual](#estado-atual-persistencefoto_atualpy)
-do histórico. O fluxo legado sai na etapa 10.
+Até a etapa 09, a API lia `vagas` e `vaga_tecnologia`, o espelho de um CSV
+importado por `scripts/import_csv.py`. Desde então ela usa o
+[estado atual](#estado-atual-persistencefoto_atualpy) do histórico, e na etapa 10
+(16/09/2026) as duas tabelas e o importador saíram. A migration `85084f63871c`
+apaga as tabelas; o downgrade dela as recria **vazias**, sem os dados.
+
+Para ter dados sem rede num banco local, `scripts/carregar_seed.py` grava
+`seed/vagas.csv` no histórico pela mesma persistência da coleta, como uma coleta
+de 15/09/2026. Ele recusa bancos com linhas em `collection_runs`.
 
 ## Controle de execuções (`collection_runs`)
 

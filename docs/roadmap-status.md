@@ -19,7 +19,7 @@ Etapas definidas em `.llm/prompts/`.
 - [x] 07a — Preparação segura para o merge na main
 - [x] 08 — Analytics e histórico no dashboard
 - [x] 09 — API sobre o modelo histórico
-- [ ] 10 — Aposentar o fluxo legado
+- [x] 10 — Aposentar o fluxo legado
 - [ ] 11 — Qualidade da coleta
 - [ ] 12 — Frescor dos dados e monitoramento
 - [ ] 13 — Arquitetura e registro de decisões

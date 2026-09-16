@@ -11,6 +11,9 @@ uvicorn>=0.30
 SQLAlchemy>=2.0,<3
 pydantic>=2.0,<3
 
+# O docker-compose aplica as migrations na imagem antes de subir a API.
+alembic>=1.13,<2
+
 # Driver do PostgreSQL. DATABASE_URL e obrigatoria e aponta para Postgres
 # (Neon, ou o Postgres do docker-compose).
 psycopg[binary]>=3.1

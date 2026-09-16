@@ -6,7 +6,7 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 
-# Dados gerados: o container reconstroi o banco a partir de seed/vagas.csv.
+# Dados gerados: no compose, o banco e populado a partir de seed/vagas.csv.
 data/
 output/
 *.db

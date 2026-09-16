@@ -2,10 +2,10 @@
 
 O banco e configurado por uma unica variavel, DATABASE_URL, resolvida em
 `scraper.config.obter_database_url` (ambiente > .env.local > .env). Sem ela, a
-API e o importador falham com mensagem clara em vez de cair num banco padrao.
+API, a coleta e a carga do seed falham com mensagem clara em vez de cair num banco padrao.
 
 Um destino passado como argumento ainda vence a variavel. E o que os testes e o
-`import_csv.py --db` usam, e aceita caminho de arquivo SQLite.
+`carregar_seed.py --db` usam, e aceita caminho de arquivo SQLite.
 """
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ def get_engine() -> Engine:
     """Engine da aplicacao, criado no primeiro uso.
 
     Criar no import exigiria DATABASE_URL ate de quem so importa o modulo
-    passando um destino explicito (testes, `import_csv.py --db`).
+    passando um destino explicito (testes, `carregar_seed.py --db`).
     """
     return make_engine()
 

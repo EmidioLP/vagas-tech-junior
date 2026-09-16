@@ -59,4 +59,8 @@ volta a usar o SQLite do seed, como antes.
   apagam `jobs`, `job_snapshots` e `collection_runs` no downgrade, e com elas
   todas as coletas acumuladas.
 - **Não apague a branch Neon `dados-main`.** É ela que guarda o histórico real.
-- **Não use `import_csv.py --recriar` contra a `dados-main`.**
+- **Não use `import_csv.py --recriar` contra a `dados-main`** (o script só existe
+  em versões anteriores à etapa 10).
+- **Reverter a etapa 10 não traz `vagas` de volta.** O downgrade de
+  `85084f63871c` recria as tabelas legadas vazias. Os dados antigos só existem na
+  branch Neon de backup (`docs/neon-setup.md`), e nenhum código atual os lê.
