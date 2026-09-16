@@ -462,6 +462,8 @@ própria máquina).
 | GET | `/areas/{nome}` | Uma área |
 | GET | `/tecnologias` | As 114 tecnologias com contagem de vagas ativas que as citam. Filtros: `grupo`, `com_vagas` |
 | GET | `/tecnologias/{nome}` | Uma tecnologia |
+| GET | `/health` | Liveness: processo e banco respondem (é o health check do Render) |
+| GET | `/health/dados` | Frescor dos dados: 200 em dia, **503** se vencidos ou se a coleta parou ([docs/observability.md](docs/observability.md)) |
 
 Exemplos, contra a instância pública:
 

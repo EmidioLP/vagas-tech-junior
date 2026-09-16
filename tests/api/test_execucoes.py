@@ -311,3 +311,29 @@ def test_cli_agendada_informa_ultima_e_proxima_coleta(
     assert "pulada (exit 0)" in texto
     assert "Última coleta: dia 15/09/2026 e próxima: dia 17/09/2026" in texto
     assert [e.status for e in _execucoes(banco_historico)] == ["success", "skipped"]
+
+
+def test_ids_de_correlacao_ligam_log_resumo_e_registro(
+    monkeypatch, relogio, banco_historico, tmp_path, caplog,
+):
+    monkeypatch.setenv("GITHUB_RUN_ID", "35105009861")
+    monkeypatch.setattr(pipeline, "collect", Coleta())
+    destino = tmp_path / "resumo.md"
+
+    with caplog.at_level("INFO"):
+        assert cli.main(["--db", str(banco_historico), "--resumo", str(destino)]) == 0
+
+    [execucao] = _execucoes(banco_historico)
+    assert execucao.summary["github_run_id"] == "35105009861"
+    texto = destino.read_text(encoding="utf-8")
+    assert f"- **Registro:** collection_runs.id {execucao.id}" in texto
+    assert "- **GitHub run:** 35105009861" in texto
+    assert "Execução iniciada (GitHub run 35105009861)" in caplog.text
+    assert f"Execução registrada: collection_runs.id={execucao.id}" in caplog.text
+
+
+def test_github_run_id_invalido_e_ignorado(monkeypatch, relogio, banco_historico):
+    monkeypatch.setenv("GITHUB_RUN_ID", "123; DROP TABLE jobs")
+    monkeypatch.setattr(pipeline, "collect", Coleta())
+    assert cli.main(["--db", str(banco_historico)]) == 0
+    assert "github_run_id" not in _execucoes(banco_historico)[-1].summary

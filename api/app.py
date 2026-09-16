@@ -9,17 +9,24 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
+from dataclasses import asdict
+
 from fastapi import Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from persistence.frescor import ESTADOS_COM_PROBLEMA, estado_das_coletas
 
 from scraper import __version__
 
 from .database import get_db, init_db
 from .models import JobRecord
 from .routers import areas, tecnologias, vagas
+from .schemas import FrescorOut
 
 DESCRIPTION = """
 API de consulta das vagas júnior de tecnologia coletadas pelo scraper.
@@ -73,7 +80,8 @@ def raiz() -> dict:
         "versao": __version__,
         "somente_leitura": True,
         "docs": "/docs",
-        "endpoints": ["/vagas", "/vagas/{id}", "/areas", "/tecnologias"],
+        "endpoints": ["/vagas", "/vagas/{id}", "/areas", "/tecnologias",
+                      "/health", "/health/dados"],
     }
 
 
@@ -89,3 +97,32 @@ def health(db: Session = Depends(get_db)) -> dict:
         select(func.count()).select_from(JobRecord).where(JobRecord.is_active.is_(True))
     ) or 0
     return {"status": "ok", "vagas": total}
+
+
+@app.get(
+    "/health/dados",
+    tags=["meta"],
+    summary="Frescor dos dados",
+    response_model=FrescorOut,
+    responses={503: {"model": FrescorOut,
+                     "description": "Dados vencidos, coleta parada, sem coleta ou banco indisponível."}},
+)
+def health_dados(db: Session = Depends(get_db)) -> JSONResponse:
+    """Se os dados estão em dia. **Não** é o health check do Render.
+
+    `/health` é liveness e responde 200 mesmo com dado velho: se respondesse erro,
+    o Render reiniciaria uma API saudável. Este endpoint responde **503** quando os
+    dados estão vencidos, a coleta automática parou ou não há coleta, para que um
+    monitor de uptime externo alerte. Regra em `persistence/frescor.py`.
+    """
+    try:
+        frescor = estado_das_coletas(db)
+    except SQLAlchemyError as exc:
+        # So o tipo do erro: a mensagem do driver pode citar host e usuario.
+        tipo = type(getattr(exc, "orig", None) or exc).__name__
+        corpo = FrescorOut(estado="indisponivel", saudavel=False)
+        return JSONResponse(status_code=503,
+                            content={**jsonable_encoder(corpo), "erro": tipo})
+    corpo = FrescorOut(**asdict(frescor), saudavel=frescor.saudavel)
+    codigo = 503 if frescor.estado in ESTADOS_COM_PROBLEMA else 200
+    return JSONResponse(status_code=codigo, content=jsonable_encoder(corpo))

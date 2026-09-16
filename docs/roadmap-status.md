@@ -21,7 +21,7 @@ Etapas definidas em `.llm/prompts/`.
 - [x] 09 — API sobre o modelo histórico
 - [x] 10 — Aposentar o fluxo legado
 - [x] 11 — Qualidade da coleta
-- [ ] 12 — Frescor dos dados e monitoramento
+- [x] 12 — Frescor dos dados e monitoramento
 - [ ] 13 — Arquitetura e registro de decisões
 - [ ] 14 — Auditoria final
 

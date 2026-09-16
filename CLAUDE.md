@@ -109,6 +109,18 @@ recorded in `collection_runs` (`persistence/execucoes.py`), skips included:
   (skips failed/zero days). Alerts go to `summary.qualidade` (counts only, no URL)
   and to the `--resumo` Qualidade section. `tests/test_qualidade.py` pins that the
   15/09 seed collection yields no alerts; recalibrate constants with data.
+- Freshness (`persistence/frescor.py`, read by API and dashboard; lives in
+  `persistence/` because the dashboard can't import `scraper.execucao`): X comes
+  from the latest `collection_runs.interval_days` (not the env var, which only
+  exists in Actions). States: `sem_coleta`, `sem_intervalo` (no ruler), `vencido`
+  (last full success/partial > 2×X UTC days), `coleta_parada` (no run of any
+  status for > 2 days: the daily cron records even skips), `em_dia`. `/health`
+  stays liveness and always 200 (Render's `healthCheckPath`); `GET /health/dados`
+  answers 503 for `vencido`/`coleta_parada`/`sem_coleta`/DB down (error type
+  only). The dashboard Overview shows a `st.warning` for `vencido`/`coleta_parada`.
+- Correlation: `main.py` passes `GITHUB_RUN_ID` (digits only) as `id_externo`;
+  it goes to the log, `summary.github_run_id` and the resumo, together with the
+  `collection_runs.id` (`meta["execucao_id"]`). Playbook: `docs/observability.md`.
 
 `main.py` only builds a `Settings` (scraper/config.py) and calls `pipeline.run()`.
 `Settings` and the YAML rule files below are the two places to change behavior

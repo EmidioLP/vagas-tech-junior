@@ -375,3 +375,48 @@ def test_pagina_com_consultas_reais_no_banco_de_teste(nome, banco_com_historico,
 
     assert not app.exception
     assert not app.warning
+
+
+# --- frescor --------------------------------------------------------------------
+
+
+def _com_frescor(estado: str, dias_coleta: int = 1, dias_execucao: int = 0):
+    from dataclasses import replace
+
+    from persistence.frescor import Frescor
+
+    frescor = Frescor(
+        estado=estado, ultima_coleta=datetime(2026, 9, 15, 9, 5, tzinfo=timezone.utc),
+        status_ultima_coleta="success", dias_desde_ultima_coleta=dias_coleta,
+        intervalo_dias=2 if estado != "sem_intervalo" else None,
+        limite_dias=4 if estado != "sem_intervalo" else None,
+        dias_desde_ultima_execucao=dias_execucao,
+    )
+    return replace(COM_DADOS, frescor=frescor)
+
+
+@pytest.mark.parametrize("estado, dias_coleta, dias_execucao, trecho", [
+    ("vencido", 6, 6, "a última coleta completa foi em 15/09/2026, há 6 dias (esperado: a cada 2 dias)"),
+    ("coleta_parada", 3, 3, "nenhuma execução registrada há 3 dias"),
+])
+def test_aviso_de_frescor_quando_dado_vencido_ou_coleta_parada(estado, dias_coleta, dias_execucao, trecho):
+    aviso = paginas.aviso_frescor(_com_frescor(estado, dias_coleta, dias_execucao))
+    assert trecho in aviso
+
+
+@pytest.mark.parametrize("estado", ["em_dia", "sem_intervalo", "sem_coleta"])
+def test_sem_aviso_de_frescor_quando_nao_ha_problema_ou_regua(estado):
+    assert paginas.aviso_frescor(_com_frescor(estado)) is None
+    assert paginas.aviso_frescor(COM_DADOS) is None  # sem frescor calculado
+
+
+def test_overview_exibe_o_aviso_de_dado_vencido(monkeypatch):
+    app = _rodar_app(monkeypatch, resumo=_com_frescor("vencido", 6, 6))
+    assert not app.exception
+    assert any("Dados possivelmente desatualizados" in str(w.value) for w in app.warning)
+
+
+def test_overview_em_dia_nao_exibe_aviso(monkeypatch):
+    app = _rodar_app(monkeypatch, resumo=_com_frescor("em_dia"))
+    assert not app.exception
+    assert not app.warning

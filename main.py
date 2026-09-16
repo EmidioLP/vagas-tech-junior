@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -113,6 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _github_run_id() -> str | None:
+    """`GITHUB_RUN_ID` do Actions, se for um numero. Liga log, resumo e registro."""
+    valor = os.environ.get("GITHUB_RUN_ID", "").strip()
+    return valor if valor.isdigit() else None
+
+
 def _escrever_resumo(
     destino: Path | None,
     settings: Settings,
@@ -160,6 +167,10 @@ def _resumo_da_execucao(result: PipelineResult) -> list[str]:
     linhas: list[str] = []
     if meta.get("gatilho"):
         linhas.append(f"- **Gatilho:** {meta['gatilho']}")
+    if meta.get("execucao_id"):
+        linhas.append(f"- **Registro:** collection_runs.id {meta['execucao_id']}")
+    if meta.get("github_run_id"):
+        linhas.append(f"- **GitHub run:** {meta['github_run_id']}")
     if meta.get("motivo"):
         linhas.append(f"- **Motivo:** {meta['motivo']}")
     if meta.get("erro_registro"):
@@ -285,6 +296,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         settings.output_dir = args.output
 
+    id_externo = _github_run_id()
+    logging.getLogger("main").info(
+        "Execução iniciada (%s)", f"GitHub run {id_externo}" if id_externo else "local")
+
     try:
         result = run(
             settings,
@@ -296,6 +311,7 @@ def main(argv: list[str] | None = None) -> int:
             exportar_csv=args.csv,
             respeitar_intervalo=args.respect_interval,
             gatilho=args.trigger,
+            id_externo=id_externo,
         )
     except ConfiguracaoError as exc:
         # A mensagem nunca inclui a URL do banco.

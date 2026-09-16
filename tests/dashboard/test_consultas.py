@@ -54,7 +54,8 @@ def leitor(banco_historico):
 
 def test_banco_sem_coleta_devolve_estado_vazio(leitor):
     resumo = consultas.resumo_geral(leitor)
-    assert resumo == consultas.ResumoGeral(None, None, None, 0)
+    assert resumo == consultas.ResumoGeral(None, None, None, 0, frescor=resumo.frescor)
+    assert resumo.frescor.estado == "sem_coleta"
     assert resumo.vazio
 
 
