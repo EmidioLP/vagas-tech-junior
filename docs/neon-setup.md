@@ -19,11 +19,13 @@ convertidos para o driver `psycopg`, e `sslmode`/`channel_binding` são mantidos
 
 ## Branch Git × branch Neon
 
-São coisas diferentes com o **mesmo nome**, para facilitar a rastreabilidade:
+São coisas diferentes. A branch Neon de desenvolvimento nasceu com o nome da
+branch Git da plataforma de dados (`feature/data-platform`, já mesclada e
+apagada), e continua sendo o banco de desenvolvimento local:
 
 | | Branch Git | Branch Neon |
 |---|---|---|
-| Nome | `feature/data-platform` | `feature-data-platform` |
+| Nome | branches curtas a partir da `main` | `feature-data-platform` |
 | O que isola | código | dados e schema do banco |
 | Onde fica | repositório | projeto Neon |
 
@@ -32,7 +34,7 @@ desenvolvimento é aplicado nela.**
 
 ## Roteiro
 
-Execute na raiz do repositório, com a branch Git `feature/data-platform` ativa.
+Execute na raiz do repositório, em qualquer branch Git.
 
 ```powershell
 # Uma vez por máquina
