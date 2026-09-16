@@ -175,6 +175,15 @@ def test_status_da_execucao(fontes, vagas, falhas, esperado):
     assert status_execucao(fontes, vagas, falhas) == esperado
 
 
+@pytest.mark.parametrize("fontes, vagas, esperado", [
+    ({"gupy": PARTIAL, "vagas": OK}, 10, (PARTIAL, 1)),  # fonte rebaixada pelo alerta
+    ({"gupy": OK}, 10, (PARTIAL, 1)),                     # alerta global (sem fonte)
+    ({"gupy": FAILED}, 0, (FAILED, 1)),                   # falha continua falha
+])
+def test_alerta_de_qualidade_alto_sempre_sai_com_exit_1(fontes, vagas, esperado):
+    assert status_execucao(fontes, vagas, 0, alertas_altos=1) == esperado
+
+
 # --- Falhas visiveis na coleta --------------------------------------------------
 
 class _Resposta:

@@ -198,6 +198,75 @@ def test_todas_as_fontes_falhando_da_status_claro_e_nao_conta_para_a_guarda(
     assert seguinte.status == "success"
 
 
+class ColetaComFonteZerada(Coleta):
+    """Portal que mudou o HTML: nenhuma requisicao falha, e nenhuma vaga aparece."""
+
+    def __init__(self, zerada):
+        super().__init__()
+        self.zerada = zerada
+
+    def __call__(self, settings):
+        jobs, stats, requests = super().__call__(settings)
+        jobs = [j for j in jobs if j.source != self.zerada]
+        for s in stats:
+            if s.source == self.zerada:
+                s.raw_jobs = 0
+        return jobs, stats, requests
+
+
+def test_fonte_zerada_sem_erro_vira_parcial_com_exit_1_e_alerta_registrado(
+    monkeypatch, relogio, banco_historico,
+):
+    resultado, _ = _rodar(monkeypatch, banco_historico, coleta=ColetaComFonteZerada("gupy"),
+                          respeitar_intervalo=True)
+
+    assert (resultado.status, resultado.exit_code) == ("partial", 1)
+    assert resultado.status_fontes["gupy"] == "partial"
+    assert resultado.status_fontes["linkedin"] == "ok"
+
+    execucao = _execucoes(banco_historico)[-1]
+    assert execucao.status == "partial"
+    assert "alertas de qualidade: fonte_zerada (gupy)" in execucao.reason
+    assert execucao.summary["fontes"]["gupy"]["status"] == "partial"
+    [alerta] = execucao.summary["qualidade"]
+    assert (alerta["regra"], alerta["severidade"], alerta["fonte"]) == ("fonte_zerada", "alta", "gupy")
+
+    # Os dados foram gravados e a execucao conta para a guarda de intervalo.
+    assert _vagas_por_fonte(banco_historico)["linkedin"] == 2
+    relogio["valor"] = INICIO + timedelta(days=1)
+    seguinte, coleta = _rodar(monkeypatch, banco_historico, respeitar_intervalo=True)
+    assert seguinte.pulada and coleta.chamadas == 0
+
+
+def test_coleta_normal_registra_qualidade_sem_alertas(monkeypatch, relogio, banco_historico):
+    resultado, _ = _rodar(monkeypatch, banco_historico)
+    assert resultado.alertas == []
+    assert _execucoes(banco_historico)[-1].summary["qualidade"] == []
+
+
+def test_historico_de_vagas_brutas_so_usa_coletas_completas_que_contam(
+    monkeypatch, relogio, banco_historico,
+):
+    from persistence.execucoes import historico_vagas_brutas
+
+    _rodar(monkeypatch, banco_historico)                                      # completa, success
+    relogio["valor"] = INICIO + timedelta(days=2)
+    _rodar(monkeypatch, banco_historico, coleta=Coleta(falham={"gupy"}))      # completa, partial
+    relogio["valor"] = INICIO + timedelta(days=4)
+    _rodar(monkeypatch, banco_historico, coleta=Coleta(falham=DEFAULT_SOURCES))  # failed
+    relogio["valor"] = INICIO + timedelta(days=5)
+    _rodar(monkeypatch, banco_historico, settings=Settings(sources=["gupy"]))  # parcial de escopo
+
+    engine = make_engine(banco_historico)
+    try:
+        historico = historico_vagas_brutas(engine)
+        assert historico["gupy"] == [2]         # o dia em que falhou nao entra
+        assert historico["linkedin"] == [2, 2]
+        assert historico_vagas_brutas(engine, limite=1)["linkedin"] == [2]
+    finally:
+        engine.dispose()
+
+
 def test_coleta_de_escopo_parcial_nao_adia_a_completa(monkeypatch, relogio, banco_historico):
     parcial, _ = _rodar(monkeypatch, banco_historico, settings=Settings(sources=["gupy"]),
                         respeitar_intervalo=True)

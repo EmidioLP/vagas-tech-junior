@@ -335,7 +335,7 @@ agendado, manual ou local (`docs/automation.md`).
 | `next_run_on` | `date` | próxima coleta prevista (UTC): última coleta completa + X dias, ou o dia seguinte se essa data já passou; nulo quando X não é conhecido |
 | `jobs_count` | inteiro | obrigatório; vagas processadas |
 | `failures` | inteiro | obrigatório; vagas não gravadas |
-| `summary` | `json` | obrigatório; por fonte: status, requests, requests falhos, vagas brutas, nº de avisos e contagens da gravação |
+| `summary` | `json` | obrigatório; `fontes` (por fonte: status, requests, requests falhos, vagas brutas, nº de avisos e contagens da gravação), `vagas` e `qualidade` (alertas: regra, severidade, fonte, valor, limite, mensagem; veja `docs/data-quality.md`) |
 
 Índice: `ix_collection_runs_status_started_at`, que serve à consulta da guarda.
 

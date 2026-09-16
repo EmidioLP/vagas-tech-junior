@@ -25,6 +25,7 @@ from pathlib import Path
 from scraper.config import SEARCH_TERMS, ConfiguracaoError, Settings
 from scraper.execucao import GATILHOS, OK, ROTULOS
 from scraper.pipeline import PipelineResult, run
+from scraper.qualidade import ALTA
 from scraper.sources import AVAILABLE_SOURCES, DEFAULT_SOURCES, FORA_DA_COLETA_PADRAO
 
 
@@ -198,6 +199,18 @@ def _resumo_da_execucao(result: PipelineResult) -> list[str]:
                    if s is not None else "- | - | - | -")
         linhas.append(f"| {fonte} | {rotulo} | {numeros} |")
 
+    linhas += ["", "### Qualidade", ""]
+    if not result.alertas:
+        linhas.append("Nenhum alerta. Regras e limites em `docs/data-quality.md`.")
+    else:
+        linhas += ["| Severidade | Regra | Fonte | Valor | Limite | Detalhe |",
+                   "|---|---|---|---:|---:|---|"]
+        for alerta in result.alertas:
+            severidade = (f"**{alerta.severidade}**" if alerta.severidade == ALTA
+                          else alerta.severidade)
+            linhas.append(f"| {severidade} | {alerta.regra} | {alerta.fonte or '-'} "
+                          f"| {alerta.valor} | {alerta.limite} | {alerta.mensagem} |")
+
     if result.ranking:
         linhas += ["", "### Ranking de áreas", "",
                    "| # | Área | Vagas | % |", "|---:|---|---:|---:|"]
@@ -318,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"    Motivo: {result.meta['motivo']}")
     if result.meta.get("erro_registro"):
         print(f"    ! {result.meta['erro_registro']}")
+    if result.alertas:
+        print(f"\n  Qualidade ({len(result.alertas)} alerta(s)):")
+        for alerta in result.alertas:
+            marca = "!" if alerta.severidade == ALTA else "-"
+            print(f"    {marca} [{alerta.severidade}] {alerta.mensagem}")
     if result.agenda is not None:
         print()
         _imprimir_agenda(result)
