@@ -176,5 +176,6 @@ vagas-tech-junior/
 | [`limitacoes.md`](limitacoes.md) | Limites éticos, técnicos e de amostra |
 | [`rollback-merge.md`](rollback-merge.md) | Operação: desfazer um merge na `main` |
 | [`resultados-2026-09-15.md`](resultados-2026-09-15.md) | Relatório datado de uma coleta |
+| [`final-audit.md`](final-audit.md) | Auditoria final datada (16/09/2026): comandos, evidências, pendências e recomendações |
 | [`baseline.md`](baseline.md) | Registro histórico: estado do projeto em 15/09/2026, antes da plataforma de dados |
 | [`roadmap-status.md`](roadmap-status.md) | Etapas do roadmap |

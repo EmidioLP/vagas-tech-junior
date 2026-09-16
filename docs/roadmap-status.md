@@ -23,7 +23,7 @@ Etapas definidas em `.llm/prompts/`.
 - [x] 11 — Qualidade da coleta
 - [x] 12 — Frescor dos dados e monitoramento
 - [x] 13 — Arquitetura e registro de decisões
-- [ ] 14 — Auditoria final
+- [x] 14 — Auditoria final ([`final-audit.md`](final-audit.md))
 
 ## Revisão do roadmap (16/09/2026)
 
@@ -60,3 +60,19 @@ reescritas a partir do que já existia:
   `data-quality.md`, `observability.md`, `deploy.md`, `neon-setup.md`,
   `migrations.md`, `rollback-merge.md`) e os registros datados (`baseline.md`,
   `resultados-2026-09-15.md`).
+
+## Auditoria final (16/09/2026)
+
+Resultado em [`final-audit.md`](final-audit.md). Confirmado com evidência: testes,
+migrations, idempotência, coleta local das 6 fontes, API e dashboard (local e
+publicados) com os mesmos números, frescor coerente com `collection_runs`, e
+nenhum segredo versionado. Sem falha bloqueadora.
+
+Ainda **não confirmado** (e por isso fora das caixas acima):
+
+- `docker compose up --build`: Docker ausente na máquina da auditoria.
+- Checagens de qualidade, correlação `github_run_id` e encerramento de vagas em
+  produção: dependem das coletas agendadas de 17/09 e 19/09.
+
+Mudanças maiores recomendadas (dependências de teste, Dependabot, actions por SHA)
+ficam como etapas novas, não abertas aqui.

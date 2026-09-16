@@ -10,9 +10,10 @@ fastapi>=0.115
 uvicorn>=0.30
 SQLAlchemy>=2.0,<3
 pydantic>=2.0,<3
-# Driver do PostgreSQL (Neon). DATABASE_URL e obrigatoria para API e importador.
+# Driver do PostgreSQL (Neon). DATABASE_URL e obrigatoria para API, coleta e carga do seed.
 psycopg[binary]>=3.1
-# Migrations versionadas (alembic.ini, migrations/). A imagem da API nao usa.
+# Migrations versionadas (alembic.ini, migrations/). Tambem vai na imagem da API
+# (requirements-api.txt): o docker-compose aplica as migrations no boot; o Render nao.
 alembic>=1.13,<2
 
 # Dashboard (opcional -- so precisa se for rodar o dashboard Streamlit):
