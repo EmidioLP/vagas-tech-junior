@@ -1,0 +1,6 @@
+# Dependencias que o Streamlit Community Cloud instala para `dashboard/app.py`.
+#
+# A plataforma procura o arquivo primeiro na pasta do entrypoint, e so depois na
+# raiz. Sem este arquivo ela instalaria o `requirements.txt` da raiz inteiro
+# (scraper, API, matplotlib). A lista de verdade fica num lugar so:
+-r ../requirements-dashboard.txt

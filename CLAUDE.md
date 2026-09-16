@@ -185,6 +185,15 @@ layer must not import FastAPI, requests, bs4 or yaml (`requirements-dashboard.tx
 omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`; the
 known analytics scenario is `tests/dashboard/cenario_historico.py`.
 
+Deploy (`docs/deploy.md`, Streamlit Community Cloud, manual via the web panel):
+entrypoint `dashboard/app.py`, deps `dashboard/requirements.txt` (just
+`-r ../requirements-dashboard.txt`, since the platform looks in the entrypoint's
+folder first). `DATABASE_URL` is a root-level secret, which Streamlit exports as
+an env var at server start, so the code never uses `st.secrets`. It points at
+`dados-main` with the SQL-created `dashboard_leitura` role (SELECT on the 5 tables
+the dashboard reads + `default_transaction_read_only`); a new table read by the
+dashboard needs a new GRANT. `tests/test_deploy_dashboard.py` pins this.
+
 ### API (`api/`)
 
 Read-only FastAPI over the same data the scraper produces — no `POST`/`PUT`/`DELETE`

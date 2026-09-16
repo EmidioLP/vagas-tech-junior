@@ -21,6 +21,12 @@ nada. Alguns exemplos diretos:
 > Hospedada no plano gratuito do Render, que hiberna após 15 minutos sem uso —
 > **o primeiro acesso pode levar cerca de 1 minuto**. Os seguintes são imediatos.
 
+### 📊 Dashboard: _link em breve_
+
+Dashboard Streamlit com KPIs, filtros, histórico por coleta e lista de vagas
+(`dashboard/README.md`). O deploy no Streamlit Community Cloud está preparado,
+com os passos em `docs/deploy.md`; este link entra aqui quando o app estiver no ar.
+
 ---
 
 # Resultados
