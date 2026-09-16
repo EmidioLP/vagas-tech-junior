@@ -54,6 +54,8 @@ desktop.ini
 !.env.example
 # Contexto local do CLI do Neon: guarda orgId e projectId reais.
 .neon
+# Secrets locais do Streamlit (no Community Cloud eles ficam so no painel).
+.streamlit/secrets.toml
 
 # Pacotes do CLI do Neon (@neon/config), instalados por `neon config init`.
 node_modules/
