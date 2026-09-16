@@ -20,11 +20,13 @@ from scraper.config import PROJECT_ROOT, ConfiguracaoError  # noqa: E402
 
 INI = PROJECT_ROOT / "alembic.ini"
 BASELINE = {"vagas", "tecnologias", "vaga_tecnologia"}
+LEGADO = {"vagas", "vaga_tecnologia"}
 HISTORICO = {"jobs", "job_snapshots", "job_snapshot_tecnologias"}
 CONTROLE = {"collection_runs"}
-TABELAS = BASELINE | HISTORICO | CONTROLE
+TABELAS = {"tecnologias"} | HISTORICO | CONTROLE
 BASELINE_REVISION = "8426f7230fd1"
 HISTORICO_REVISION = "d8ef8fde92b5"
+ANTES_DA_REMOCAO_DO_LEGADO = "b7d2e4f19a63"
 
 
 def _config(url: str | None = None, saida: io.StringIO | None = None) -> Config:
@@ -66,8 +68,10 @@ def test_url_vem_da_configuracao_central(monkeypatch):
     saida = io.StringIO()
     command.upgrade(_config(saida=saida), "head", sql=True)
     sql = saida.getvalue()
-    for tabela in TABELAS:
+    for tabela in TABELAS | LEGADO:
         assert f"CREATE TABLE {tabela}" in sql
+    for tabela in LEGADO:
+        assert f"DROP TABLE {tabela}" in sql
     assert "senha-ficticia" not in sql
 
 
@@ -79,27 +83,56 @@ def test_migrations_sobem_conferem_e_descem(tmp_path):
         command.upgrade(cfg, "head")
 
         inspetor = inspect(engine)
-        assert TABELAS <= set(inspetor.get_table_names())
+        assert set(inspetor.get_table_names()) == TABELAS | {"alembic_version"}
+        colunas = {c["name"]: c for c in inspetor.get_columns("job_snapshots")}
+        assert colunas["content_hash"]["nullable"] is False
+        assert colunas["content_hash"]["default"] is None
+        externo = {c["name"]: c for c in inspetor.get_columns("jobs")}["external_id"]
+        assert externo["type"].length == 100
+
+        command.check(cfg)  # modelos e migrations sem diferenca
+
+        command.downgrade(cfg, "base")
+        assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_da_remocao_recria_o_legado_vazio(tmp_path):
+    """O downgrade devolve o schema das tabelas legadas, nunca os dados."""
+    url = _sqlite(tmp_path, "legado_removido.db")
+    cfg = _config(url)
+    engine = create_engine(url)
+    try:
+        command.upgrade(cfg, ANTES_DA_REMOCAO_DO_LEGADO)
+        with engine.begin() as conexao:
+            conexao.execute(text(
+                "INSERT INTO vagas (source, external_id, title, area) "
+                "VALUES ('gupy', '1', 'Dev Jr', 'Backend')"
+            ))
+
+        command.upgrade(cfg, "head")
+        assert not LEGADO & set(inspect(engine).get_table_names())
+
+        command.downgrade(cfg, "-1")
+        inspetor = inspect(engine)
+        assert LEGADO <= set(inspetor.get_table_names())
         assert {i["name"] for i in inspetor.get_indexes("vagas")} >= {
             "ix_vagas_area", "ix_vagas_source", "ix_vagas_workplace_type",
         }
         assert "uq_vaga_source_external_id" in {
             u["name"] for u in inspetor.get_unique_constraints("vagas")
         }
+        externo = {c["name"]: c for c in inspetor.get_columns("vagas")}["external_id"]
+        assert externo["type"].length == 100
         fks = inspetor.get_foreign_keys("vaga_tecnologia")
         assert {fk["referred_table"] for fk in fks} == {"vagas", "tecnologias"}
         assert all(fk["options"].get("ondelete") == "CASCADE" for fk in fks)
-        colunas = {c["name"]: c for c in inspetor.get_columns("job_snapshots")}
-        assert colunas["content_hash"]["nullable"] is False
-        assert colunas["content_hash"]["default"] is None
-        for tabela in ("jobs", "vagas"):
-            externo = {c["name"]: c for c in inspetor.get_columns(tabela)}["external_id"]
-            assert externo["type"].length == 100, tabela
+        with engine.connect() as conexao:
+            assert conexao.execute(text("SELECT COUNT(*) FROM vagas")).scalar() == 0
 
-        command.check(cfg)  # modelos e migrations sem diferenca
-
-        command.downgrade(cfg, "base")
-        assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+        command.upgrade(cfg, "head")
+        assert not LEGADO & set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
 

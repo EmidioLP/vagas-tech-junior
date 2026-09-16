@@ -502,12 +502,10 @@ Pronto — **http://localhost:8000/docs**. O primeiro build leva ~1 min; depois
 sobe em segundos.
 
 O que acontece no `up`: o Postgres sobe, a API espera ele ficar **realmente**
-pronto (healthcheck com `pg_isready`, não apenas o container existir), importa
-`seed/vagas.csv` e só então inicia o uvicorn.
-
-> **Em transição.** O `seed/vagas.csv` ainda é importado na tabela legada `vagas`,
-> que a API não lê mais. Até o Compose carregar o seed no histórico, `/vagas` sobe
-> vazia no Docker.
+pronto (healthcheck com `pg_isready`, não apenas o container existir), aplica as
+migrations (`alembic upgrade head`), carrega `seed/vagas.csv` no histórico e só
+então inicia o uvicorn. Não precisa de rede: o seed entra como se fosse a coleta
+de 15/09/2026.
 
 ```bash
 docker compose down
@@ -516,11 +514,11 @@ docker compose down
 Para apagar também os dados do banco, use `docker compose down -v`.
 
 O banco fica num volume, então parar e subir de novo preserva os dados — e como
-a importação é idempotente, subir de novo atualiza em vez de duplicar. Dá para
-inspecionar o Postgres de fora, na porta 5432:
+a carga é idempotente, subir de novo não duplica nada. Dá para inspecionar o
+Postgres de fora, na porta 5432:
 
 ```bash
-docker compose exec db psql -U vagas -d vagas -c "SELECT area, COUNT(*) FROM vagas GROUP BY area ORDER BY 2 DESC;"
+docker compose exec db psql -U vagas -d vagas -c "SELECT source, COUNT(*) FROM jobs WHERE is_active GROUP BY source ORDER BY 2 DESC;"
 ```
 
 ### Banco
@@ -533,36 +531,34 @@ nesta ordem:
 2. `.env.local`, gerado por `neon env pull --service postgres`;
 3. `.env`, legado.
 
-**Sem `DATABASE_URL`, a API e o importador falham na inicialização**, com
+**Sem `DATABASE_URL`, a API, a coleta e a carga do seed falham na inicialização**, com
 mensagem clara, em vez de cair num banco padrão. Nenhum desses arquivos é
 versionado; o `.env.example` mostra o formato com valores fictícios. O passo a
 passo do Neon está em [docs/neon-setup.md](docs/neon-setup.md).
 
-O importador ainda aceita um destino explícito, que vence a variável — inclusive
-um arquivo SQLite, útil para testar a importação:
+A carga do seed aceita um destino explícito, que vence a variável — inclusive um
+arquivo SQLite já migrado, útil para ter dados locais sem coletar:
 
 ```bash
-python scripts/import_csv.py --db postgresql://vagas:vagas@localhost:5432/vagas
+python scripts/carregar_seed.py --db postgresql://vagas:vagas@localhost:5432/vagas
 ```
+
+Ela grava o CSV pela mesma persistência da coleta e **recusa bancos que já têm
+execuções em `collection_runs`**: num banco com coletas reais, o seed viraria
+snapshots falsos no passado.
 
 URLs com o prefixo histórico `postgres://` (que Render e Heroku ainda entregam,
 e que o SQLAlchemy recusa) são convertidas automaticamente. A senha nunca
 aparece nos logs.
 
-Um SQLite local via `--db data/vagas.db` fica ignorado pelo git — é reconstruível
-a partir do CSV.
-`scripts/import_csv.py` é o fluxo **legado**: alimenta só a tabela `vagas`, que a
-API não lê mais. Pega o CSV mais recente de `output/`, ou um específico com
-`--csv`; `--recriar` zera as tabelas antes.
-
-A importação é **idempotente**: a identidade da vaga é o par
-`(source, external_id)`, então rodar de novo atualiza em vez de duplicar.
+Um SQLite local via `--db data/local.db` fica ignorado pelo git — é reconstruível
+com `alembic upgrade head` e a carga do seed.
 
 Duas decisões de modelagem que valem menção:
 
-- **`skills` vira relação.** A string `"Excel, Python, SQL"` do CSV é
-  normalizada numa tabela `tecnologias` + associação muitos-para-muitos. Sem
-  isso não dá para filtrar nem contar direito.
+- **`skills` vira relação.** A lista de tecnologias de cada vaga é gravada numa
+  tabela `tecnologias` + associação muitos-para-muitos com o snapshot. Sem isso
+  não dá para filtrar nem contar direito.
 - **`/areas` e `/tecnologias` são calculados do banco** (vagas ativas no estado
   atual), nunca lidos de `ranking_areas.csv` ou `skills_por_area.csv`. Esses CSVs são recortes já
   agregados — o de skills é truncado no top-15 de cada área, então serviria
@@ -570,22 +566,14 @@ Duas decisões de modelagem que valem menção:
 
 ### Datas
 
-O CSV traz três formatos: ISO (`2026-06-26`, Gupy), `dd/mm/aaaa` (Vagas.com) e
-relativo (`"Ontem"`, `"Há 3 dias"`, Vagas.com). O importador converte tudo para
-um único campo `DATE`.
+Os portais escrevem a data de publicação em três formatos: ISO (`2026-06-26`,
+Gupy), `dd/mm/aaaa` (Vagas.com) e relativo (`"Ontem"`, `"Há 3 dias"`, Vagas.com).
+A persistência converte tudo para um único campo `DATE`.
 
-As expressões relativas são resolvidas contra a **data de geração do CSV**
-(extraída do timestamp no nome do arquivo), não contra a data de hoje — assim
-importar um CSV de duas semanas atrás produz as mesmas datas que produziria no
-dia da coleta.
-
-Fora da máquina que coletou, o nome do arquivo pode não ter o timestamp e o
-`mtime` deixa de ser confiável (num deploy, o clone do git carimba a data do
-deploy). Por isso o snapshot é importado com a data fixa:
-
-```bash
-python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
-```
+As expressões relativas são resolvidas contra o **dia da coleta**, não contra a
+data de hoje. Por isso a carga do seed usa a data fixa da coleta que gerou o CSV
+(`DATA_DO_SEED` em `scripts/carregar_seed.py`, ou `--coletado-em`): carregar o
+seed em qualquer dia produz as mesmas datas.
 
 ### Deploy
 
@@ -599,7 +587,7 @@ O build usa `requirements-api.txt`, sem matplotlib, que a API nunca importa.
 
 O scraper **não roda no servidor da API**, de propósito: portais de vaga
 costumam bloquear IP de nuvem. A coleta automática roda no GitHub Actions
-(`docs/automation.md`). Branches Neon, variáveis e como reimportar o seed:
+(`docs/automation.md`). Branches Neon, variáveis e migrations em produção:
 `docs/neon-setup.md`.
 
 No plano free o serviço hiberna após 15 minutos parado, e o primeiro acesso
@@ -782,7 +770,7 @@ vagas-tech-junior/
 ├── api/                     # API REST somente leitura (opcional)
 │   ├── app.py               # FastAPI, /docs, handlers de erro
 │   ├── database.py          # engine e sessão SQLAlchemy
-│   ├── models.py            # tabelas: vagas, tecnologias, associação
+│   ├── models.py            # tabelas: jobs, job_snapshots, tecnologias, collection_runs
 │   ├── schemas.py           # Pydantic (respostas)
 │   ├── crud.py              # consultas e filtros
 │   ├── dates.py             # normalização das datas para DATE
@@ -790,11 +778,13 @@ vagas-tech-junior/
 │   └── routers/
 ├── persistence/             # gravação no histórico (jobs + job_snapshots)
 │   ├── repositorio.py       # upsert idempotente, transações, resumo
+│   ├── foto_atual.py        # estado atual das vagas, lido pela API e pelo dashboard
 │   └── assinatura.py        # hash que decide se há snapshot novo
 ├── Dockerfile               # imagem da API
 ├── docker-compose.yml       # API + PostgreSQL
 ├── scripts/
-│   └── import_csv.py        # CSV → tabela vagas (fluxo legado da API)
+│   ├── carregar_seed.py     # seed/vagas.csv → histórico de um banco local
+│   └── sanitizar_log.py     # limpa o log da coleta antes de publicar
 └── tests/                   # testes sem rede
     └── api/                 # testes da API (pulados sem FastAPI)
 ```
@@ -868,4 +858,4 @@ copyright.
 A licença cobre **o código deste repositório**, não os dados coletados. As vagas
 pertencem aos portais e às empresas que as publicaram; raspá-las está sujeito
 aos termos de uso de cada site, que a licença não altera. Nenhum dado raspado é
-versionado aqui além do snapshot em `seed/`, usado para o deploy.
+versionado aqui além do snapshot em `seed/`, usado para subir a API localmente.

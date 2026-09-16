@@ -1,6 +1,6 @@
 # Imagem da API. O scraper nao roda aqui: portais de vaga costumam bloquear IP
-# de nuvem, entao a coleta continua sendo feita na maquina de quem desenvolve e
-# chega ao container pelo snapshot em seed/.
+# de nuvem. No Docker Compose, os dados chegam pelo snapshot em seed/, carregado
+# no historico depois das migrations.
 FROM python:3.11-slim
 
 # PYTHONUNBUFFERED: sem isso o log do uvicorn fica preso no buffer e o
@@ -17,8 +17,11 @@ COPY requirements-api.txt .
 RUN pip install --no-cache-dir -r requirements-api.txt
 
 # So o que a API precisa. `scraper/` entra porque a API le os YAMLs de regras
-# (areas e tecnologias) de la, e `scripts/` porque o compose importa o snapshot
-# no boot. `persistence/` e de onde o importador semeia as tecnologias.
+# (areas e tecnologias) de la. `persistence/` guarda a consulta da foto atual e a
+# gravacao que a carga do seed usa. `alembic.ini`, `migrations/`, `scripts/` e
+# `seed/` sao o que o compose roda no boot.
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
 COPY api/ ./api/
 COPY persistence/ ./persistence/
 COPY scraper/ ./scraper/

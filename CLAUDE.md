@@ -46,7 +46,7 @@ python -m pytest tests/dashboard -q
 # API (read-only REST over the collected data)
 pip install -r requirements.txt
 uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs (reads jobs/job_snapshots)
-python scripts/import_csv.py            # LEGACY: CSV -> `vagas` table, which nothing reads anymore
+python scripts/carregar_seed.py         # seed/vagas.csv -> history of a LOCAL migrated DB (refuses DBs with collection_runs)
 
 # Migrations (Alembic; URL comes from scraper/config.py, never alembic.ini)
 alembic upgrade head --sql              # review SQL without connecting
@@ -54,7 +54,7 @@ alembic upgrade head                    # apply (uses DATABASE_URL_UNPOOLED when
 alembic revision --autogenerate -m "..."  # then review by hand, see docs/migrations.md
 python -m pytest tests/api/test_migrations.py -q
 
-# API + Postgres via Docker (handles healthcheck + seed import automatically)
+# API + Postgres via Docker (healthcheck, alembic upgrade head and seed load automatically)
 docker compose up --build
 docker compose down          # add -v to also drop the db volume
 ```
@@ -222,9 +222,9 @@ model (`tests/api/historico_api.py` builders + `seed` fixture).
 The database is configured by a single required `DATABASE_URL` (Neon
 PostgreSQL), resolved in `scraper/config.py:obter_database_url` with precedence
 process env > `.env.local` (written by `neon env pull`) > `.env`. There is no
-default database: without it, the API lifespan and the importer raise
+default database: without it, the API lifespan, the pipeline and the seed loader raise
 `ConfiguracaoError`, whose message never includes the URL. An explicit
-destination argument (`make_engine(path)`, `import_csv.py --db`) still wins and
+destination argument (`make_engine(path)`, `carregar_seed.py --db`) still wins and
 may be a SQLite path — tests rely on this. The engine is lazy
 (`api/database.py:get_engine`) so importing the module doesn't require the
 variable. `postgres://`/`postgresql://` URLs are rewritten to
@@ -269,18 +269,22 @@ lazily, so `--no-db` works without SQLAlchemy. `repositorio.persistir_vagas`:
   failures, per source); `main.py` prints it and exits 1 on failures, 2 on
   `ConfiguracaoError`.
 
-Import (`scripts/import_csv.py`) is the **legacy** flow: it only feeds `vagas`,
-which nothing reads anymore (removal is roadmap step 10; until then Docker Compose
-still imports the seed there, so its API starts empty). It's idempotent — identity is `(source, external_id)`.
-`skills` (a CSV string column) is normalized into a `tecnologias` table +
-many-to-many association on import (`semear_tecnologias` lives in
-`persistence/repositorio.py`, hence `COPY persistence/` in the Dockerfile).
+The legacy CSV flow is gone: `vagas`/`vaga_tecnologia` were dropped by migration
+`85084f63871c` (its downgrade recreates them empty, never the data) and
+`import_csv.py` was removed. `scripts/carregar_seed.py` loads an exported CSV
+(default `seed/vagas.csv`) into the history through `persistir_vagas`, as a
+collection on a fixed day (`DATA_DO_SEED`, so relative dates are stable; bump it
+with the CSV). It's idempotent and refuses any DB with rows in `collection_runs`
+(it would write fake past snapshots into real history). Docker Compose runs
+`alembic upgrade head && carregar_seed.py && uvicorn`, so the image copies
+`alembic.ini`, `migrations/`, `persistence/`, `scripts/` and `seed/`, and
+`requirements-api.txt` includes alembic.
 
 Deploy (`render.yaml`, Render free tier): the API reads the Neon branch
 `dados-main`; `DATABASE_URL` is declared with `sync: false` (value only in the
-Render dashboard) and `startCommand` is just `uvicorn` — no seed import and never
-`--recriar` on boot (the DB persists; importing on every free-tier wake would take
-minutes). The API serves what the scheduled collection writes to `dados-main`. `tests/test_render_yaml.py` pins
+Render dashboard) and `startCommand` is just `uvicorn` — no seed load and no migrations
+on boot (the DB persists; doing either on every free-tier wake would take
+minutes; migrations on `dados-main` are applied by hand, `docs/neon-setup.md`). The API serves what the scheduled collection writes to `dados-main`. `tests/test_render_yaml.py` pins
 this. Neon branches: `production` untouched, `feature-data-platform` for local
 dev, `dados-main` for main/Render/Actions. Build uses `requirements-api.txt` (no
 matplotlib — the API's import graph never touches `scraper/charts.py`).
@@ -294,7 +298,7 @@ fixtures (mainly in `test_sources.py`). `tests/api/` is a separate subtree
 guarded by `pytest.importorskip("fastapi")` so `pytest tests/` still works for
 someone who only installed the scraper deps. API tests use an in-memory SQLite
 (`StaticPool` to keep one connection alive) with `app.dependency_overrides[get_db]`,
-never the real `data/vagas.db`. Persistence tests use the `banco_historico`
+never a real database. Persistence tests use the `banco_historico`
 fixture (`tests/api/conftest.py`): a temp SQLite file built by `alembic upgrade
 head`, so they test the migration schema. The pipeline integration test
 (`tests/api/test_pipeline_persistencia.py`) monkeypatches `pipeline.collect`

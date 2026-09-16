@@ -12,7 +12,7 @@ colocar nenhuma URL, senha, token ou id real no git**.
 2. `.env.local`, gerado por `neon env pull`;
 3. `.env`, legado.
 
-Sem a variável, a API e o `scripts/import_csv.py` **falham na inicialização**
+Sem a variável, a API, a coleta e o `scripts/carregar_seed.py` **falham na inicialização**
 com uma mensagem que explica o que fazer, e nunca imprimem o valor. Os arquivos
 são lidos sem alterar `os.environ`. `postgres://` e `postgresql://` são
 convertidos para o driver `psycopg`, e `sslmode`/`channel_binding` são mantidos.
@@ -143,26 +143,36 @@ disparar a coleta e o que cada workflow faz: `docs/automation.md`.
 
   Aplique sempre **antes** do merge que traz a migration: a coleta e a API param
   com "schema atual" se o banco estiver atrasado.
-- **Reimportar o seed (legado).** A tabela `vagas` foi importada uma vez de
-  `seed/vagas.csv`. Desde a etapa 09 a API lê o histórico gravado pela coleta, e
-  ninguém mais lê `vagas`, então **não é preciso reimportar**. O fluxo sai na
-  etapa 10. Só para referência, a importação era:
+- **Nunca carregue o seed na `dados-main`.** `scripts/carregar_seed.py` é para
+  bancos locais e recusa qualquer banco com linhas em `collection_runs`: o CSV
+  viraria snapshots falsos no passado do histórico real.
+- **Remoção das tabelas legadas (`85084f63871c`, etapa 10).** Apaga `vagas` e
+  `vaga_tecnologia`, que ninguém lê desde a etapa 09. É a exceção à regra de
+  aplicar antes do merge: o código novo funciona com ou sem essas tabelas, então
+  pode ser aplicada depois. **Os dados delas não voltam com downgrade**; por isso,
+  antes, crie uma branch de backup:
 
   ```powershell
-  python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
+  neon branches create --name dados-main-backup-2026-09-16 --parent dados-main --expires-at <ISO-8601, +7 dias> --no-secrets
+  neon env pull --branch dados-main --service postgres --file <fora-do-repo>/dados-main.env
+  # carregue DATABASE_URL_UNPOOLED desse arquivo só no ambiente dos comandos
+  alembic current        # esperado: b7d2e4f19a63
+  alembic upgrade head   # remove as duas tabelas
+  alembic current        # esperado: 85084f63871c (head)
   ```
 
-  Sem `--recriar`, a importação só cria o que falta e atualiza as vagas
-  existentes. **Nunca use `--recriar` na `dados-main`.**
+  Depois, confira que `jobs` tem a mesma contagem de antes, que `/health` e
+  `/areas` respondem no Render e que o dashboard abre. Apague o arquivo `.env`
+  temporário. Para recuperar algo das tabelas antigas enquanto o backup existir,
+  leia a branch `dados-main-backup-2026-09-16`.
 - **Variável no Render.** Pegue a URL pooled no seu terminal com
   `neon connection-string dados-main --pooled` e cadastre em *Render →
   vagas-tech-junior-api → Environment*. O `render.yaml` só declara a variável
   (`sync: false`), sem valor.
 
-  Na primeira vez, cadastrada antes do merge, o Render redeploya o código antigo
-  da `main`, que lê `DATABASE_URL` e roda `import_csv.py --recriar`. Esse deploy
-  **falha** com `InternalError` sem apagar nada: o PostgreSQL recusa derrubar
-  `tecnologias`, que o histórico referencia, e desfaz a transação. O Render mantém
-  o deploy anterior no ar. Faça o merge logo depois.
+  Histórico: na primeira vez (PR #1), cadastrada antes do merge, o Render
+  redeployou o código antigo da `main`, que rodava o importador legado com
+  `--recriar`. Esse deploy falhou com `InternalError` sem apagar nada: o
+  PostgreSQL recusou derrubar `tecnologias`, que o histórico referencia.
 
 Rollback do merge e do deploy: `docs/rollback-merge.md`.
