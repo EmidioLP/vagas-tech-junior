@@ -78,8 +78,8 @@ Use só em banco isolado.
 
 ## Bancos criados antes do Alembic
 
-A API (`init_db`) e o importador ainda criam tabelas com `create_all`. Um banco
-criado assim já tem o schema da baseline, mas não tem a tabela `alembic_version`.
+A API (`init_db`) ainda cria as tabelas que faltam com `create_all`. Um banco
+criado assim já tem o schema atual dos modelos, mas não tem a tabela `alembic_version`.
 Para adotá-lo sem recriar nada:
 
 ```bash
