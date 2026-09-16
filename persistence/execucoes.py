@@ -35,6 +35,33 @@ def ultima_coleta_completa(engine: Engine) -> datetime | None:
     return momento.astimezone(timezone.utc)
 
 
+def historico_vagas_brutas(engine: Engine, limite: int = 5) -> dict[str, list[int]]:
+    """Vagas brutas por fonte nas ultimas `limite` coletas completas que contam.
+
+    Base da regra de queda brusca (`scraper/qualidade.py`). Mais recente primeiro.
+    Fonte `failed` ou com 0 vagas naquela coleta fica de fora: um dia de portal
+    bloqueado puxaria a mediana para baixo e esconderia uma queda real.
+    """
+    with Session(engine) as db:
+        sumarios = db.scalars(
+            select(CollectionRun.summary)
+            .where(
+                CollectionRun.full_scope.is_(True),
+                CollectionRun.status.in_(STATUS_QUE_CONTAM),
+            )
+            .order_by(CollectionRun.started_at.desc())
+            .limit(limite)
+        ).all()
+    historico: dict[str, list[int]] = {}
+    for sumario in sumarios:
+        for fonte, dados in ((sumario or {}).get("fontes") or {}).items():
+            dados = dados or {}
+            brutas = dados.get("vagas_brutas")
+            if isinstance(brutas, int) and brutas > 0 and dados.get("status") != "failed":
+                historico.setdefault(fonte, []).append(brutas)
+    return historico
+
+
 def registrar_execucao(
     engine: Engine,
     *,

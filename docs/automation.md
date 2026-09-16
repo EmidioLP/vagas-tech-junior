@@ -248,7 +248,7 @@ no dashboard (etapa 07).
 
 | Status | Quando |
 |---|---|
-| `ok` | trouxe vagas sem falha, ou não trouxe vagas e nada falhou |
+| `ok` | trouxe vagas sem falha e sem alerta de qualidade alto |
 | `partial` | trouxe vagas, mas alguma requisição falhou (por exemplo, uma página bloqueada), um termo quebrou ou alguma vaga não foi gravada |
 | `failed` | não trouxe vagas e alguma requisição ou termo falhou (portal bloqueado ou fora do ar), ou nenhuma vaga dela foi gravada |
 
@@ -260,6 +260,10 @@ bloqueado de aparecer como "0 vagas, tudo certo".
 Uma fonte que quebra por inteiro (exceção fora do isolamento por termo) é
 isolada: vira `failed` e as outras seguem gravando normalmente.
 
+Uma fonte que volta com **0 vagas sem nenhuma falha**, ou com uma queda brusca,
+gera um alerta de qualidade alto e vira `partial`. Regras, limites e ações estão em
+[`docs/data-quality.md`](data-quality.md).
+
 #### Status da execução e exit code
 
 | Status | Quando | Exit | Job |
@@ -267,6 +271,7 @@ isolada: vira `failed` e as outras seguem gravando normalmente.
 | `success` | todas as fontes `ok` | 0 | verde |
 | `partial` | alguma fonte não ficou `ok`, mas houve vagas | 0 | verde; a fonte aparece destacada no resumo |
 | `partial` | houve vaga não gravada no banco (regra da etapa 04) | 1 | vermelho |
+| `partial` | alerta de qualidade de severidade alta (fonte zerada, queda brusca, valor fora do domínio, campo essencial vazio) | 1 | vermelho; a seção *Qualidade* do resumo diz qual |
 | `failed` | todas as fontes falharam, ou nenhuma vaga foi encontrada | 1 | vermelho |
 | `skipped` | a guarda pulou: intervalo ainda não cumprido | 0 | verde |
 | — | erro de configuração: Secret ou Variable ausente/inválido, banco inacessível, schema atrasado | 2 | vermelho |
@@ -289,8 +294,9 @@ LIMIT 10;
 
 `next_run_on` é a próxima coleta prevista, a mesma data informada no resumo.
 A coluna `summary` guarda, por fonte, status, requests, requests falhos, vagas
-brutas, número de avisos e contagens da gravação. Nenhuma mensagem de erro entra
-ali. Estrutura em `docs/data-model.md`.
+brutas, número de avisos e contagens da gravação, além da lista `qualidade` com os
+alertas da execução. Nenhuma mensagem de erro entra ali. Estrutura em
+`docs/data-model.md`; alertas em `docs/data-quality.md`.
 
 ### 6. Diagnóstico de falhas
 

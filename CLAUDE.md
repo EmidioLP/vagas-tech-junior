@@ -96,7 +96,19 @@ recorded in `collection_runs` (`persistence/execucoes.py`), skips included:
   paginating on `None`), so a blocked portal shows as `failed`, not "0 jobs".
 - `collect` isolates whole-source exceptions. Run status: `failed` (exit 1) if
   all sources failed or no jobs; `partial` (exit 0, or 1 with job write
-  failures) if any source isn't `ok`; else `success`.
+  failures or a high quality alert) if any source isn't `ok`; else `success`.
+- Quality checks (`scraper/qualidade.py`, pure; `docs/data-quality.md`) run in
+  `_aplicar_politica`, after persisting and **before** closing absent jobs. They
+  never fix or delete data. High alerts (`fonte_zerada`: default source with 0 raw
+  jobs and no failed request; `queda_brusca`: < 30% of the median of previous full
+  runs, needs ≥3 runs and median ≥30; out-of-domain area/modalidade; essential
+  field empty above a per-source limit) turn an `ok` source into `partial` (so it
+  doesn't close jobs) and force exit 1; low alerts only show up. Empty-field limits
+  have per-source exemptions (LinkedIn has no description, etc.): never a global
+  not-null. History comes from `persistence/execucoes.historico_vagas_brutas`
+  (skips failed/zero days). Alerts go to `summary.qualidade` (counts only, no URL)
+  and to the `--resumo` Qualidade section. `tests/test_qualidade.py` pins that the
+  15/09 seed collection yields no alerts; recalibrate constants with data.
 
 `main.py` only builds a `Settings` (scraper/config.py) and calls `pipeline.run()`.
 `Settings` and the YAML rule files below are the two places to change behavior

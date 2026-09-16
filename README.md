@@ -590,6 +590,11 @@ costumam bloquear IP de nuvem. A coleta automática roda no GitHub Actions
 (`docs/automation.md`). Branches Neon, variáveis e migrations em produção:
 `docs/neon-setup.md`.
 
+Cada coleta passa por **checagens de qualidade** antes de ser considerada
+confiável. Um portal que volta zerado sem erro, uma queda brusca ou valores fora
+do domínio deixam o job vermelho, e a fonte afetada não encerra vagas. Regras,
+limites e ações: [`docs/data-quality.md`](docs/data-quality.md).
+
 No plano free o serviço hiberna após 15 minutos parado, e o primeiro acesso
 depois disso leva ~50s para responder.
 

@@ -114,6 +114,37 @@ def test_resumo_destaca_fonte_com_falha_sem_derrubar_a_execucao(monkeypatch, tmp
     assert "linkedin" in capsys.readouterr().out
 
 
+def test_resumo_sem_alertas_informa_a_secao_de_qualidade(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli, "run", lambda *_a, **_k: _resultado())
+    destino = tmp_path / "resumo.md"
+    cli.main(["--sources", "gupy", "--resumo", str(destino)])
+    assert "### Qualidade\n\nNenhum alerta." in destino.read_text(encoding="utf-8")
+
+
+def test_resumo_e_terminal_mostram_alertas_de_qualidade(monkeypatch, tmp_path, capsys):
+    from scraper.qualidade import ALTA, BAIXA, Alerta
+
+    resultado = _resultado()
+    resultado.status, resultado.exit_code = "partial", 1
+    resultado.status_fontes["gupy"] = "partial"
+    resultado.alertas = [
+        Alerta("fonte_zerada", ALTA, "gupy", 0, "> 0", "gupy listou 0 vagas sem nenhuma requisição falha"),
+        Alerta("url_invalida", BAIXA, "linkedin", 1, 0, "linkedin: 1 vaga(s) com URL que não é http(s)"),
+    ]
+    monkeypatch.setattr(cli, "run", lambda *_a, **_k: resultado)
+    destino = tmp_path / "resumo.md"
+
+    assert cli.main(["--sources", "gupy", "--resumo", str(destino)]) == 1
+
+    texto = destino.read_text(encoding="utf-8")
+    assert ("| **alta** | fonte_zerada | gupy | 0 | > 0 "
+            "| gupy listou 0 vagas sem nenhuma requisição falha |") in texto
+    assert "| baixa | url_invalida | linkedin | 1 | 0 |" in texto
+    saida = capsys.readouterr().out
+    assert "Qualidade (2 alerta(s)):" in saida
+    assert "! [alta] gupy listou 0 vagas" in saida
+
+
 def test_resumo_lista_falhas_de_persistencia(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "run", lambda *_a, **_k: _resultado(falhas=2))
     destino = tmp_path / "resumo.md"

@@ -5,7 +5,8 @@ relatorio e graficos e opcional e nao e pre-requisito da gravacao.
 
 Cada execucao com banco fica registrada em `collection_runs`, inclusive quando a
 guarda de intervalo (`respeitar_intervalo`) decide pular a coleta. As regras de
-intervalo e de status por fonte estao em `scraper/execucao.py`.
+intervalo e de status por fonte estao em `scraper/execucao.py`; as checagens de
+qualidade do resultado, em `scraper/qualidade.py`.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from .execucao import (
     status_execucao,
     status_por_fonte,
 )
+from . import qualidade
 from .export import build_ranking, export_all
 from .http_client import PoliteSession
 from .models import Job, SourceStats
@@ -69,6 +71,8 @@ class PipelineResult:
     encerramento: ResumoEncerramento | None = None
     # external_id brutos por fonte, antes dos filtros: o que os portais ainda listam.
     vistas: dict[str, set[str]] = field(default_factory=dict, repr=False)
+    # Checagens de plausibilidade (scraper/qualidade.py), as altas primeiro.
+    alertas: list[qualidade.Alerta] = field(default_factory=list)
 
     @property
     def top_area(self) -> str | None:
@@ -226,6 +230,13 @@ def run(
 
             ultima_anterior = ultima_coleta_completa(engine)
 
+        # Vagas brutas das coletas completas anteriores: base da regra de queda brusca.
+        historico: dict[str, list[int]] = {}
+        if engine is not None:
+            from persistence.execucoes import historico_vagas_brutas
+
+            historico = historico_vagas_brutas(engine)
+
         decisao = None
         if respeitar_intervalo:
             decisao = decidir(ultima_anterior, collected_at, intervalo_dias)
@@ -241,7 +252,7 @@ def run(
             result = _processar(settings, strict_seniority, keep_non_tech, with_charts,
                                 engine, collected_at, exportar_csv)
             result.decisao = decisao
-            _aplicar_politica(result)
+            _aplicar_politica(result, settings, historico, collected_at)
             if engine is not None:
                 _encerrar_vagas_ausentes(engine, result, settings, collected_at)
 
@@ -367,12 +378,28 @@ def _encerrar_vagas_ausentes(
         result.meta["motivo"] = "; ".join(filter(None, [result.meta.get("motivo"), aviso]))
 
 
-def _aplicar_politica(result: PipelineResult) -> None:
-    """Status por fonte e da execucao, e o motivo quando nao foi sucesso pleno."""
-    result.status_fontes = status_por_fonte(result.stats, result.persistencia)
+def _aplicar_politica(
+    result: PipelineResult,
+    settings: Settings,
+    historico: dict[str, list[int]],
+    collected_at: datetime,
+) -> None:
+    """Status por fonte e da execucao, e o motivo quando nao foi sucesso pleno.
+
+    Roda antes do encerramento: fonte com alerta de qualidade alto vira `partial`
+    e, por isso, nao encerra vagas nesta execucao.
+    """
+    result.alertas = qualidade.verificar(
+        result.jobs, result.stats, escopo_completo=escopo_completo(settings),
+        historico=historico, hoje=collected_at.date(),
+    )
+    altos = qualidade.altas(result.alertas)
+    result.status_fontes = qualidade.ajustar_status(
+        status_por_fonte(result.stats, result.persistencia), result.alertas
+    )
     falhas = result.persistencia.falhas if result.persistencia is not None else 0
     result.status, result.exit_code = status_execucao(
-        result.status_fontes, len(result.jobs), falhas
+        result.status_fontes, len(result.jobs), falhas, len(altos)
     )
 
     motivos: list[str] = []
@@ -387,14 +414,21 @@ def _aplicar_politica(result: PipelineResult) -> None:
             motivos.append("fontes com falha: " + ", ".join(com_falha))
     if falhas:
         motivos.append(f"{falhas} vaga(s) não gravada(s)")
+    if altos:
+        motivos.append("alertas de qualidade: " + ", ".join(
+            f"{a.regra} ({a.fonte})" if a.fonte else a.regra for a in altos))
 
     result.meta["status"] = result.status
+    result.meta["qualidade"] = [a.como_dict() for a in result.alertas]
     result.meta["status_fontes"] = dict(result.status_fontes)
     if motivos:
         result.meta["motivo"] = "; ".join(motivos)
     for fonte, status in result.status_fontes.items():
         if status != OK:
             logger.warning("Fonte %s terminou com status %s", fonte, status)
+    for alerta in result.alertas:
+        nivel = logging.WARNING if alerta.severidade == qualidade.ALTA else logging.INFO
+        logger.log(nivel, "Qualidade (%s): %s", alerta.severidade, alerta.mensagem)
 
 
 def _sumario(result: PipelineResult) -> dict:
@@ -414,7 +448,9 @@ def _sumario(result: PipelineResult) -> dict:
         if result.encerramento is not None and fonte in result.encerramento.por_fonte:
             item.update(asdict(result.encerramento.por_fonte[fonte]))
         fontes[fonte] = item
-    return {"fontes": fontes, "vagas": len(result.jobs)}
+    # Alertas so levam regra, fonte e contagens; nunca URL nem dado de vaga.
+    return {"fontes": fontes, "vagas": len(result.jobs),
+            "qualidade": [a.como_dict() for a in result.alertas]}
 
 
 def _registrar_execucao(

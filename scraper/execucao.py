@@ -11,7 +11,9 @@ Detalhes em docs/automation.md.
   foi desfeita); `partial` quando trouxe vagas mas algo falhou; senao `ok`.
 - **Execucao.** `failed` (exit 1) se todas as fontes falharam ou nao houve vagas;
   `partial` se alguma fonte nao ficou ok (exit 0) ou houve vaga nao gravada
-  (exit 1, regra da persistencia); senao `success`.
+  (exit 1, regra da persistencia); senao `success`. Alerta de qualidade de
+  severidade alta (`scraper/qualidade.py`) torna a fonte `partial` e sempre sai
+  com exit 1: o dado foi gravado, mas precisa de atencao.
 - **Agenda.** Toda execucao com X conhecido informa "Última coleta: dia ... e
   próxima: dia ...": a proxima e a ultima coleta completa + X dias, ou amanha se
   essa data ja passou (o cron acorda todo dia e tenta de novo).
@@ -165,12 +167,17 @@ def status_por_fonte(
 
 def status_execucao(
     status_fontes: Mapping[str, str], total_vagas: int, falhas_gravacao: int,
+    alertas_altos: int = 0,
 ) -> tuple[str, int]:
-    """(status, exit code) da execucao. Fonte com falha nunca some: vira `partial`."""
+    """(status, exit code) da execucao. Fonte com falha nunca some: vira `partial`.
+
+    `alertas_altos`: alertas de qualidade de severidade alta. As fontes afetadas ja
+    chegam `partial` em `status_fontes`; aqui eles so garantem o exit 1.
+    """
     todas_falharam = bool(status_fontes) and all(s == FAILED for s in status_fontes.values())
     if todas_falharam or total_vagas == 0:
         return FAILED, 1
-    if falhas_gravacao:
+    if falhas_gravacao or alertas_altos:
         return PARTIAL, 1
     if any(s != OK for s in status_fontes.values()):
         return PARTIAL, 0
