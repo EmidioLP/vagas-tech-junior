@@ -39,7 +39,7 @@ coleta gravada (`python main.py`).
 | Página | Conteúdo | Filtros |
 |---|---|---|
 | **Overview** | última coleta, agenda e última execução. Na **fotografia atual**: vagas ativas, empresas, % remoto, fontes e distribuição por área, modalidade e fonte | fonte, área, modalidade |
-| **Tecnologias** | tecnologias mais citadas nas vagas ativas, em % de uma base declarada | fonte, área, modalidade |
+| **Tecnologias** | tecnologias mais citadas nas vagas ativas e o painel "Tecnologias mais pedidas em vagas júnior, por área", sempre em % de uma base declarada | fonte, área, modalidade |
 | **Histórico** | por dia de coleta: vagas abertas, vagas abertas por área, vagas novas e snapshots gravados, com a legenda "Como ler estes números" | período, fonte, área, modalidade |
 | **Vagas** | tabela paginada (50 por página), com estado atual, primeiro e último avistamento e link | período, fonte, área, modalidade, só ativas |
 
@@ -84,8 +84,17 @@ A diferença entre **fotografia atual** e **histórico** está em todas as telas
 - **Mede menção, não exigência.** "Diferencial: Python" conta igual a "exige Python".
 - **A base é declarada na tela** ("N das M vagas ativas citam alguma tecnologia").
   O card do LinkedIn não traz descrição, então as vagas dele quase nunca entram.
-- **Com menos de 30 vagas na base** (`BASE_MINIMA_TECNOLOGIAS`), o ranking não é
-  mostrado: uma única vaga já mudaria a ordem. A tela pede para ampliar os filtros.
+- **Com menos de 30 vagas na base** (`BASE_MINIMA_TECNOLOGIAS`), o ranking geral
+  não é mostrado: uma única vaga já mudaria a ordem. A tela pede para ampliar os
+  filtros.
+- **Por área, cada painel tem a própria base**: as vagas ativas da área que citam
+  alguma tecnologia. O gráfico é percentual, não contagem, porque as áreas têm
+  tamanhos muito diferentes, e o eixo vai sempre de 0 a 100% para os painéis serem
+  comparáveis. Mostra as 8 tecnologias mais citadas de cada área.
+  - Base ≥ 30: painel normal.
+  - Base de 15 a 29 (`BASE_MINIMA_POR_AREA`): painel marcado como **indicativo**.
+  - Base < 15: fora do gráfico, listada abaixo com a base de cada uma.
+  Na coleta de 15/09/2026 isso deixou de fora Mobile (13), DevOps (7) e Segurança (7).
 
 ### Limitação do histórico
 
@@ -147,7 +156,7 @@ python -m pytest tests/dashboard -q
   - cada filtro, sozinho e combinado, inclusive um valor com cara de injeção;
   - série por dia e período sem coleta;
   - paginação e links seguros;
-  - base de tecnologias;
+  - base de tecnologias, geral e por área;
   - banco vazio e banco sem schema.
 - **`test_consultas.py`:** o resumo da etapa 07 (última coleta, próxima coleta,
   vagas ativas, recusa de escrita, erro sem vazar caminho).

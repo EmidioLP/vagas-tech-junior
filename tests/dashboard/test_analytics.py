@@ -230,6 +230,34 @@ def test_tecnologias_respeitam_filtros(leitor):
     assert ranking.itens == (Contagem("Python", 1), Contagem("SQL", 1))
 
 
+def test_tecnologias_por_area_usam_a_base_de_cada_area(leitor):
+    Area, Ranking = consultas.TecnologiasDaArea, consultas.RankingTecnologias
+    # A (Data) cita Python e SQL; C (Suporte/Infra) cita SQL; D (Frontend) nao cita nada.
+    # Java so aparece no snapshot antigo de A e na vaga encerrada B.
+    assert consultas.tecnologias_por_area(leitor, SEM_FILTRO) == [
+        Area("Data", Ranking(1, 1, (Contagem("Python", 1), Contagem("SQL", 1)))),
+        Area("Suporte/Infra", Ranking(1, 1, (Contagem("SQL", 1),))),
+        Area("Frontend", Ranking(0, 1, ())),
+    ]
+
+
+def test_tecnologias_por_area_respeitam_filtros_e_limite(leitor):
+    [data] = consultas.tecnologias_por_area(leitor, Filtros(areas=("Data",)), limite=1)
+    assert data == consultas.TecnologiasDaArea(
+        "Data", consultas.RankingTecnologias(1, 1, (Contagem("Python", 1),)))
+
+    assert consultas.tecnologias_por_area(leitor, Filtros(fontes=("linkedin",))) == []
+    assert consultas.tecnologias_por_area(leitor, Filtros(fontes=("gupy' OR '1'='1",))) == []
+
+
+def test_area_exibivel_a_partir_da_base_minima_por_area():
+    minimo = consultas.BASE_MINIMA_POR_AREA
+    exibivel = consultas.TecnologiasDaArea("Data", consultas.RankingTecnologias(minimo, 50, ()))
+    oculta = consultas.TecnologiasDaArea("Data", consultas.RankingTecnologias(minimo - 1, 50, ()))
+    assert exibivel.exibivel and not exibivel.ranking.confiavel  # indicativo
+    assert not oculta.exibivel
+
+
 def test_ranking_confiavel_a_partir_da_base_minima():
     base = consultas.BASE_MINIMA_TECNOLOGIAS
     assert consultas.RankingTecnologias(base, base, ()).confiavel
@@ -248,6 +276,7 @@ def test_banco_vazio_da_estado_vazio_em_todas_as_analises(leitor_vazio):
     assert consultas.serie_historica(leitor_vazio, SEM_FILTRO) == []
     assert consultas.listar_vagas(leitor_vazio, SEM_FILTRO).total == 0
     assert consultas.top_tecnologias(leitor_vazio, SEM_FILTRO) == consultas.RankingTecnologias(0, 0, ())
+    assert consultas.tecnologias_por_area(leitor_vazio, SEM_FILTRO) == []
     assert consultas.opcoes_filtro(leitor_vazio) == consultas.OpcoesFiltro((), (), (), None, None)
 
 
@@ -262,6 +291,7 @@ def test_analises_sem_schema_viram_dados_indisponiveis(tmp_path):
             lambda: consultas.serie_historica(engine, SEM_FILTRO),
             lambda: consultas.listar_vagas(engine, SEM_FILTRO),
             lambda: consultas.top_tecnologias(engine, SEM_FILTRO),
+            lambda: consultas.tecnologias_por_area(engine, SEM_FILTRO),
         ):
             with pytest.raises(consultas.DadosIndisponiveis) as erro:
                 chamada()

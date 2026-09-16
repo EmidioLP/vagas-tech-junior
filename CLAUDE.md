@@ -179,8 +179,10 @@ Overview/Tecnologias are the current photo (active jobs + latest snapshot via
 collection day in Python (`serie_historica`): open = `first_seen_at` before day
 end and not `closed_at` by then, area/modalidade from the snapshot in force at
 day end. Vagas lists jobs *seen* in the period, links only via `url_segura`
-(http/https). Tecnologias hides the ranking below `BASE_MINIMA_TECNOLOGIAS` (base =
-active jobs citing any technology). Filters are always bind params. The data
+(http/https). Tecnologias hides the overall ranking below `BASE_MINIMA_TECNOLOGIAS`
+(30; base = active jobs citing any technology); the per-area panels
+(`tecnologias_por_area`, each area with its own base, 0–100% axis) hide areas
+below `BASE_MINIMA_POR_AREA` (15) and mark 15–29 as indicative. Filters are always bind params. The data
 layer must not import FastAPI, requests, bs4 or yaml (`requirements-dashboard.txt`
 omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`; the
 known analytics scenario is `tests/dashboard/cenario_historico.py`.
@@ -193,6 +195,11 @@ an env var at server start, so the code never uses `st.secrets`. It points at
 `dados-main` with the SQL-created `dashboard_leitura` role (SELECT on the 5 tables
 the dashboard reads + `default_transaction_read_only`); a new table read by the
 dashboard needs a new GRANT. `tests/test_deploy_dashboard.py` pins this.
+
+The README keeps only dated "Principais achados" (interpretation) and links to
+the dashboard for current numbers; full tables/charts of a collection live in a
+dated report (`docs/resultados-2026-09-15.md`). Don't put live-looking numbers
+back in the README.
 
 ### API (`api/`)
 

@@ -50,6 +50,9 @@ SEM_AREA = "Sem área"
 
 # Abaixo disso o ranking de tecnologias oscila demais para ser lido (README, "Limitações").
 BASE_MINIMA_TECNOLOGIAS = 30
+# Por area, o painel aparece a partir de 15 vagas na base (o limite que o README
+# chama de confiavel), marcado como indicativo ate `BASE_MINIMA_TECNOLOGIAS`.
+BASE_MINIMA_POR_AREA = 15
 
 DIMENSOES = ("area", "modalidade", "fonte")
 
@@ -187,6 +190,16 @@ class RankingTecnologias:
     @property
     def confiavel(self) -> bool:
         return self.base >= BASE_MINIMA_TECNOLOGIAS
+
+
+@dataclass(frozen=True)
+class TecnologiasDaArea:
+    area: str
+    ranking: RankingTecnologias
+
+    @property
+    def exibivel(self) -> bool:
+        return self.ranking.base >= BASE_MINIMA_POR_AREA
 
 
 def _utc(momento: datetime) -> datetime:
@@ -520,18 +533,25 @@ def listar_vagas(engine: Engine, filtros: Filtros, somente_ativas: bool = True,
     )
 
 
+def _recorte_tecnologias(filtros: Filtros):
+    """Vagas unicas ativas do filtro (estado atual) e o join com as tecnologias citadas."""
+    vagas = _vagas_atuais()
+    recorte = _filtrar(
+        select(vagas.c.job_id, vagas.c.snapshot_id, vagas.c.area).where(vagas.c.ativa.is_(True)),
+        vagas, filtros,
+    ).subquery("recorte")
+    citacoes = recorte.join(job_snapshot_tecnologias,
+                            job_snapshot_tecnologias.c.snapshot_id == recorte.c.snapshot_id)
+    return recorte, citacoes
+
+
 def top_tecnologias(engine: Engine, filtros: Filtros, limite: int = 15) -> RankingTecnologias:
     """Tecnologias citadas no estado atual das vagas unicas ativas.
 
     Mede mencao, nao exigencia. A base do percentual sao as vagas que citam alguma
     tecnologia: o card do LinkedIn nao tem descricao e quase nunca cita.
     """
-    vagas = _vagas_atuais()
-    recorte = _filtrar(
-        select(vagas.c.job_id, vagas.c.snapshot_id).where(vagas.c.ativa.is_(True)), vagas, filtros
-    ).subquery("recorte")
-    citacoes = recorte.join(job_snapshot_tecnologias,
-                            job_snapshot_tecnologias.c.snapshot_id == recorte.c.snapshot_id)
+    recorte, citacoes = _recorte_tecnologias(filtros)
     quantidade = func.count(distinct(recorte.c.job_id)).label("vagas")
 
     with _leitura(engine) as db:
@@ -550,3 +570,40 @@ def top_tecnologias(engine: Engine, filtros: Filtros, limite: int = 15) -> Ranki
         vagas_ativas=total or 0,
         itens=tuple(Contagem(nome, vagas) for nome, vagas in itens),
     )
+
+
+def tecnologias_por_area(engine: Engine, filtros: Filtros, limite: int = 8) -> list[TecnologiasDaArea]:
+    """O ranking de `top_tecnologias` separado por area (estado atual das ativas).
+
+    Cada area tem a propria base: as vagas ativas dela que citam alguma tecnologia.
+    Volta toda area com vaga ativa no filtro, inclusive as de base pequena, para a
+    tela dizer quais ficaram de fora. Ordem: maior base primeiro.
+    """
+    recorte, citacoes = _recorte_tecnologias(filtros)
+    quantidade = func.count(distinct(recorte.c.job_id))
+
+    with _leitura(engine) as db:
+        totais = dict(db.execute(
+            select(recorte.c.area, func.count()).group_by(recorte.c.area)).all())
+        bases = dict(db.execute(
+            select(recorte.c.area, quantidade).select_from(citacoes).group_by(recorte.c.area)).all())
+        contagens = db.execute(
+            select(recorte.c.area, Tecnologia.nome, quantidade)
+            .select_from(citacoes.join(Tecnologia,
+                                       Tecnologia.id == job_snapshot_tecnologias.c.tecnologia_id))
+            .group_by(recorte.c.area, Tecnologia.nome)
+        ).all()
+
+    por_area: dict[str, list[Contagem]] = defaultdict(list)
+    for area, nome, vagas in contagens:
+        por_area[area].append(Contagem(nome, vagas))
+
+    areas = sorted(totais, key=lambda area: (-bases.get(area, 0), area))
+    return [
+        TecnologiasDaArea(area, RankingTecnologias(
+            base=bases.get(area, 0),
+            vagas_ativas=totais[area],
+            itens=tuple(sorted(por_area[area], key=lambda c: (-c.vagas, c.rotulo))[:limite]),
+        ))
+        for area in areas
+    ]
