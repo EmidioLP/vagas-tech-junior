@@ -64,6 +64,11 @@ def _tecnologias(filtros: consultas.Filtros) -> consultas.RankingTecnologias:
     return consultas.top_tecnologias(_engine(), filtros)
 
 
+@st.cache_data(ttl=config.TTL_SEGUNDOS, show_spinner=False)
+def _tecnologias_por_area(filtros: consultas.Filtros) -> list[consultas.TecnologiasDaArea]:
+    return consultas.tecnologias_por_area(_engine(), filtros)
+
+
 def _protegida(consulta):
     """Sem banco configurado, a pagina mostra o mesmo aviso de banco inacessivel."""
 
@@ -85,6 +90,7 @@ DADOS = paginas.Dados(
     serie=_protegida(_serie),
     vagas=_protegida(_vagas),
     tecnologias=_protegida(_tecnologias),
+    tecnologias_por_area=_protegida(_tecnologias_por_area),
 )
 
 

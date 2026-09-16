@@ -47,6 +47,14 @@ SERIE = [
 ]
 RANKING = consultas.RankingTecnologias(base=40, vagas_ativas=50,
                                        itens=(Contagem("SQL", 20), Contagem("Python", 10)))
+POR_AREA = [
+    consultas.TecnologiasDaArea("Backend", consultas.RankingTecnologias(
+        87, 95, (Contagem("Git", 43), Contagem("SQL", 42)))),
+    consultas.TecnologiasDaArea("Data", consultas.RankingTecnologias(
+        26, 58, (Contagem("SQL", 21), Contagem("Python", 17)))),
+    consultas.TecnologiasDaArea("DevOps", consultas.RankingTecnologias(
+        7, 17, (Contagem("Python", 4),))),
+]
 ERRO = consultas.DadosIndisponiveis("Não foi possível ler o banco (OperationalError).")
 
 
@@ -73,6 +81,7 @@ def _dados(**trocas) -> paginas.Dados:
         serie=lambda filtros: SERIE,
         vagas=lambda filtros, somente_ativas, pagina: consultas.PaginaVagas((), 0, pagina, 50),
         tecnologias=lambda filtros: RANKING,
+        tecnologias_por_area=lambda filtros: POR_AREA,
     )
     valores.update(trocas)
     return paginas.Dados(**valores)
@@ -300,6 +309,27 @@ def test_tecnologias_declara_a_base_e_a_ressalva():
     assert "menção, não exigência" in textos
 
 
+def test_tecnologias_por_area_mostra_paineis_indicativos_e_ocultos():
+    app = _rodar_pagina("tecnologias", _dados())
+
+    assert not app.exception
+    textos = _textos(app)
+    assert "Tecnologias mais pedidas em vagas júnior, por área" in textos
+    assert [s.value for s in app.subheader] == ["Backend", "Data"]
+    assert "Base: 87 de 95 vagas ativas" in textos
+    assert "Base: 26 de 58 vagas ativas · **indicativo** (base pequena)" in textos
+    assert "Fora do gráfico por base menor que 15: DevOps (7)." in textos
+
+
+def test_tecnologias_por_area_sem_area_exibivel():
+    pequenas = [POR_AREA[2]]
+    app = _rodar_pagina("tecnologias", _dados(tecnologias_por_area=lambda filtros: pequenas))
+
+    assert not app.exception
+    assert not app.subheader
+    assert "Nenhuma área deste recorte tem 15 vagas ou mais" in _textos(app)
+
+
 def test_tecnologias_base_pequena_nao_mostra_ranking():
     pequeno = consultas.RankingTecnologias(base=5, vagas_ativas=50, itens=(Contagem("SQL", 5),))
     app = _rodar_pagina("tecnologias", _dados(tecnologias=lambda filtros: pequeno))
@@ -307,7 +337,7 @@ def test_tecnologias_base_pequena_nao_mostra_ranking():
     assert not app.exception
     textos = _textos(app)
     assert "Só 5 vagas ativas neste recorte citam alguma tecnologia" in textos
-    assert "Base:" not in textos
+    assert "vagas ativas citam alguma tecnologia. O percentual" not in textos
 
 
 # --- todas as paginas ------------------------------------------------------------------
@@ -316,7 +346,7 @@ def test_tecnologias_base_pequena_nao_mostra_ranking():
 @pytest.mark.parametrize("nome", ["overview", "historico", "vagas", "tecnologias"])
 def test_pagina_com_banco_indisponivel_mostra_aviso(nome):
     dados = _dados(resumo=_falha, opcoes=_falha, indicadores=_falha, distribuicao=_falha,
-                   serie=_falha, vagas=_falha, tecnologias=_falha)
+                   serie=_falha, vagas=_falha, tecnologias=_falha, tecnologias_por_area=_falha)
     app = _rodar_pagina(nome, dados)
 
     assert not app.exception
@@ -336,6 +366,7 @@ def test_pagina_com_consultas_reais_no_banco_de_teste(nome, banco_com_historico,
         serie=lambda f: consultas.serie_historica(engine, f),
         vagas=lambda f, a, p: consultas.listar_vagas(engine, f, a, p),
         tecnologias=lambda f: consultas.top_tecnologias(engine, f),
+        tecnologias_por_area=lambda f: consultas.tecnologias_por_area(engine, f),
     )
     try:
         app = _rodar_pagina(nome, dados)

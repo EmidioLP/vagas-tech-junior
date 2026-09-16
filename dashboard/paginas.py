@@ -10,10 +10,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
 from dashboard.consultas import (
+    BASE_MINIMA_POR_AREA,
     BASE_MINIMA_TECNOLOGIAS,
     Contagem,
     DadosIndisponiveis,
@@ -24,6 +26,7 @@ from dashboard.consultas import (
     PontoSerie,
     RankingTecnologias,
     ResumoGeral,
+    TecnologiasDaArea,
 )
 
 # Horario de Brasilia fixo: o Brasil nao tem horario de verao desde 2019, e
@@ -78,6 +81,7 @@ class Dados:
     serie: Callable[[Filtros], list[PontoSerie]]
     vagas: Callable[[Filtros, bool, int], PaginaVagas]
     tecnologias: Callable[[Filtros], RankingTecnologias]
+    tecnologias_por_area: Callable[[Filtros], list[TecnologiasDaArea]]
 
 
 def formatar_data(dia: date) -> str:
@@ -392,17 +396,26 @@ def vagas(dados: Dados) -> None:
 def tecnologias(dados: Dados) -> None:
     st.title("Tecnologias")
     st.write("Tecnologias citadas nas vagas únicas ativas.")
+    st.caption(
+        "Conta menção, não exigência: \"diferencial: Python\" conta igual a \"exige "
+        "Python\". O card do LinkedIn não traz descrição, então as vagas dele quase "
+        "nunca entram na base."
+    )
 
     try:
         filtros = filtros_barra_lateral(dados.opcoes(), com_periodo=False)
         ranking = dados.tecnologias(filtros)
+        por_area = dados.tecnologias_por_area(filtros) if ranking.vagas_ativas else []
     except DadosIndisponiveis as exc:
         _aviso_indisponivel(exc)
         return
 
     if ranking.vagas_ativas == 0:
         st.info("Nenhuma vaga ativa com esses filtros. Remova algum filtro na barra lateral.")
-    elif not ranking.confiavel:
+        return
+
+    st.header("Todas as áreas")
+    if not ranking.confiavel:
         st.info(
             f"Só {formatar_inteiro(ranking.base)} vagas ativas neste recorte citam alguma "
             f"tecnologia. Abaixo de {BASE_MINIMA_TECNOLOGIAS}, uma única vaga muda o "
@@ -413,14 +426,53 @@ def tecnologias(dados: Dados) -> None:
             f"Base: {formatar_inteiro(ranking.base)} das {formatar_inteiro(ranking.vagas_ativas)} "
             "vagas ativas citam alguma tecnologia. O percentual é sobre essa base."
         )
-        tabela = pd.DataFrame({
-            "Tecnologia": [c.rotulo for c in ranking.itens],
-            "% das vagas": [round(100 * c.vagas / ranking.base, 1) for c in ranking.itens],
-        })
-        st.bar_chart(tabela, x="Tecnologia", y="% das vagas", horizontal=True, sort="-% das vagas")
+        _barras_percentuais(ranking)
 
+    _tecnologias_por_area(por_area)
+
+
+def _barras_percentuais(ranking: RankingTecnologias) -> None:
+    """Barras de % sobre a base, com eixo fixo de 0 a 100% para comparar painéis."""
+    tabela = pd.DataFrame({
+        "Tecnologia": [c.rotulo for c in ranking.itens],
+        "% das vagas": [round(100 * c.vagas / ranking.base, 1) for c in ranking.itens],
+        "Vagas": [c.vagas for c in ranking.itens],
+    })
+    grafico = alt.Chart(tabela).mark_bar().encode(
+        x=alt.X("% das vagas:Q", scale=alt.Scale(domain=[0, 100])),
+        y=alt.Y("Tecnologia:N", sort="-x", title=None),
+        tooltip=["Tecnologia", "% das vagas", "Vagas"],
+    ).properties(height=28 * len(tabela) + 40)
+    st.altair_chart(grafico, width="stretch")
+
+
+def _tecnologias_por_area(por_area: list[TecnologiasDaArea]) -> None:
+    st.header("Tecnologias mais pedidas em vagas júnior, por área")
     st.caption(
-        "Conta menção, não exigência: \"diferencial: Python\" conta igual a \"exige "
-        "Python\". O card do LinkedIn não traz descrição, então as vagas dele quase "
-        "nunca entram na base."
+        "Cada área tem a própria base: as vagas ativas dela que citam alguma "
+        "tecnologia. Percentual, não contagem, porque as áreas têm tamanhos muito "
+        f"diferentes. Áreas com menos de {BASE_MINIMA_POR_AREA} vagas na base ficam "
+        f"de fora; entre {BASE_MINIMA_POR_AREA} e {BASE_MINIMA_TECNOLOGIAS - 1}, o painel "
+        "é só indicativo."
     )
+
+    visiveis = [a for a in por_area if a.exibivel]
+    ocultas = [a for a in por_area if not a.exibivel]
+    if not visiveis:
+        st.info(
+            f"Nenhuma área deste recorte tem {BASE_MINIMA_POR_AREA} vagas ou mais citando "
+            "tecnologias. Amplie os filtros."
+        )
+    colunas = st.columns(2)
+    for posicao, area in enumerate(visiveis):
+        with colunas[posicao % 2]:
+            st.subheader(area.area)
+            indicativo = "" if area.ranking.confiavel else " · **indicativo** (base pequena)"
+            st.caption(
+                f"Base: {formatar_inteiro(area.ranking.base)} de "
+                f"{formatar_inteiro(area.ranking.vagas_ativas)} vagas ativas{indicativo}"
+            )
+            _barras_percentuais(area.ranking)
+    if ocultas:
+        lista = ", ".join(f"{a.area} ({formatar_inteiro(a.ranking.base)})" for a in ocultas)
+        st.caption(f"Fora do gráfico por base menor que {BASE_MINIMA_POR_AREA}: {lista}.")
