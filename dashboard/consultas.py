@@ -7,25 +7,51 @@ os contratos do pipeline, sem reimplementar regra nenhuma:
   execucao de escopo completo com status `success` ou `partial`;
 - **proxima coleta:** o `next_run_on` gravado pela execucao mais recente;
 - **vaga ativa:** `jobs.is_active` (encerramento em `persistence/repositorio.py`).
+
+Vocabulario das analises (o mesmo da tela e do dashboard/README.md):
+
+- **vaga unica:** uma linha de `jobs`, identidade `(source, external_id)`. Toda
+  contagem de "vagas" conta `jobs`, nunca snapshots;
+- **snapshot:** uma linha de `job_snapshots`. O pipeline so grava quando o estado
+  da vaga muda, entao snapshots por dia contam mudancas observadas, nao vagas
+  vistas;
+- **estado atual:** o snapshot mais recente da vaga; **estado vigente num dia:** o
+  ultimo snapshot gravado ate o fim daquele dia (UTC);
+- **dia de coleta:** dia UTC com execucao `success` ou `partial`, de qualquer escopo.
+
+Filtros viram sempre bind params (`in_`, comparacoes): nada e interpolado no SQL.
 """
 
 from __future__ import annotations
 
+import math
+from bisect import bisect_left
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta, timezone
+from urllib.parse import urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, distinct, func, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from api.models import CollectionRun, JobRecord
+from api.models import CollectionRun, JobRecord, JobSnapshot, Tecnologia, job_snapshot_tecnologias
+from scraper.models import NAO_INFORMADO, REMOTO, WORKPLACE_ORDER
 
 # Copia de `scraper.execucao.STATUS_QUE_CONTAM`: importar aquele modulo puxaria as
 # fontes (requests, bs4), que o dashboard nao usa.
 STATUS_QUE_CONTAM = ("success", "partial")
+
+# Snapshot sem area gravada (a coluna aceita nulo).
+SEM_AREA = "Sem área"
+
+# Abaixo disso o ranking de tecnologias oscila demais para ser lido (README, "Limitações").
+BASE_MINIMA_TECNOLOGIAS = 30
+
+DIMENSOES = ("area", "modalidade", "fonte")
 
 
 class DadosIndisponiveis(RuntimeError):
@@ -62,11 +88,123 @@ class ResumoGeral:
         return self.ultima_coleta is None and self.vagas_ativas == 0
 
 
+@dataclass(frozen=True)
+class Filtros:
+    """Tupla vazia = sem filtro. `inicio`/`fim` sao dias UTC, ambos inclusivos.
+
+    Hashavel, para servir de chave do `st.cache_data`.
+    """
+
+    fontes: tuple[str, ...] = ()
+    areas: tuple[str, ...] = ()
+    modalidades: tuple[str, ...] = ()
+    inicio: date | None = None
+    fim: date | None = None
+
+
+@dataclass(frozen=True)
+class OpcoesFiltro:
+    fontes: tuple[str, ...]
+    areas: tuple[str, ...]
+    modalidades: tuple[str, ...]
+    primeiro_dia: date | None
+    ultimo_dia: date | None
+
+
+@dataclass(frozen=True)
+class Indicadores:
+    """Fotografia atual: vagas unicas ativas, classificadas pelo estado atual."""
+
+    vagas_ativas: int
+    empresas: int
+    remotas: int
+    sem_modalidade: int
+    fontes: int
+
+    @property
+    def percentual_remoto(self) -> float | None:
+        """Remotas sobre todas as ativas. Sem vagas nao ha percentual (nunca 0%)."""
+        if self.vagas_ativas == 0:
+            return None
+        return 100 * self.remotas / self.vagas_ativas
+
+
+@dataclass(frozen=True)
+class Contagem:
+    rotulo: str
+    vagas: int
+
+
+@dataclass(frozen=True)
+class PontoSerie:
+    """Um dia de coleta.
+
+    - `abertas`: vagas unicas abertas no fim do dia, pelo estado vigente;
+    - `novas`: vagas unicas vistas pela primeira vez no dia;
+    - `snapshots`: snapshots gravados no dia (mudancas de estado, nao vagas).
+    """
+
+    dia: date
+    abertas: int
+    novas: int
+    snapshots: int
+    abertas_por_area: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class LinhaVaga:
+    titulo: str
+    empresa: str | None
+    area: str
+    modalidade: str
+    fonte: str
+    primeiro_avistamento: datetime
+    ultimo_avistamento: datetime
+    ativa: bool
+    url: str | None
+
+
+@dataclass(frozen=True)
+class PaginaVagas:
+    linhas: tuple[LinhaVaga, ...]
+    total: int
+    pagina: int
+    por_pagina: int
+
+    @property
+    def paginas(self) -> int:
+        return max(1, math.ceil(self.total / self.por_pagina))
+
+
+@dataclass(frozen=True)
+class RankingTecnologias:
+    """`base`: vagas ativas (do recorte) que citam ao menos uma tecnologia."""
+
+    base: int
+    vagas_ativas: int
+    itens: tuple[Contagem, ...]
+
+    @property
+    def confiavel(self) -> bool:
+        return self.base >= BASE_MINIMA_TECNOLOGIAS
+
+
 def _utc(momento: datetime) -> datetime:
     """O SQLite devolve datetime sem fuso; o valor gravado ja esta em UTC."""
     if momento.tzinfo is None:
         return momento.replace(tzinfo=timezone.utc)
     return momento.astimezone(timezone.utc)
+
+
+def _inicio_do_dia(dia: date) -> datetime:
+    return datetime.combine(dia, time.min, tzinfo=timezone.utc)
+
+
+def _limites(filtros: Filtros) -> tuple[datetime | None, datetime | None]:
+    """Periodo como [inicio, fim) em UTC; o dia `fim` entra inteiro."""
+    inicio = _inicio_do_dia(filtros.inicio) if filtros.inicio else None
+    fim = _inicio_do_dia(filtros.fim + timedelta(days=1)) if filtros.fim else None
+    return inicio, fim
 
 
 @contextmanager
@@ -130,4 +268,285 @@ def resumo_geral(engine: Engine) -> ResumoGeral:
         proxima_coleta=proxima_coleta(engine),
         ultima_execucao=ultima_execucao(engine),
         vagas_ativas=vagas_ativas(engine),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------------------
+
+
+def _rotulo_area(coluna):
+    return func.coalesce(func.nullif(coluna, ""), SEM_AREA)
+
+
+def _rotulo_modalidade(coluna):
+    return func.coalesce(func.nullif(coluna, ""), NAO_INFORMADO)
+
+
+def _vagas_atuais():
+    """Uma linha por vaga unica: identidade de `jobs` + estado do snapshot mais recente.
+
+    `(job_id, collected_at)` e unico, entao o join com o `max(collected_at)` nunca
+    duplica vagas. Vaga sem nenhum snapshot fica de fora.
+    """
+    ultimo = (
+        select(JobSnapshot.job_id, func.max(JobSnapshot.collected_at).label("collected_at"))
+        .group_by(JobSnapshot.job_id)
+        .subquery("ultimo_snapshot")
+    )
+    return (
+        select(
+            JobRecord.id.label("job_id"),
+            JobRecord.source.label("fonte"),
+            JobRecord.is_active.label("ativa"),
+            JobRecord.first_seen_at.label("primeiro_avistamento"),
+            JobRecord.last_seen_at.label("ultimo_avistamento"),
+            JobRecord.url.label("url"),
+            JobSnapshot.id.label("snapshot_id"),
+            JobSnapshot.title.label("titulo"),
+            JobSnapshot.company.label("empresa"),
+            _rotulo_area(JobSnapshot.area).label("area"),
+            _rotulo_modalidade(JobSnapshot.workplace_type).label("modalidade"),
+        )
+        .join(ultimo, ultimo.c.job_id == JobRecord.id)
+        .join(JobSnapshot, and_(JobSnapshot.job_id == ultimo.c.job_id,
+                                JobSnapshot.collected_at == ultimo.c.collected_at))
+        .subquery("vagas_atuais")
+    )
+
+
+def _filtrar(stmt, vagas, filtros: Filtros):
+    """Fonte, area e modalidade sobre o estado atual. O periodo e de cada consulta."""
+    if filtros.fontes:
+        stmt = stmt.where(vagas.c.fonte.in_(filtros.fontes))
+    if filtros.areas:
+        stmt = stmt.where(vagas.c.area.in_(filtros.areas))
+    if filtros.modalidades:
+        stmt = stmt.where(vagas.c.modalidade.in_(filtros.modalidades))
+    return stmt
+
+
+def _ordem_modalidades(valores) -> tuple[str, ...]:
+    conhecidas = [m for m in WORKPLACE_ORDER if m in valores]
+    return tuple(conhecidas + sorted(set(valores) - set(conhecidas)))
+
+
+def opcoes_filtro(engine: Engine) -> OpcoesFiltro:
+    """Valores que existem no banco e o intervalo de dias de coleta."""
+    with _leitura(engine) as db:
+        fontes = db.scalars(select(distinct(JobRecord.source)).order_by(JobRecord.source)).all()
+        area = _rotulo_area(JobSnapshot.area)
+        areas = db.scalars(select(distinct(area)).order_by(area)).all()
+        modalidades = db.scalars(select(distinct(_rotulo_modalidade(JobSnapshot.workplace_type)))).all()
+        primeiro, ultimo = db.execute(
+            select(func.min(CollectionRun.started_at), func.max(CollectionRun.started_at))
+            .where(CollectionRun.status.in_(STATUS_QUE_CONTAM))
+        ).one()
+    return OpcoesFiltro(
+        fontes=tuple(fontes),
+        areas=tuple(areas),
+        modalidades=_ordem_modalidades(modalidades),
+        primeiro_dia=_utc(primeiro).date() if primeiro else None,
+        ultimo_dia=_utc(ultimo).date() if ultimo else None,
+    )
+
+
+def indicadores_atuais(engine: Engine, filtros: Filtros) -> Indicadores:
+    """KPIs das vagas unicas ativas. O periodo nao se aplica: e a fotografia de agora."""
+    vagas = _vagas_atuais()
+    empresa = func.nullif(func.lower(func.trim(vagas.c.empresa)), "")
+    stmt = _filtrar(
+        select(
+            func.count(),
+            func.count(distinct(empresa)),
+            func.coalesce(func.sum(case((vagas.c.modalidade == REMOTO, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((vagas.c.modalidade == NAO_INFORMADO, 1), else_=0)), 0),
+            func.count(distinct(vagas.c.fonte)),
+        ).where(vagas.c.ativa.is_(True)),
+        vagas, filtros,
+    )
+    with _leitura(engine) as db:
+        total, empresas, remotas, sem_modalidade, fontes = db.execute(stmt).one()
+    return Indicadores(total, empresas, int(remotas), int(sem_modalidade), fontes)
+
+
+def distribuicao(engine: Engine, filtros: Filtros, dimensao: str) -> list[Contagem]:
+    """Vagas unicas ativas por area, modalidade ou fonte (estado atual)."""
+    if dimensao not in DIMENSOES:
+        raise ValueError(f"Dimensão desconhecida: {dimensao!r}")
+    vagas = _vagas_atuais()
+    coluna = vagas.c[dimensao]
+    quantidade = func.count().label("vagas")
+    stmt = _filtrar(
+        select(coluna, quantidade).where(vagas.c.ativa.is_(True)), vagas, filtros
+    ).group_by(coluna).order_by(quantidade.desc(), coluna)
+    with _leitura(engine) as db:
+        return [Contagem(rotulo, total) for rotulo, total in db.execute(stmt)]
+
+
+def _passa(filtros: Filtros, area: str, modalidade: str) -> bool:
+    return ((not filtros.areas or area in filtros.areas)
+            and (not filtros.modalidades or modalidade in filtros.modalidades))
+
+
+def serie_historica(engine: Engine, filtros: Filtros) -> list[PontoSerie]:
+    """Um ponto por dia de coleta no periodo.
+
+    O agrupamento por dia e feito aqui, em UTC, porque `date()` sobre `timestamptz`
+    depende do fuso da sessao. Area e modalidade de cada vaga vem do estado
+    vigente no fim do dia, entao uma vaga que mudou de Backend para Data conta
+    em Backend antes da mudanca e em Data depois.
+    """
+    inicio, fim = _limites(filtros)
+    execucoes = select(CollectionRun.started_at).where(CollectionRun.status.in_(STATUS_QUE_CONTAM))
+    if inicio is not None:
+        execucoes = execucoes.where(CollectionRun.started_at >= inicio)
+    if fim is not None:
+        execucoes = execucoes.where(CollectionRun.started_at < fim)
+
+    with _leitura(engine) as db:
+        dias = sorted({_utc(momento).date() for momento in db.scalars(execucoes)})
+        if not dias:
+            return []
+        primeiro = _inicio_do_dia(dias[0])
+        limite = _inicio_do_dia(dias[-1] + timedelta(days=1))
+
+        vagas = select(JobRecord.id, JobRecord.first_seen_at, JobRecord.closed_at).where(
+            JobRecord.first_seen_at < limite,
+            or_(JobRecord.closed_at.is_(None), JobRecord.closed_at >= primeiro),
+        )
+        if filtros.fontes:
+            vagas = vagas.where(JobRecord.source.in_(filtros.fontes))
+        linhas_vagas = db.execute(vagas).all()
+
+        ids = vagas.with_only_columns(JobRecord.id)
+        snapshots = db.execute(
+            select(JobSnapshot.job_id, JobSnapshot.collected_at,
+                   _rotulo_area(JobSnapshot.area), _rotulo_modalidade(JobSnapshot.workplace_type))
+            .where(JobSnapshot.job_id.in_(ids), JobSnapshot.collected_at < limite)
+            .order_by(JobSnapshot.job_id, JobSnapshot.collected_at)
+        ).all()
+
+    momentos: dict[int, list[datetime]] = defaultdict(list)
+    estados: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    snapshots_por_dia: Counter[date] = Counter()
+    for job_id, coletado_em, area, modalidade in snapshots:
+        coletado_em = _utc(coletado_em)
+        momentos[job_id].append(coletado_em)
+        estados[job_id].append((area, modalidade))
+        if _passa(filtros, area, modalidade):
+            snapshots_por_dia[coletado_em.date()] += 1
+
+    pontos = []
+    for dia in dias:
+        fim_do_dia = _inicio_do_dia(dia + timedelta(days=1))
+        abertas = novas = 0
+        por_area: Counter[str] = Counter()
+        for job_id, primeiro_avistamento, encerrada_em in linhas_vagas:
+            primeiro_avistamento = _utc(primeiro_avistamento)
+            if primeiro_avistamento >= fim_do_dia:
+                continue
+            posicao = bisect_left(momentos[job_id], fim_do_dia) - 1
+            if posicao < 0:
+                continue
+            area, modalidade = estados[job_id][posicao]
+            if not _passa(filtros, area, modalidade):
+                continue
+            if primeiro_avistamento.date() == dia:
+                novas += 1
+            if encerrada_em is None or _utc(encerrada_em) >= fim_do_dia:
+                abertas += 1
+                por_area[area] += 1
+        pontos.append(PontoSerie(dia, abertas, novas, snapshots_por_dia[dia], dict(por_area)))
+    return pontos
+
+
+def url_segura(url: str | None) -> str | None:
+    """So links http(s) absolutos viram link na tela; `javascript:` e afins nao."""
+    if not url:
+        return None
+    try:
+        partes = urlsplit(url.strip())
+    except ValueError:
+        return None
+    if partes.scheme.lower() not in ("http", "https") or not partes.netloc:
+        return None
+    return url.strip()
+
+
+def listar_vagas(engine: Engine, filtros: Filtros, somente_ativas: bool = True,
+                 pagina: int = 1, por_pagina: int = 50) -> PaginaVagas:
+    """Vagas unicas com o estado atual, da mais recentemente vista para a mais antiga.
+
+    O periodo seleciona vagas **vistas** nele: primeira vez antes do fim e ultima
+    vez depois do inicio.
+    """
+    pagina = max(1, pagina)
+    vagas = _vagas_atuais()
+    stmt = _filtrar(select(vagas), vagas, filtros)
+    if somente_ativas:
+        stmt = stmt.where(vagas.c.ativa.is_(True))
+    inicio, fim = _limites(filtros)
+    if inicio is not None:
+        stmt = stmt.where(vagas.c.ultimo_avistamento >= inicio)
+    if fim is not None:
+        stmt = stmt.where(vagas.c.primeiro_avistamento < fim)
+
+    with _leitura(engine) as db:
+        total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+        linhas = db.execute(
+            stmt.order_by(vagas.c.ultimo_avistamento.desc(), vagas.c.job_id)
+            .limit(por_pagina).offset((pagina - 1) * por_pagina)
+        ).all()
+    return PaginaVagas(
+        linhas=tuple(
+            LinhaVaga(
+                titulo=linha.titulo,
+                empresa=linha.empresa,
+                area=linha.area,
+                modalidade=linha.modalidade,
+                fonte=linha.fonte,
+                primeiro_avistamento=_utc(linha.primeiro_avistamento),
+                ultimo_avistamento=_utc(linha.ultimo_avistamento),
+                ativa=bool(linha.ativa),
+                url=url_segura(linha.url),
+            )
+            for linha in linhas
+        ),
+        total=total or 0,
+        pagina=pagina,
+        por_pagina=por_pagina,
+    )
+
+
+def top_tecnologias(engine: Engine, filtros: Filtros, limite: int = 15) -> RankingTecnologias:
+    """Tecnologias citadas no estado atual das vagas unicas ativas.
+
+    Mede mencao, nao exigencia. A base do percentual sao as vagas que citam alguma
+    tecnologia: o card do LinkedIn nao tem descricao e quase nunca cita.
+    """
+    vagas = _vagas_atuais()
+    recorte = _filtrar(
+        select(vagas.c.job_id, vagas.c.snapshot_id).where(vagas.c.ativa.is_(True)), vagas, filtros
+    ).subquery("recorte")
+    citacoes = recorte.join(job_snapshot_tecnologias,
+                            job_snapshot_tecnologias.c.snapshot_id == recorte.c.snapshot_id)
+    quantidade = func.count(distinct(recorte.c.job_id)).label("vagas")
+
+    with _leitura(engine) as db:
+        total = db.scalar(select(func.count()).select_from(recorte))
+        base = db.scalar(select(func.count(distinct(recorte.c.job_id))).select_from(citacoes))
+        itens = db.execute(
+            select(Tecnologia.nome, quantidade)
+            .select_from(citacoes.join(Tecnologia,
+                                       Tecnologia.id == job_snapshot_tecnologias.c.tecnologia_id))
+            .group_by(Tecnologia.nome)
+            .order_by(quantidade.desc(), Tecnologia.nome)
+            .limit(limite)
+        ).all()
+    return RankingTecnologias(
+        base=base or 0,
+        vagas_ativas=total or 0,
+        itens=tuple(Contagem(nome, vagas) for nome, vagas in itens),
     )

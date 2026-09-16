@@ -16,7 +16,7 @@ psycopg[binary]>=3.1
 alembic>=1.13,<2
 
 # Dashboard (opcional -- so precisa se for rodar o dashboard Streamlit):
-streamlit>=1.40,<2
+streamlit>=1.51,<2
 
 # Testes (opcional em producao):
 pytest>=8.0

@@ -39,7 +39,7 @@ python -m pytest tests/test_classifier.py -q          # single file
 python -m pytest tests/test_classifier.py::test_name  # single test
 python -m pytest tests/api -q                          # API tests only (auto-skipped if fastapi isn't installed)
 
-# Dashboard (read-only Streamlit over jobs/collection_runs; DATABASE_URL, or DASHBOARD_DB to override)
+# Dashboard (read-only Streamlit over jobs/job_snapshots/collection_runs; DATABASE_URL, or DASHBOARD_DB to override)
 streamlit run dashboard/app.py
 python -m pytest tests/dashboard -q
 
@@ -167,10 +167,23 @@ builds a read-only engine (`postgresql_readonly` per transaction, which works
 behind Neon's pooler; `PRAGMA query_only` on SQLite) from `DATABASE_URL`, or
 `DASHBOARD_DB` if set. "Last collection" uses the interval guard's rule (full
 scope, `success`/`partial`), "active jobs" is `jobs.is_active`. `app.py` caches
-the engine (`st.cache_resource`) and the summary (`st.cache_data`, 10 min TTL);
-Tecnologias/Histórico/Vagas pages are explicit "em construção" placeholders. The
-data layer must not import FastAPI, requests or bs4 (`requirements-dashboard.txt`
-omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`.
+the engine (`st.cache_resource`) and every query (`st.cache_data`, 10 min TTL,
+keyed by the frozen `Filtros` dataclass) and hands pages a `paginas.Dados` of
+callables, so pages never see the engine.
+
+Analytics semantics (keep them straight; the UI labels depend on it): every
+"vagas" count is unique `jobs`, never snapshot rows. Snapshots are written only
+when `content_hash` changes, so snapshots per day = state changes, not jobs seen.
+Overview/Tecnologias are the current photo (active jobs + latest snapshot via
+`max(collected_at)` join; period doesn't apply). Histórico reconstructs each UTC
+collection day in Python (`serie_historica`): open = `first_seen_at` before day
+end and not `closed_at` by then, area/modalidade from the snapshot in force at
+day end. Vagas lists jobs *seen* in the period, links only via `url_segura`
+(http/https). Tecnologias hides the ranking below `BASE_MINIMA_TECNOLOGIAS` (base =
+active jobs citing any technology). Filters are always bind params. The data
+layer must not import FastAPI, requests, bs4 or yaml (`requirements-dashboard.txt`
+omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`; the
+known analytics scenario is `tests/dashboard/cenario_historico.py`.
 
 ### API (`api/`)
 

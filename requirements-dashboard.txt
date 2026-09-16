@@ -6,7 +6,8 @@
 #
 # Para desenvolver localmente use `requirements.txt`, que tem tudo.
 
-streamlit>=1.40,<2
+# 1.51: `st.bar_chart` com `horizontal` e `sort`, usados nos graficos do dashboard.
+streamlit>=1.51,<2
 SQLAlchemy>=2.0,<3
 
 # Driver do PostgreSQL (Neon).
