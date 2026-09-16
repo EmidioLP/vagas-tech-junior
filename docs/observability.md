@@ -156,17 +156,33 @@ não para cobrar disponibilidade.
 
 Um monitor que **não depende do GitHub** é o que percebe o caso 4: se o agendamento
 parar, nenhum workflow vai avisar. A sugestão é um monitor HTTP gratuito, como o
-UptimeRobot (plano free, checagem a cada 5 minutos):
+UptimeRobot, checando **a cada 1 hora** (ou até 6 horas):
 
 1. Criar a conta e um monitor do tipo HTTP(s) para
    `https://vagas-tech-junior-api.onrender.com/health/dados`.
-2. Alertar quando o status não for 2xx, com e-mail como canal.
-3. Tolerar o primeiro timeout. O Render pode levar ~50s para acordar, então alerte
-   só depois de 2 falhas seguidas, se o plano permitir.
+2. Intervalo de **60 minutos**. O dado só vence em dias (2 × X), então checar mais
+   vezes não antecipa nenhum alerta útil.
+3. Alertar quando o status não for 2xx, com e-mail como canal.
+4. Timeout no máximo que o plano permitir e alerta só depois de **2 falhas
+   seguidas**. Com o intervalo longo, o Render estará sempre hibernando na checagem
+   e pode levar ~50s para acordar; uma falha isolada costuma ser só isso.
 
-Efeito colateral: checar a cada 5 minutos mantém o serviço do Render acordado. Um
-único serviço 24 horas por dia cabe nas 750 h/mês do plano free, mas soma com
-qualquer outro serviço free da mesma conta.
+### Por que não checar a cada 5 minutos
+
+Cada checagem de `/health/dados` consulta o banco, e o Neon só suspende o compute
+depois de ~5 minutos sem nenhuma consulta. Um monitor a cada 5 minutos manteria o
+banco acordado 24 horas por dia: com a menor instância (0,25 CU), cerca de 180
+CU-horas por mês, acima do limite do plano free (confira o valor atual no painel do
+Neon). `/health` também consulta o banco, então trocar de endpoint não resolve.
+
+A cada 1 hora, o banco acorda no máximo 24 vezes por dia e volta a dormir em
+minutos: da ordem de 2 a 3 CU-horas por mês. O mesmo vale para o Render, que também
+volta a hibernar entre as checagens.
+
+Armazenamento não é o gargalo: cada vaga com snapshot, índices e tecnologias ocupa
+~2,4 kB, e o pipeline só grava snapshot quando algo muda. Em 16/09/2026 os dados
+ocupavam ~1,5 MB (9,7 MB com a estrutura do Postgres), e o pior caso, com todas as
+~600 vagas mudando a cada coleta, fica em ~22 MB/mês.
 
 **Nada disso é criado pelo repositório.** A conta e o monitor ficam a cargo de quem
 opera o projeto.
