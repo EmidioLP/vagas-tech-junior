@@ -8,9 +8,31 @@ A Python scraper that answers, with real data, which tech area (Backend, Fronten
 Data, Mobile, DevOps, QA, Fullstack, Suporte/Infra, Segurança) hires the most
 entry-level developers in Brazil. It collects jobs from public portals (six by default, seven registered),
 filters to entry-level, classifies each job into a tech area by keyword rules,
-dedupes, and exports CSVs/charts/a report. A read-only FastAPI sits on top of
-the collected data. Comments, docstrings, and commit messages in this repo are
+dedupes, and writes a history to PostgreSQL (Neon) on a GitHub Actions schedule;
+CSVs/charts/a report are optional. A read-only FastAPI and a read-only Streamlit
+dashboard sit on top of the collected data. Comments, docstrings, and commit messages in this repo are
 in Portuguese — follow that convention when editing existing files.
+
+## Docs map
+
+Documentation is in Portuguese. Entry point: `docs/architecture.md` (Mermaid flow
+of portals → Actions → pipeline → Neon → API/dashboard, one sentence per component,
+repo tree and a table of every doc). When editing docs:
+- `docs/decisoes/` holds short ADRs (context, decision, consequences with cost,
+  what would change it): Neon branches, `jobs` + hash snapshots, Actions instead of
+  Airflow, no medallion/dbt, Render + Streamlit Cloud, quality checks in Python. A new
+  structural decision, or reversing one, is a new ADR (mark the old one superseded,
+  don't delete it).
+- Moved out of the README in stage 13: `docs/fontes.md` (per-portal details,
+  server etiquette, adding a portal), `docs/classificacao.md` (tech gate, area,
+  modality, skills, charts, editing rules), `docs/api.md` (endpoints, Docker,
+  `DATABASE_URL`, dates, API deploy), `docs/limitacoes.md` (ethical/technical
+  limits, blocked sources, frequency, source bias, rule changes over history).
+- `docs/baseline.md` and `docs/resultados-2026-09-15.md` are dated records; don't
+  update them to match the current state. `docs/resultados-2026-09-15.md` links to
+  the README anchors `#como-esses-números-foram-apurados` and
+  `#limitações-honestas`, so keep those headings.
+- Only `tests/test_deploy_dashboard.py` pins doc content (`docs/deploy.md`).
 
 ## Commands
 
@@ -136,8 +158,8 @@ one registry line, and it automatically gets seniority filtering, dedup,
 classification, and export for free.
 
 Each source has non-obvious integration details discovered by live testing
-(documented at length in README.md under "Fontes de dados") — read that
-section before touching a source file, e.g.:
+(documented at length in `docs/fontes.md`) — read that doc before touching a
+source file, e.g.:
 - Gupy: unofficial public JSON endpoint, `limit` capped at 100, `pagination.total`
   is unreliable so paginate until an empty page instead.
 - Vagas.com: server-rendered HTML (no Selenium needed); listing only exposes
@@ -152,7 +174,7 @@ section before touching a source file, e.g.:
 - LinkedIn: guest API, requires numeric `geoId` (not `location=Brasil`, which
   silently returns US jobs); listing has no description, title-only classification.
 - Quero Vagas Tech: no text search, lists the entire catalog; the portal's own
-  declared seniority is deliberately ignored (deep-dived in README — it mislabels
+  declared seniority is deliberately ignored (deep-dived in `docs/fontes.md` — it mislabels
   managers as "Intern").
 - GeekHunter: `robots.txt` disallows `/api/` and `/feeds/`, so it's collected via
   sitemap -> per-job HTML page with structured `JobPosting` data, not an API call.
@@ -221,10 +243,11 @@ an env var at server start, so the code never uses `st.secrets`. It points at
 the dashboard reads + `default_transaction_read_only`); a new table read by the
 dashboard needs a new GRANT. `tests/test_deploy_dashboard.py` pins this.
 
-The README keeps only dated "Principais achados" (interpretation) and links to
-the dashboard for current numbers; full tables/charts of a collection live in a
-dated report (`docs/resultados-2026-09-15.md`). Don't put live-looking numbers
-back in the README.
+The README keeps only purpose, published links, dated "Principais achados"
+(interpretation), a secret-free quickstart and a limitations summary; it links to
+the dashboard for current numbers, and full tables/charts of a collection live in
+a dated report (`docs/resultados-2026-09-15.md`). Don't put live-looking numbers
+back in the README, and put long technical detail in `docs/` (see "Docs map").
 
 ### API (`api/`)
 
