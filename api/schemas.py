@@ -1,7 +1,8 @@
 """Schemas Pydantic (respostas da API).
 
 A API e somente leitura: os dados vem do pipeline de raspagem, entao nao ha
-schema de escrita.
+schema de escrita. Cada vaga e uma vaga unica de `jobs` com o estado do snapshot
+mais recente (`persistence/foto_atual.py`).
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ class TecnologiaResumo(BaseModel):
 class VagaOut(_TecnologiasComoNomes):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: int = Field(description="Id da vaga única (`jobs.id`), estável entre coletas.")
     source: str = Field(description="Portal de origem.", examples=["gupy"])
     external_id: str = Field(description="Id da vaga no portal de origem.")
     title: str
@@ -56,10 +57,16 @@ class VagaOut(_TecnologiasComoNomes):
         default=None,
         description="Keywords que dispararam a classificação, para auditoria.",
     )
-    search_term: str | None = None
-    tecnologias: list[str] = Field(default_factory=list, examples=[["Python", "SQL"]])
-    created_at: datetime
-    updated_at: datetime
+    tecnologias: list[str] = Field(
+        default_factory=list, examples=[["Python", "SQL"]],
+        description="Tecnologias citadas no estado mais recente da vaga.",
+    )
+    ativa: bool = Field(description="Falso quando a vaga foi encerrada (sumiu do portal).")
+    first_seen_at: datetime = Field(description="Primeira coleta em que a vaga apareceu (UTC).")
+    last_seen_at: datetime = Field(description="Última coleta em que a vaga apareceu (UTC).")
+    closed_at: datetime | None = Field(
+        default=None, description="Quando a vaga foi encerrada (UTC). Nulo se ativa.",
+    )
 
 
 class VagaResumo(_TecnologiasComoNomes):
@@ -79,12 +86,13 @@ class VagaResumo(_TecnologiasComoNomes):
     published_date: date | None = None
     url: str | None = None
     tecnologias: list[str] = Field(default_factory=list)
+    ativa: bool
 
 
 class VagaPage(BaseModel):
     """Envelope da listagem paginada."""
 
-    total: int = Field(description="Total de vagas que casam com os filtros.")
+    total: int = Field(description="Total de vagas únicas que casam com os filtros.")
     limit: int
     offset: int
     items: list[VagaResumo]
@@ -92,14 +100,14 @@ class VagaPage(BaseModel):
 
 class AreaOut(BaseModel):
     area: str = Field(examples=["Suporte/Infra"])
-    vagas: int = Field(description="Quantidade de vagas classificadas nesta área.")
-    percentual: float = Field(description="Percentual sobre o total de vagas.")
+    vagas: int = Field(description="Vagas ativas classificadas nesta área (estado atual).")
+    percentual: float = Field(description="Percentual sobre o total de vagas ativas.")
 
 
 class TecnologiaOut(BaseModel):
     nome: str = Field(examples=["Python"])
     grupo: str = Field(examples=["linguagens"])
-    vagas: int = Field(description="Quantidade de vagas que citam esta tecnologia.")
+    vagas: int = Field(description="Vagas ativas que citam esta tecnologia (estado atual).")
 
 
 class Erro(BaseModel):

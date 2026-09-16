@@ -92,6 +92,55 @@ def test_detalhe_da_vaga(client):
     assert "description" in corpo
 
 
+def test_detalhe_traz_ciclo_de_vida_da_vaga(client):
+    vaga = next(i for i in client.get("/vagas").json()["items"] if i["external_id"] == "2001")
+    corpo = client.get(f"/vagas/{vaga['id']}").json()
+    assert corpo["ativa"] is True
+    assert corpo["closed_at"] is None
+    assert corpo["first_seen_at"].startswith("2026-09-10T09:05:00")
+    assert corpo["last_seen_at"].startswith("2026-09-14T09:05:00")
+    # Campos do import legado nao fazem parte do contrato.
+    assert not {"created_at", "updated_at", "search_term"} & corpo.keys()
+
+
+def test_detalhe_usa_o_snapshot_mais_recente(client):
+    vaga = next(i for i in client.get("/vagas").json()["items"] if i["external_id"] == "2001")
+    corpo = client.get(f"/vagas/{vaga['id']}").json()
+    assert corpo["description"] == "React e CSS."
+    assert corpo["tecnologias"] == ["React"]
+
+
+def test_vaga_encerrada_fica_fora_por_padrao(client):
+    corpo = client.get("/vagas").json()
+    assert "3001" not in {i["external_id"] for i in corpo["items"]}
+    assert all(i["ativa"] for i in corpo["items"])
+
+
+def test_incluir_encerradas(client):
+    corpo = client.get("/vagas", params={"incluir_encerradas": True}).json()
+    assert corpo["total"] == 5
+    encerrada = next(i for i in corpo["items"] if i["external_id"] == "3001")
+    assert encerrada["ativa"] is False
+
+    data = client.get("/vagas", params={"area": "Data", "incluir_encerradas": True}).json()
+    assert data["total"] == 3
+
+
+def test_detalhe_de_vaga_encerrada_continua_acessivel(client):
+    corpo = client.get("/vagas", params={"incluir_encerradas": True}).json()
+    vaga_id = next(i["id"] for i in corpo["items"] if i["external_id"] == "3001")
+    resposta = client.get(f"/vagas/{vaga_id}")
+    assert resposta.status_code == 200
+    assert resposta.json()["ativa"] is False
+    assert resposta.json()["closed_at"] is not None
+
+
+def test_tecnologia_de_snapshot_antigo_nao_filtra(client):
+    """A 2001 citava Python num snapshot antigo; o estado atual so cita React."""
+    corpo = client.get("/vagas", params={"tecnologia": "Python"}).json()
+    assert [i["external_id"] for i in corpo["items"]] == ["1001"]
+
+
 def test_detalhe_de_vaga_inexistente_da_404(client):
     resposta = client.get("/vagas/99999")
     assert resposta.status_code == 404

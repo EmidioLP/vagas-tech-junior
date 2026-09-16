@@ -1,4 +1,4 @@
-"""Analises do dashboard com dados conhecidos (cenario em tests/dashboard/cenario_historico.py).
+"""Analises do dashboard com dados conhecidos (cenario em tests/cenario_historico.py).
 
 Contra o schema das migrations (SQLite), sem rede e sem Streamlit.
 """

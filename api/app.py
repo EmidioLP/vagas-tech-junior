@@ -1,8 +1,8 @@
 """Aplicacao FastAPI.
 
-API somente leitura sobre os dados que o scraper produz. Nao ha endpoints de
-escrita: as vagas entram pelo pipeline de raspagem e pelo script de importacao
-(`scripts/import_csv.py`), nunca por HTTP.
+API somente leitura sobre o historico que o pipeline grava (`jobs` +
+`job_snapshots`). Nao ha endpoints de escrita: as vagas entram pela coleta
+(`python main.py`), nunca por HTTP.
 """
 
 from __future__ import annotations
@@ -18,19 +18,19 @@ from sqlalchemy.orm import Session
 from scraper import __version__
 
 from .database import get_db, init_db
-from .models import Vaga
+from .models import JobRecord
 from .routers import areas, tecnologias, vagas
 
 DESCRIPTION = """
 API de consulta das vagas júnior de tecnologia coletadas pelo scraper.
 
-**Somente leitura.** Os dados vêm da raspagem da Gupy e do Vagas.com.br; para
-atualizar, rode o scraper (`python main.py`) e depois a importação
-(`python scripts/import_csv.py`).
+**Somente leitura.** Os dados vêm da coleta automática nos portais de vagas,
+gravada no banco a cada execução (`python main.py`). Cada vaga é uma vaga única
+com o estado da coleta mais recente em que apareceu, a mesma regra do dashboard.
 
-- `/vagas` — listagem com filtros por área, tecnologia, modalidade e fonte
-- `/areas` — as 10 áreas com contagem de vagas
-- `/tecnologias` — as tecnologias com contagem de menções
+- `/vagas` — vagas ativas, com filtros por área, tecnologia, modalidade e fonte
+- `/areas` — as 10 áreas com contagem de vagas ativas
+- `/tecnologias` — as tecnologias com contagem de vagas ativas que as citam
 """
 
 @asynccontextmanager
@@ -85,5 +85,7 @@ def health(db: Session = Depends(get_db)) -> dict:
     seja SQLite ou Postgres -- e falha junto com ela se o banco cair, que e o
     que o healthcheck do compose precisa detectar.
     """
-    total = db.scalar(select(func.count()).select_from(Vaga)) or 0
+    total = db.scalar(
+        select(func.count()).select_from(JobRecord).where(JobRecord.is_active.is_(True))
+    ) or 0
     return {"status": "ok", "vagas": total}

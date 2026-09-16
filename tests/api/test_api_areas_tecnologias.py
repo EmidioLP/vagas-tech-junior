@@ -86,17 +86,43 @@ def test_tecnologia_inexistente_da_404(client):
 
 def test_contagens_refletem_o_banco_e_nao_um_csv(client, seed):
     """Se o banco muda, /areas e /tecnologias mudam junto."""
-    from api.models import Vaga
+    from historico_api import snapshot, vaga
 
     antes = next(a for a in client.get("/areas").json() if a["area"] == "Mobile")
     assert antes["vagas"] == 0
 
-    seed.add(Vaga(source="gupy", external_id="3001",
-                  title="Dev Android Jr", area="Mobile"))
+    seed.add(vaga("gupy", "4001", snapshots=[snapshot("Dev Android Jr", "Mobile")]))
     seed.commit()
 
     depois = next(a for a in client.get("/areas").json() if a["area"] == "Mobile")
     assert depois["vagas"] == 1
+
+
+def test_areas_contam_so_vagas_ativas(client):
+    """A vaga 3001 (Data) esta encerrada: Data continua com 2, como no dashboard."""
+    corpo = client.get("/areas").json()
+    assert sum(a["vagas"] for a in corpo) == 4
+    assert next(a for a in corpo if a["area"] == "Data")["vagas"] == 2
+
+
+def test_area_vem_do_snapshot_mais_recente(client, seed):
+    from historico_api import COLETA_ATUAL, snapshot, vaga
+
+    seed.add(vaga("gupy", "5001", snapshots=[
+        snapshot("Dev Mobile Jr", "Mobile", collected_at=COLETA_ATUAL.replace(day=1)),
+        snapshot("Dev Backend Jr", "Backend"),
+    ]))
+    seed.commit()
+
+    corpo = {a["area"]: a["vagas"] for a in client.get("/areas").json()}
+    assert corpo["Backend"] == 1
+    assert corpo["Mobile"] == 0
+
+
+def test_tecnologias_contam_so_o_estado_atual_das_ativas(client):
+    """Python: so a 1001. O snapshot antigo da 2001 e a encerrada 3001 nao contam."""
+    por_nome = {t["nome"]: t["vagas"] for t in client.get("/tecnologias").json()}
+    assert por_nome["Python"] == 1
 
 
 def test_raiz_e_health(client):
@@ -104,7 +130,9 @@ def test_raiz_e_health(client):
     assert raiz["somente_leitura"] is True
     assert raiz["docs"] == "/docs"
 
-    assert client.get("/health").status_code == 200
+    resposta = client.get("/health")
+    assert resposta.status_code == 200
+    assert resposta.json() == {"status": "ok", "vagas": 4}
 
 
 def test_documentacao_disponivel(client):

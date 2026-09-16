@@ -147,7 +147,7 @@ dashboard/config.py     engine somente leitura a partir da DATABASE_URL
 python -m pytest tests/dashboard -q
 ```
 
-- **`cenario_historico.py`:** histórico conhecido com 4 vagas e 3 dias de coleta,
+- **`tests/cenario_historico.py`:** histórico conhecido com 4 vagas e 3 dias de coleta,
   mais uma execução que falhou. Uma vaga tem 3 snapshots e muda de Backend para
   Data, outra é encerrada, outra não informa modalidade.
 - **`test_analytics.py`:** as análises sobre esse cenário (SQLite com as migrations):

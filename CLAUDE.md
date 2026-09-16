@@ -45,8 +45,8 @@ python -m pytest tests/dashboard -q
 
 # API (read-only REST over the collected data)
 pip install -r requirements.txt
-python scripts/import_csv.py            # CSV (newest in output/) -> DATABASE_URL (required) or --db
-uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs
+uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs (reads jobs/job_snapshots)
+python scripts/import_csv.py            # LEGACY: CSV -> `vagas` table, which nothing reads anymore
 
 # Migrations (Alembic; URL comes from scraper/config.py, never alembic.ini)
 alembic upgrade head --sql              # review SQL without connecting
@@ -185,7 +185,8 @@ day end. Vagas lists jobs *seen* in the period, links only via `url_segura`
 below `BASE_MINIMA_POR_AREA` (15) and mark 15–29 as indicative. Filters are always bind params. The data
 layer must not import FastAPI, requests, bs4 or yaml (`requirements-dashboard.txt`
 omits them; a test checks it). `banco_historico` lives in `tests/conftest.py`; the
-known analytics scenario is `tests/dashboard/cenario_historico.py`.
+known analytics scenario is `tests/cenario_historico.py` (shared with the API
+equivalence test).
 
 Deploy (`docs/deploy.md`, Streamlit Community Cloud, manual via the web panel):
 entrypoint `dashboard/app.py`, deps `dashboard/requirements.txt` (just
@@ -203,12 +204,20 @@ back in the README.
 
 ### API (`api/`)
 
-Read-only FastAPI over the same data the scraper produces — no `POST`/`PUT`/`DELETE`
+Read-only FastAPI over the history the pipeline writes — no `POST`/`PUT`/`DELETE`
 (they respond 405 by design, since writes would just get overwritten by the next
-CSV import). `api/vocabulary.py` reads the same `scraper/rules/*.yml` files so
-area/technology names stay a single source of truth. `/areas` and `/tecnologias`
-are always computed live from the `vagas` table, never read from the pre-aggregated
-`ranking_areas.csv`/`skills_por_area.csv` (those are truncated top-N exports).
+collection). `api/vocabulary.py` reads the same `scraper/rules/*.yml` files so
+area/technology names stay a single source of truth.
+
+The API and the dashboard share one "current photo" rule:
+`persistence/foto_atual.py:vagas_atuais()` (each `jobs` row joined to its latest
+snapshot; SQL only, no FastAPI/Streamlit/yaml imports). `api/crud.py` builds on it:
+`/vagas` lists active jobs unless `incluir_encerradas=true`, `/vagas/{id}` is
+`jobs.id` (closed jobs included), `/areas` and `/tecnologias` count active jobs by
+the latest snapshot, computed live, never read from the pre-aggregated
+`ranking_areas.csv`/`skills_por_area.csv`. `tests/api/test_api_equivalencia_dashboard.py`
+pins API == dashboard numbers on the same DB. API test data is built in the history
+model (`tests/api/historico_api.py` builders + `seed` fixture).
 
 The database is configured by a single required `DATABASE_URL` (Neon
 PostgreSQL), resolved in `scraper/config.py:obter_database_url` with precedence
@@ -230,7 +239,7 @@ lifecycle only, unique `(source, external_id)`) and `job_snapshots` (ORM
 FK `RESTRICT` so history can't be deleted silently), plus
 `job_snapshot_tecnologias`. The ORM name `JobRecord` exists to avoid clashing
 with the scraper dataclass `scraper.models.Job`. The pipeline writes them
-through `persistence/`; the API still reads `vagas`. Every model change needs an Alembic
+through `persistence/`, and the API and dashboard read them. Every model change needs an Alembic
 migration: `tests/api/test_migrations.py` runs `alembic check`. See
 `docs/data-model.md`.
 
@@ -260,8 +269,9 @@ lazily, so `--no-db` works without SQLAlchemy. `repositorio.persistir_vagas`:
   failures, per source); `main.py` prints it and exits 1 on failures, 2 on
   `ConfiguracaoError`.
 
-Import (`scripts/import_csv.py`) is the **legacy** flow: it only feeds `vagas`
-for the current API. It's idempotent — identity is `(source, external_id)`.
+Import (`scripts/import_csv.py`) is the **legacy** flow: it only feeds `vagas`,
+which nothing reads anymore (removal is roadmap step 10; until then Docker Compose
+still imports the seed there, so its API starts empty). It's idempotent — identity is `(source, external_id)`.
 `skills` (a CSV string column) is normalized into a `tecnologias` table +
 many-to-many association on import (`semear_tecnologias` lives in
 `persistence/repositorio.py`, hence `COPY persistence/` in the Dockerfile).
@@ -270,8 +280,7 @@ Deploy (`render.yaml`, Render free tier): the API reads the Neon branch
 `dados-main`; `DATABASE_URL` is declared with `sync: false` (value only in the
 Render dashboard) and `startCommand` is just `uvicorn` — no seed import and never
 `--recriar` on boot (the DB persists; importing on every free-tier wake would take
-minutes). `seed/vagas.csv` was imported once into `dados-main` and is re-imported
-by hand when it changes (`docs/neon-setup.md`). `tests/test_render_yaml.py` pins
+minutes). The API serves what the scheduled collection writes to `dados-main`. `tests/test_render_yaml.py` pins
 this. Neon branches: `production` untouched, `feature-data-platform` for local
 dev, `dados-main` for main/Render/Actions. Build uses `requirements-api.txt` (no
 matplotlib — the API's import graph never touches `scraper/charts.py`).
