@@ -172,7 +172,7 @@ exit 2 antes de acessar banco e portais.
 branch cujo código roda.
 
 **Primeira execução:** use `modo=sem-banco` com uma fonte. Portais de vaga
-costumam bloquear IP de nuvem (ver README, "Deploy"). Esse modo mostra quais
+costumam bloquear IP de nuvem (ver [`api.md`, "Deploy"](api.md#deploy)). Esse modo mostra quais
 fontes respondem ao runner do GitHub sem gravar nada no Neon.
 
 ### 4. Ler o resultado

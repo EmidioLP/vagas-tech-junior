@@ -22,7 +22,7 @@ Etapas definidas em `.llm/prompts/`.
 - [x] 10 — Aposentar o fluxo legado
 - [x] 11 — Qualidade da coleta
 - [x] 12 — Frescor dos dados e monitoramento
-- [ ] 13 — Arquitetura e registro de decisões
+- [x] 13 — Arquitetura e registro de decisões
 - [ ] 14 — Auditoria final
 
 ## Revisão do roadmap (16/09/2026)
@@ -41,3 +41,22 @@ reescritas a partir do que já existia:
   CSV de 15/09/2026, e por isso divergia do dashboard.
 - **Reduzidas:** qualidade de dados sem dbt (11), observabilidade limitada a
   frescor e monitoramento (12), documentação focada em arquitetura e decisões (13).
+
+## Estrutura final da documentação (etapa 13)
+
+- **Entrada:** `README.md`, com propósito, links publicados, achados datados,
+  quickstart sem segredos e resumo das limitações.
+- **Arquitetura:** [`architecture.md`](architecture.md), com o fluxo em Mermaid, os
+  componentes, a estrutura do repositório e o mapa de todos os documentos.
+- **Decisões:** [`decisoes/`](decisoes/README.md), ADRs 0001 a 0006. As remoções
+  da revisão acima estão justificadas nos ADRs
+  [0003](decisoes/0003-github-actions-em-vez-de-airflow.md) e
+  [0004](decisoes/0004-sem-medalhao-nem-dbt.md).
+- **Movidos do README, sem perda de conteúdo:** [`fontes.md`](fontes.md),
+  [`classificacao.md`](classificacao.md), [`api.md`](api.md). O resumo das
+  limitações ficou no README, e a versão completa, ampliada, em
+  [`limitacoes.md`](limitacoes.md).
+- **Inalterados:** os guias operacionais (`automation.md`, `data-model.md`,
+  `data-quality.md`, `observability.md`, `deploy.md`, `neon-setup.md`,
+  `migrations.md`, `rollback-merge.md`) e os registros datados (`baseline.md`,
+  `resultados-2026-09-15.md`).
