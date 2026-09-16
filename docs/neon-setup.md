@@ -143,9 +143,10 @@ disparar a coleta e o que cada workflow faz: `docs/automation.md`.
 
   Aplique sempre **antes** do merge que traz a migration: a coleta e a API param
   com "schema atual" se o banco estiver atrasado.
-- **Reimportar o seed.** A tabela legada `vagas`, que a API lê, foi importada uma
-  vez de `seed/vagas.csv`. O Render não importa nada no boot. Se o seed mudar,
-  carregue a `DATABASE_URL` da `dados-main` só no ambiente do comando e rode:
+- **Reimportar o seed (legado).** A tabela `vagas` foi importada uma vez de
+  `seed/vagas.csv`. Desde a etapa 09 a API lê o histórico gravado pela coleta, e
+  ninguém mais lê `vagas`, então **não é preciso reimportar**. O fluxo sai na
+  etapa 10. Só para referência, a importação era:
 
   ```powershell
   python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15

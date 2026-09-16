@@ -1,4 +1,4 @@
-"""Fixtures da API: banco SQLite em memoria, sem rede e sem tocar em data/vagas.db.
+"""Fixtures da API: banco SQLite em memoria, sem rede e sem tocar no banco real.
 
 Os testes da API ficam num diretorio proprio para que quem so usa o scraper
 possa rodar `pytest tests/` sem ter FastAPI instalado -- o importorskip abaixo
@@ -20,8 +20,8 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from api.app import app  # noqa: E402
 from api.database import Base, get_db  # noqa: E402
-from api.models import Tecnologia, Vaga  # noqa: E402
-
+from api.models import Tecnologia  # noqa: E402
+from historico_api import COLETA_ANTIGA, snapshot, vaga  # noqa: E402
 
 @pytest.fixture
 def db_session():
@@ -43,46 +43,52 @@ def db_session():
 
 @pytest.fixture
 def seed(db_session):
-    """Um conjunto pequeno e previsivel, no formato que o importador produz."""
+    """Um historico pequeno e previsivel, no formato que o pipeline grava.
+
+    Quatro vagas ativas, mais:
+      - 2001 tem um snapshot antigo que citava Python; o vigente so cita React;
+      - 3001 esta encerrada (area Data), e nao conta por padrao.
+    """
     python = Tecnologia(nome="Python", grupo="linguagens")
     sql = Tecnologia(nome="SQL", grupo="linguagens")
     react = Tecnologia(nome="React", grupo="frameworks")
     db_session.add_all([python, sql, react])
 
     db_session.add_all([
-        Vaga(
-            source="gupy", external_id="1001",
-            title="Engenheiro de Dados Júnior", company="ACME",
-            area="Data", seniority="Júnior", location="São Paulo, São Paulo",
+        vaga("gupy", "1001", snapshots=[snapshot(
+            "Engenheiro de Dados Júnior", "Data", company="ACME",
+            seniority="Júnior", location="São Paulo, São Paulo",
             workplace_type="Remoto", published_date=date(2026, 7, 20),
-            url="https://exemplo.test/1001", description="Vaga de dados.",
+            description="Vaga de dados.",
             area_score=12.0, area_matches="engenheiro de dados(t)",
-            search_term="engenheiro de dados junior",
             tecnologias=[python, sql],
-        ),
-        Vaga(
-            source="gupy", external_id="1002",
-            title="Analista de Dados Júnior", company="Globex",
-            area="Data", seniority="Júnior", location="Belo Horizonte, Minas Gerais",
+        )]),
+        vaga("gupy", "1002", snapshots=[snapshot(
+            "Analista de Dados Júnior", "Data", company="Globex",
+            seniority="Júnior", location="Belo Horizonte, Minas Gerais",
             workplace_type="Híbrido", published_date=date(2026, 7, 10),
-            url="https://exemplo.test/1002", description="BI e relatórios.",
-            tecnologias=[sql],
-        ),
-        Vaga(
-            source="vagas", external_id="2001",
-            title="Desenvolvedor Front-End Jr", company="Initech",
-            area="Frontend", seniority="Júnior", location="100% Home Office",
-            workplace_type="Remoto", published_date=date(2026, 7, 25),
-            url="https://exemplo.test/2001", description="React e CSS.",
-            tecnologias=[react],
-        ),
-        Vaga(
-            source="vagas", external_id="2002",
-            title="Estágio em Suporte Técnico", company="Umbrella",
-            area="Suporte/Infra", seniority="Estágio", location="Curitiba / PR",
+            description="BI e relatórios.", tecnologias=[sql],
+        )]),
+        vaga("vagas", "2001", snapshots=[
+            snapshot("Desenvolvedor Front-End Jr", "Frontend", collected_at=COLETA_ANTIGA,
+                     company="Initech", workplace_type="Remoto",
+                     published_date=date(2026, 7, 25), tecnologias=[python]),
+            snapshot("Desenvolvedor Front-End Jr", "Frontend", company="Initech",
+                     seniority="Júnior", location="100% Home Office",
+                     workplace_type="Remoto", published_date=date(2026, 7, 25),
+                     description="React e CSS.", tecnologias=[react]),
+        ]),
+        vaga("vagas", "2002", snapshots=[snapshot(
+            "Estágio em Suporte Técnico", "Suporte/Infra", company="Umbrella",
+            seniority="Estágio", location="Curitiba / PR",
             workplace_type="Não informado", published_date=None,
-            url="https://exemplo.test/2002", description="Atendimento e chamados.",
-        ),
+            description="Atendimento e chamados.",
+        )]),
+        vaga("gupy", "3001", ativa=False, snapshots=[snapshot(
+            "Cientista de Dados Júnior", "Data", collected_at=COLETA_ANTIGA,
+            company="Hooli", workplace_type="Remoto",
+            published_date=date(2026, 7, 30), tecnologias=[python],
+        )]),
     ])
     db_session.commit()
     return db_session

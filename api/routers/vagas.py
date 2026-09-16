@@ -39,8 +39,11 @@ def _validar_tecnologia(tecnologia: str | None) -> str | None:
     response_model=VagaPage,
     summary="Listar vagas",
     description=(
-        "Lista as vagas coletadas pelo scraper. Os filtros combinam entre si "
-        "(E lógico). Valores inválidos devolvem 422."
+        "Lista as vagas únicas coletadas pelo scraper, com o estado da coleta "
+        "mais recente em que cada uma apareceu. Por padrão, só as ativas; vagas "
+        "encerradas (que sumiram do portal) entram com `incluir_encerradas=true`. "
+        "Os filtros combinam entre si (E lógico) e valem sobre o estado atual. "
+        "Valores inválidos devolvem 422."
     ),
 )
 def listar_vagas(
@@ -57,6 +60,9 @@ def listar_vagas(
         default=None, min_length=2, max_length=100,
         description="Busca livre no título da vaga.",
     ),
+    incluir_encerradas: bool = Query(
+        default=False, description="Inclui vagas encerradas (que sumiram do portal).",
+    ),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> VagaPage:
@@ -67,6 +73,7 @@ def listar_vagas(
         modalidade=modalidade.value if modalidade else None,
         fonte=fonte.value if fonte else None,
         q=q,
+        incluir_encerradas=incluir_encerradas,
         limit=limit,
         offset=offset,
     )
@@ -77,6 +84,10 @@ def listar_vagas(
     "/{vaga_id}",
     response_model=VagaOut,
     summary="Buscar vaga por id",
+    description=(
+        "O id é o da vaga única (`jobs.id`) e vale também para vagas encerradas, "
+        "que voltam com `ativa=false` e `closed_at`."
+    ),
     responses={404: {"model": Erro, "description": "Vaga não encontrada."}},
 )
 def buscar_vaga(vaga_id: int, db: Session = Depends(get_db)) -> VagaOut:

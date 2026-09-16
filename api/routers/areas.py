@@ -18,9 +18,9 @@ router = APIRouter(prefix="/areas", tags=["areas"])
     summary="Listar áreas com contagem de vagas",
     description=(
         "As 10 áreas do vocabulário, da mais para a menos frequente. "
-        "As contagens saem da tabela de vagas, não de um CSV agregado, "
-        "então acompanham o estado atual do banco. Áreas sem vagas aparecem "
-        "com zero."
+        "Conta vagas únicas ativas pela área da coleta mais recente de cada uma "
+        "(a mesma regra do dashboard), calculadas do banco e não de um CSV "
+        "agregado. Áreas sem vagas aparecem com zero."
     ),
 )
 def listar_areas(db: Session = Depends(get_db)) -> list[AreaOut]:

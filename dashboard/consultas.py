@@ -6,7 +6,8 @@ os contratos do pipeline, sem reimplementar regra nenhuma:
 - **ultima coleta:** a mesma regra da guarda de intervalo (`scraper/execucao.py`):
   execucao de escopo completo com status `success` ou `partial`;
 - **proxima coleta:** o `next_run_on` gravado pela execucao mais recente;
-- **vaga ativa:** `jobs.is_active` (encerramento em `persistence/repositorio.py`).
+- **vaga ativa:** `jobs.is_active` (encerramento em `persistence/repositorio.py`);
+- **estado atual:** `persistence/foto_atual.vagas_atuais`, a mesma consulta da API.
 
 Vocabulario das analises (o mesmo da tela e do dashboard/README.md):
 
@@ -33,20 +34,19 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from urllib.parse import urlsplit
 
-from sqlalchemy import and_, case, distinct, func, or_, select
+from sqlalchemy import case, distinct, func, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from api.models import CollectionRun, JobRecord, JobSnapshot, Tecnologia, job_snapshot_tecnologias
+# SEM_AREA e reexportado: e o rotulo que a tela mostra para snapshot sem area.
+from persistence.foto_atual import SEM_AREA, rotulo_area, rotulo_modalidade, vagas_atuais  # noqa: F401
 from scraper.models import NAO_INFORMADO, REMOTO, WORKPLACE_ORDER
 
 # Copia de `scraper.execucao.STATUS_QUE_CONTAM`: importar aquele modulo puxaria as
 # fontes (requests, bs4), que o dashboard nao usa.
 STATUS_QUE_CONTAM = ("success", "partial")
-
-# Snapshot sem area gravada (a coluna aceita nulo).
-SEM_AREA = "Sem área"
 
 # Abaixo disso o ranking de tecnologias oscila demais para ser lido (README, "Limitações").
 BASE_MINIMA_TECNOLOGIAS = 30
@@ -289,46 +289,6 @@ def resumo_geral(engine: Engine) -> ResumoGeral:
 # ---------------------------------------------------------------------------
 
 
-def _rotulo_area(coluna):
-    return func.coalesce(func.nullif(coluna, ""), SEM_AREA)
-
-
-def _rotulo_modalidade(coluna):
-    return func.coalesce(func.nullif(coluna, ""), NAO_INFORMADO)
-
-
-def _vagas_atuais():
-    """Uma linha por vaga unica: identidade de `jobs` + estado do snapshot mais recente.
-
-    `(job_id, collected_at)` e unico, entao o join com o `max(collected_at)` nunca
-    duplica vagas. Vaga sem nenhum snapshot fica de fora.
-    """
-    ultimo = (
-        select(JobSnapshot.job_id, func.max(JobSnapshot.collected_at).label("collected_at"))
-        .group_by(JobSnapshot.job_id)
-        .subquery("ultimo_snapshot")
-    )
-    return (
-        select(
-            JobRecord.id.label("job_id"),
-            JobRecord.source.label("fonte"),
-            JobRecord.is_active.label("ativa"),
-            JobRecord.first_seen_at.label("primeiro_avistamento"),
-            JobRecord.last_seen_at.label("ultimo_avistamento"),
-            JobRecord.url.label("url"),
-            JobSnapshot.id.label("snapshot_id"),
-            JobSnapshot.title.label("titulo"),
-            JobSnapshot.company.label("empresa"),
-            _rotulo_area(JobSnapshot.area).label("area"),
-            _rotulo_modalidade(JobSnapshot.workplace_type).label("modalidade"),
-        )
-        .join(ultimo, ultimo.c.job_id == JobRecord.id)
-        .join(JobSnapshot, and_(JobSnapshot.job_id == ultimo.c.job_id,
-                                JobSnapshot.collected_at == ultimo.c.collected_at))
-        .subquery("vagas_atuais")
-    )
-
-
 def _filtrar(stmt, vagas, filtros: Filtros):
     """Fonte, area e modalidade sobre o estado atual. O periodo e de cada consulta."""
     if filtros.fontes:
@@ -349,9 +309,9 @@ def opcoes_filtro(engine: Engine) -> OpcoesFiltro:
     """Valores que existem no banco e o intervalo de dias de coleta."""
     with _leitura(engine) as db:
         fontes = db.scalars(select(distinct(JobRecord.source)).order_by(JobRecord.source)).all()
-        area = _rotulo_area(JobSnapshot.area)
+        area = rotulo_area(JobSnapshot.area)
         areas = db.scalars(select(distinct(area)).order_by(area)).all()
-        modalidades = db.scalars(select(distinct(_rotulo_modalidade(JobSnapshot.workplace_type)))).all()
+        modalidades = db.scalars(select(distinct(rotulo_modalidade(JobSnapshot.workplace_type)))).all()
         primeiro, ultimo = db.execute(
             select(func.min(CollectionRun.started_at), func.max(CollectionRun.started_at))
             .where(CollectionRun.status.in_(STATUS_QUE_CONTAM))
@@ -367,7 +327,7 @@ def opcoes_filtro(engine: Engine) -> OpcoesFiltro:
 
 def indicadores_atuais(engine: Engine, filtros: Filtros) -> Indicadores:
     """KPIs das vagas unicas ativas. O periodo nao se aplica: e a fotografia de agora."""
-    vagas = _vagas_atuais()
+    vagas = vagas_atuais()
     empresa = func.nullif(func.lower(func.trim(vagas.c.empresa)), "")
     stmt = _filtrar(
         select(
@@ -388,7 +348,7 @@ def distribuicao(engine: Engine, filtros: Filtros, dimensao: str) -> list[Contag
     """Vagas unicas ativas por area, modalidade ou fonte (estado atual)."""
     if dimensao not in DIMENSOES:
         raise ValueError(f"Dimensão desconhecida: {dimensao!r}")
-    vagas = _vagas_atuais()
+    vagas = vagas_atuais()
     coluna = vagas.c[dimensao]
     quantidade = func.count().label("vagas")
     stmt = _filtrar(
@@ -436,7 +396,7 @@ def serie_historica(engine: Engine, filtros: Filtros) -> list[PontoSerie]:
         ids = vagas.with_only_columns(JobRecord.id)
         snapshots = db.execute(
             select(JobSnapshot.job_id, JobSnapshot.collected_at,
-                   _rotulo_area(JobSnapshot.area), _rotulo_modalidade(JobSnapshot.workplace_type))
+                   rotulo_area(JobSnapshot.area), rotulo_modalidade(JobSnapshot.workplace_type))
             .where(JobSnapshot.job_id.in_(ids), JobSnapshot.collected_at < limite)
             .order_by(JobSnapshot.job_id, JobSnapshot.collected_at)
         ).all()
@@ -496,7 +456,7 @@ def listar_vagas(engine: Engine, filtros: Filtros, somente_ativas: bool = True,
     vez depois do inicio.
     """
     pagina = max(1, pagina)
-    vagas = _vagas_atuais()
+    vagas = vagas_atuais()
     stmt = _filtrar(select(vagas), vagas, filtros)
     if somente_ativas:
         stmt = stmt.where(vagas.c.ativa.is_(True))
@@ -535,7 +495,7 @@ def listar_vagas(engine: Engine, filtros: Filtros, somente_ativas: bool = True,
 
 def _recorte_tecnologias(filtros: Filtros):
     """Vagas unicas ativas do filtro (estado atual) e o join com as tecnologias citadas."""
-    vagas = _vagas_atuais()
+    vagas = vagas_atuais()
     recorte = _filtrar(
         select(vagas.c.job_id, vagas.c.snapshot_id, vagas.c.area).where(vagas.c.ativa.is_(True)),
         vagas, filtros,

@@ -427,6 +427,11 @@ Os CSVs saem em `utf-8-sig`, então abrem direto no Excel com acentuação corre
 Há uma API **somente leitura** sobre os dados coletados. Ela não substitui o
 pipeline: as vagas continuam entrando pelo scraper, e a API só as expõe por HTTP.
 
+Ela lê o **histórico que a coleta grava** (`jobs` + `job_snapshots`), com a mesma
+regra do dashboard: cada vaga única aparece com o estado da coleta mais recente
+em que foi vista, e as contagens consideram só as vagas ativas. Para o mesmo
+banco, API e dashboard mostram os mesmos números (há teste que garante isso).
+
 **No ar em [vagas-tech-junior-api.onrender.com/docs](https://vagas-tech-junior-api.onrender.com/docs)**
 (primeiro acesso pode levar ~1 min — o plano gratuito hiberna).
 
@@ -438,12 +443,11 @@ pip install -r requirements.txt
 ```
 
 ```bash
-python scripts/import_csv.py
-```
-
-```bash
 uvicorn api.app:app --reload
 ```
+
+O banco precisa ter o schema (`alembic upgrade head`) e pelo menos uma coleta
+gravada (`python main.py`).
 
 Documentação interativa em **http://127.0.0.1:8000/docs** (`127.0.0.1` é a sua
 própria máquina).
@@ -452,11 +456,11 @@ própria máquina).
 
 | Método | Rota | O que faz |
 |---|---|---|
-| GET | `/vagas` | Lista vagas. Filtros: `area`, `tecnologia`, `modalidade`, `fonte`, `q` (título), `limit`, `offset` |
-| GET | `/vagas/{id}` | Detalhe da vaga, com descrição completa |
-| GET | `/areas` | As 10 áreas com contagem e percentual |
+| GET | `/vagas` | Lista vagas ativas. Filtros: `area`, `tecnologia`, `modalidade`, `fonte`, `q` (título), `incluir_encerradas`, `limit`, `offset` |
+| GET | `/vagas/{id}` | Detalhe da vaga, ativa ou encerrada, com descrição completa e ciclo de vida (`ativa`, `first_seen_at`, `last_seen_at`, `closed_at`) |
+| GET | `/areas` | As 10 áreas com contagem de vagas ativas e percentual |
 | GET | `/areas/{nome}` | Uma área |
-| GET | `/tecnologias` | As 114 tecnologias com contagem de menções. Filtros: `grupo`, `com_vagas` |
+| GET | `/tecnologias` | As 114 tecnologias com contagem de vagas ativas que as citam. Filtros: `grupo`, `com_vagas` |
 | GET | `/tecnologias/{nome}` | Uma tecnologia |
 
 Exemplos, contra a instância pública:
@@ -470,11 +474,21 @@ curl "https://vagas-tech-junior-api.onrender.com/tecnologias?grupo=linguagens&co
 ```
 
 **Não há `POST`, `PUT` nem `DELETE`** — os dados vêm da raspagem, e escrever por
-HTTP criaria um estado que a próxima importação sobrescreveria. Esses verbos
+HTTP criaria um estado que a próxima coleta sobrescreveria. Esses verbos
 respondem `405`.
 
 Erros: `404` para vaga/área/tecnologia inexistente, `422` para parâmetro fora do
 vocabulário (`?area=Inexistente`), sempre no formato `{"detail": "..."}`.
+
+**Mudanças de contrato (setembro de 2026).** Até então a API lia a tabela `vagas`,
+importada de um CSV. Ao passar a ler o histórico:
+
+- o `id` de `/vagas/{id}` passou a ser o da vaga única (`jobs.id`). Ids antigos
+  podem dar 404 ou apontar para outra vaga;
+- saíram `created_at`, `updated_at` (datas da importação) e `search_term` (não é
+  gravado no histórico); entraram `ativa`, `first_seen_at`, `last_seen_at` e
+  `closed_at`;
+- `/vagas`, `/areas` e `/tecnologias` passaram a considerar só vagas ativas.
 
 ### Docker (API + PostgreSQL)
 
@@ -490,6 +504,10 @@ sobe em segundos.
 O que acontece no `up`: o Postgres sobe, a API espera ele ficar **realmente**
 pronto (healthcheck com `pg_isready`, não apenas o container existir), importa
 `seed/vagas.csv` e só então inicia o uvicorn.
+
+> **Em transição.** O `seed/vagas.csv` ainda é importado na tabela legada `vagas`,
+> que a API não lê mais. Até o Compose carregar o seed no histórico, `/vagas` sobe
+> vazia no Docker.
 
 ```bash
 docker compose down
@@ -533,8 +551,9 @@ aparece nos logs.
 
 Um SQLite local via `--db data/vagas.db` fica ignorado pelo git — é reconstruível
 a partir do CSV.
-`scripts/import_csv.py` pega o CSV mais recente de `output/`, ou um específico
-com `--csv`; `--recriar` zera as tabelas antes.
+`scripts/import_csv.py` é o fluxo **legado**: alimenta só a tabela `vagas`, que a
+API não lê mais. Pega o CSV mais recente de `output/`, ou um específico com
+`--csv`; `--recriar` zera as tabelas antes.
 
 A importação é **idempotente**: a identidade da vaga é o par
 `(source, external_id)`, então rodar de novo atualiza em vez de duplicar.
@@ -544,8 +563,8 @@ Duas decisões de modelagem que valem menção:
 - **`skills` vira relação.** A string `"Excel, Python, SQL"` do CSV é
   normalizada numa tabela `tecnologias` + associação muitos-para-muitos. Sem
   isso não dá para filtrar nem contar direito.
-- **`/areas` e `/tecnologias` são calculados da tabela de vagas**, nunca lidos
-  de `ranking_areas.csv` ou `skills_por_area.csv`. Esses CSVs são recortes já
+- **`/areas` e `/tecnologias` são calculados do banco** (vagas ativas no estado
+  atual), nunca lidos de `ranking_areas.csv` ou `skills_por_area.csv`. Esses CSVs são recortes já
   agregados — o de skills é truncado no top-15 de cada área, então serviria
   números errados.
 
@@ -574,8 +593,8 @@ python scripts/import_csv.py --csv seed/vagas.csv --referencia 2026-09-15
 serviço para o repositório.
 
 O banco é o **Neon** (branch `dados-main`). A `DATABASE_URL` fica só no painel do
-Render; o `render.yaml` declara a variável sem valor. O boot só sobe a API: a
-tabela que ela lê foi importada uma vez de `seed/vagas.csv` e persiste no banco.
+Render; o `render.yaml` declara a variável sem valor. O boot só sobe a API, que
+lê o histórico gravado pela coleta automática no mesmo banco.
 O build usa `requirements-api.txt`, sem matplotlib, que a API nunca importa.
 
 O scraper **não roda no servidor da API**, de propósito: portais de vaga

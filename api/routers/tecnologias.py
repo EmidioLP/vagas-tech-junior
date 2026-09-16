@@ -18,9 +18,10 @@ router = APIRouter(prefix="/tecnologias", tags=["tecnologias"])
     summary="Listar tecnologias com contagem de menções",
     description=(
         "As tecnologias de `skills.yml`, da mais para a menos citada. "
-        "A contagem é o número de vagas que citam a tecnologia — vem da "
-        "relação vaga↔tecnologia, não do CSV `skills_por_area`, que é "
-        "truncado no top-15 de cada área."
+        "A contagem é o número de vagas únicas ativas que citam a tecnologia "
+        "na coleta mais recente de cada uma (a mesma regra do dashboard). Vem "
+        "do banco, não do CSV `skills_por_area`, que é truncado no top-15 de "
+        "cada área."
     ),
 )
 def listar_tecnologias(

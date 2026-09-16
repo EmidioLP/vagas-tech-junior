@@ -6,9 +6,10 @@ mesmas migrations (`migrations/versions/`):
 - **Histórico** — `jobs`, `job_snapshots` e `job_snapshot_tecnologias`: identidade
   estável de cada vaga e o que foi observado nela a cada coleta. Criado na etapa
   03 e **gravado direto pelo pipeline** desde a etapa 04 (veja
-  [Persistência](#persistência)).
-- **Legado** — `vagas` e `vaga_tecnologia`: o espelho do último CSV, que a API
-  lê hoje. `tecnologias` é compartilhada pelos dois grupos.
+  [Persistência](#persistência)). É o que a API e o dashboard leem.
+- **Legado** — `vagas` e `vaga_tecnologia`: o espelho do último CSV importado.
+  Ninguém mais lê essas tabelas; saem na etapa 10. `tecnologias` é compartilhada
+  pelos dois grupos.
 - **Controle** — `collection_runs`: uma linha por execução do pipeline com banco,
   inclusive as puladas pela guarda de intervalo. Criada na etapa 06 (veja
   [Controle de execuções](#controle-de-execuções-collection_runs)).
@@ -229,8 +230,17 @@ Para cada vaga ativa dessa fonte:
   `missing_since` nulos.
 - **Uma transação por fonte.** Erro de banco desfaz só o encerramento daquela
   fonte, vira erro no resumo e faz a execução sair com código 1.
-- **Consumidores** (dashboard, análises) contam vagas abertas com
+- **Consumidores** (API, dashboard) contam vagas abertas com
   `is_active = true`.
+
+### Estado atual (`persistence/foto_atual.py`)
+
+API e dashboard leem a mesma "foto atual": `vagas_atuais()` junta cada linha de
+`jobs` ao seu snapshot mais recente (`max(collected_at)`), uma linha por vaga
+única. Área, modalidade, título e tecnologias vêm desse snapshot; quem consulta
+decide se filtra `ativa`. Snapshot sem área vira `Sem área`, e sem modalidade,
+`Não informado`. Como a regra existe num lugar só, os dois consumidores contam as
+mesmas vagas (`tests/api/test_api_equivalencia_dashboard.py`).
 
 ### Snapshot: só quando o estado muda
 
@@ -302,9 +312,10 @@ saída, estão em `docs/automation.md`.
 
 ### Legado: `vagas` e `import_csv.py`
 
-A API ainda lê `vagas`, que é alimentada por `scripts/import_csv.py` a partir de
-um CSV. No deploy, é o `seed/vagas.csv`. O pipeline **não** escreve em `vagas`.
-Esse fluxo fica até a API passar a ler o histórico.
+`vagas` é alimentada por `scripts/import_csv.py` a partir de um CSV (no Docker
+Compose, o `seed/vagas.csv`). O pipeline **não** escreve em `vagas`, e desde a
+etapa 09 a API também não lê: ela usa o [estado atual](#estado-atual-persistencefoto_atualpy)
+do histórico. O fluxo legado sai na etapa 10.
 
 ## Controle de execuções (`collection_runs`)
 
