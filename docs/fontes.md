@@ -144,8 +144,9 @@ declarado pela fonte e nem consulta o título, então aceitar esse campo faria
 passar gerente e pleno. A fonte deixa o campo vazio e quem decide é o título.
 
 Parte do acervo vem do mesmo portal da Gupy que este projeto já raspa direto
-(65 das 192), e a deduplicação por título+empresa colapsa essas quando as duas
-fontes rodam juntas. O ganho real é a curadoria manual do site, mais InfoJobs e
+(65 das 192), e a deduplicação colapsa essas quando as duas fontes rodam juntas
+— por título+empresa quando os dois portais escrevem igual, e pelo id do link
+da Gupy quando não escrevem (o agregador reescreve título e nome da empresa). O ganho real é a curadoria manual do site, mais InfoJobs e
 Solides.
 
 Algumas vagas da curadoria manual não têm link navegável — vêm como
