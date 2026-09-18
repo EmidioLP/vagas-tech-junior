@@ -53,11 +53,21 @@ classificação em [`classificacao.md`](classificacao.md).
   híbrido no card. Na coleta de 15/09/2026, o LinkedIn inteiro e 19 vagas do
   Vagas.com ficaram "Não informado" ([relatório](resultados-2026-09-15.md#remoto-híbrido-ou-presencial)).
   Para ler só o dado afirmado, filtre por fonte no dashboard.
-- **Restam ~5 duplicatas cruzadas (≈1%)** que a deduplicação não pega, e isso é
-  deliberado. Ela exige título idêntico e nomes de empresa compatíveis; sobram
-  os casos em que o título também muda ("Analista de Testes Júnior" na Gupy vira
-  "Analista de Testes Júnior (QA) - JBS") ou em que o portal grafa a cidade sem
-  espaço ("Governador Valadares" → "Governadorvaladares").
+- **Restam ~2 duplicatas cruzadas** que a deduplicação não pega, e isso é
+  deliberado. As regras de texto exigem título idêntico e nomes de empresa
+  compatíveis; sobram os casos em que o título também muda ("Analista de Testes
+  Júnior" na Gupy vira "Analista de Testes Júnior (QA) - JBS") ou em que o
+  portal grafa a cidade sem espaço ("Governador Valadares" →
+  "Governadorvaladares").
+
+  Antes das regras de texto vem o id embutido no link de candidatura, que é
+  prova mais dura porque não depende de como cada portal escreveu as coisas.
+  Ele resolve justamente os casos em que empresa **e** título mudam — "Estágio
+  Aurora" e "Programa de Estágios" anunciam a mesma vaga da Gupy, e nenhuma
+  comparação de texto pegaria. Medido sobre as exportações de 15 e 16/09: pega
+  3 duplicatas por coleta, sem nenhuma fusão falsa. Link que não carrega id
+  (slug de título, `manual://...`, página de carreiras) simplesmente não gera
+  chave e cai nas regras de texto.
 
   Medi a alternativa antes de descartá-la: casar títulos com 85% de similaridade
   resolveria 4 duplicatas e criaria **60 fusões falsas** — juntaria "VOLANTE C4 -
