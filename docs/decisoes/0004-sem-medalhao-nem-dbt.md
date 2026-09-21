@@ -30,8 +30,10 @@ reais dos portais, e as regras de negócio ficam em YAML.
   (`/areas` nunca lê `ranking_areas.csv`).
 - **Custa:**
   - **não dá para reprocessar o passado.** O JSON/HTML bruto de cada portal é
-    descartado depois da classificação; se uma regra de `areas.yml` melhorar, as
-    coletas antigas continuam com a classificação da época;
+    descartado depois da classificação. Vale para o bruto do portal; a **área**
+    tem exceção, porque `job_snapshots` guarda `title` e `description`, que é
+    tudo o que o classificador lê — `scripts/reclassificar_areas.py` refaz a
+    classificação do histórico ([0008](0008-taxonomia-de-areas-expandida.md));
   - o LinkedIn não traz descrição, e o que foi descartado pelo portão de
     relevância ou pelo filtro de nível não fica em lugar nenhum para auditoria
     posterior. `collection_runs.summary` guarda só as vagas brutas por fonte e o

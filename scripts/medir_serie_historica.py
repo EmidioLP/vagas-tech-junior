@@ -44,8 +44,12 @@ DIAS_ENTRE_COLETAS = 2
 VIDA_MINIMA, VIDA_MAXIMA = 1, 21
 
 FONTES = ("gupy", "linkedin", "vagas", "trampos", "querovagastech", "geekhunter")
-AREAS = ("Backend", "Frontend", "Data", "Mobile", "DevOps", "QA", "Fullstack",
-         "Suporte/Infra", "Segurança", "Outros/TI Geral")
+# Taxonomia atual (ADR 0008). So varia os dados sinteticos, mas uma lista
+# desatualizada aqui viraria documentacao errada da taxonomia.
+AREAS = ("Suporte Técnico", "Engenharia de Software", "Backend", "Frontend", "Data",
+         "Mobile", "DevOps", "QA", "Fullstack", "Sistemas / ERP",
+         "Service Desk / Help Desk", "Infraestrutura / Redes", "Segurança",
+         "Outros/TI Geral")
 MODALIDADES = ("Remoto", "Híbrido", "Presencial", None)
 
 

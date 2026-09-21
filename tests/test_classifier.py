@@ -153,9 +153,39 @@ def test_tech_gate_usa_a_descricao_quando_o_titulo_e_generico(clf):
     ) is True
 
 
+def test_keyword_generica_pontua_mas_nao_cala_a_descricao(clf):
+    """`peso_generico`: dev sem stack da area de ultimo recurso, nao dominancia.
+
+    Sem a faixa generica, "Desenvolvedor Junior" acionaria o titulo dominante
+    para Engenharia de Software e nenhuma descricao conseguiria mais decidir.
+    """
+    # Titulo generico + descricao com stack: a descricao decide.
+    assert clf.classify(
+        "Desenvolvedor Júnior",
+        "Pipelines de ETL, SQL, Airflow e data warehouse.",
+    ).area == "Data"
+
+    # Titulo generico e descricao sem sinal: sobra a area generica.
+    assert clf.classify("Desenvolvedor Júnior").area == "Engenharia de Software"
+
+    # Stack no titulo continua vencendo o termo generico.
+    assert clf.classify("Desenvolvedor Backend Júnior").area == "Backend"
+
+    # A keyword generica pontua (1.0 x title_boost), mas nao marca title_score.
+    generica = next(s for s in clf.score_all("Desenvolvedor Júnior")
+                    if s.area == "Engenharia de Software")
+    assert generica.score == 3.0
+    assert generica.title_score == 0.0
+
+    # Ja um termo explicito de peso_alto marca sim, e domina.
+    explicita = next(s for s in clf.score_all("Engenheiro de Software Júnior")
+                     if s.area == "Engenharia de Software")
+    assert explicita.title_score == 12.0
+
+
 def test_suporte_tecnico_vai_para_area_propria(clf):
-    assert clf.classify("Analista de Suporte Técnico Júnior").area == "Suporte/Infra"
-    assert clf.classify("Técnico de Suporte Júnior").area == "Suporte/Infra"
+    assert clf.classify("Analista de Suporte Técnico Júnior").area == "Suporte Técnico"
+    assert clf.classify("Técnico de Suporte Júnior").area == "Suporte Técnico"
 
 
 def test_seguranca_nao_dispara_com_a_palavra_solta(clf):
@@ -181,7 +211,7 @@ def test_keyword_contida_em_outra_nao_pontua_duas_vezes(clf):
     """'suporte tecnico' contém 'suporte' -- o mesmo trecho não pode somar duas vezes."""
     scores = {s.area: s.score for s in clf.score_all("Suporte Técnico Júnior")}
     # peso_alto (4.0) x title_boost (3.0) = 12, e não 15 (12 + 3 do 'suporte' contido).
-    assert scores["Suporte/Infra"] == 12.0
+    assert scores["Suporte Técnico"] == 12.0
 
 
 def test_frases_que_so_se_sobrepoem_em_parte_ainda_somam(clf):
@@ -189,7 +219,7 @@ def test_frases_que_so_se_sobrepoem_em_parte_ainda_somam(clf):
     scores = {s.area: s.score for s in clf.score_all("Analista de Suporte Técnico Jr")}
     # 'analista de suporte' e 'suporte tecnico' compartilham uma palavra, mas
     # nenhuma está contida na outra -- são dois sinais fortes de verdade.
-    assert scores["Suporte/Infra"] == 24.0
+    assert scores["Suporte Técnico"] == 24.0
 
 
 def test_titulo_backend_com_suporte_nao_vira_suporte(clf):

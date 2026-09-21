@@ -52,12 +52,12 @@ def test_cada_area_igual_a_distribuicao_do_dashboard(cenario):
     api = {a["area"]: a["vagas"] for a in client.get("/areas").json() if a["vagas"]}
     dashboard = {c.rotulo: c.vagas for c in distribuicao(engine, Filtros(), "area")}
     # A vaga A mudou de Backend para Data: conta em Data, pelo estado atual.
-    assert api == dashboard == {"Data": 1, "Suporte/Infra": 1, "Frontend": 1}
+    assert api == dashboard == {"Data": 1, "Suporte Técnico": 1, "Frontend": 1}
 
 
 @pytest.mark.parametrize("area, modalidade", [
     ("Data", "Remoto"),
-    ("Suporte/Infra", "Não informado"),
+    ("Suporte Técnico", "Não informado"),
     ("Data", "Presencial"),  # so a vaga B, que esta encerrada
 ])
 def test_filtro_de_vagas_igual_aos_indicadores_do_dashboard(cenario, area, modalidade):

@@ -28,9 +28,10 @@ tecnologia: "Pesquisa e Desenvolvimento" (P&D industrial), "Odontologia Digital"
 
 ## Classificação por área
 
-Cada área tem keywords em duas faixas de peso (`peso_alto` = 4.0,
-`peso_medio` = 1.0). Keyword encontrada no **título** vale 3× o que vale na
-descrição (`title_boost`), porque o título é muito mais confiável.
+Cada área tem keywords em três faixas de peso (`peso_alto` = 4.0,
+`peso_medio` = 1.0, `peso_generico` = 1.0). Keyword encontrada no **título** vale
+3× o que vale na descrição (`title_boost`), porque o título é muito mais
+confiável.
 
 Duas regras evitam classificação por evidência frágil:
 
@@ -38,16 +39,28 @@ Duas regras evitam classificação por evidência frágil:
   áreas disputam. Sem isso, uma descrição longa da Gupy que cita "dados" de
   passagem ("proteção de dados", "dados cadastrais") transformava uma vaga de
   *Governança de TI* em vaga de *Data*.
+- **`peso_generico` não sinaliza o título** — é a saída para termos amplos demais
+  para definir a área sozinhos ("desenvolvedor junior", "programador"). Eles
+  pontuam como `peso_medio`, dando a área de último recurso, mas **não** acionam o
+  título dominante. Sem essa faixa, pôr "desenvolvedor junior" em *Engenharia de
+  Software* faria todo título genérico de dev calar a descrição: "Desenvolvedor
+  Júnior" com descrição de ETL e Airflow deixaria de ser *Data*
+  ([ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md)).
 - **`min_score` = 3.0** (o valor de uma keyword `peso_medio` no título) — abaixo
   disso a vaga cai em "Outros/TI Geral". Um único "dados" solto numa descrição
   não basta para definir a área.
 
-O efeito é que "Outros/TI Geral" concentra títulos como "Estágio em TI",
-"Estágio em Desenvolvimento" ou "Desenvolvedor de Software Jr", dos quais
-realmente **não dá** para inferir a área. Preferi deixá-los explícitos a
-distribuí-los por chute. O tamanho dessa fatia depende da coleta e das fontes (na
-de 15/09/2026 foi um terço, puxado pelo LinkedIn, que não traz descrição): veja
-[`resultados-2026-09-15.md`](resultados-2026-09-15.md) e o dashboard.
+O efeito é que "Outros/TI Geral" concentra títulos dos quais realmente **não dá**
+para inferir a área — "Estágio em TI", "Jovem Aprendiz - Tecnologia". Preferi
+deixá-los explícitos a distribuí-los por chute.
+
+Até 21/09/2026 essa fatia era um terço da coleta, e boa parte dela era
+classificável: "Desenvolvedor Júnior" e "Analista de Sistemas Jr" não são vagas
+sem área, são vagas de desenvolvimento sem stack declarada. A taxonomia expandida
+do [ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md) deu nome a elas
+(*Engenharia de Software*) e derrubou o resto de 267 para 91 vagas na coleta de
+15/09. O que sobra depende muito da fonte: um terço sem descrição nenhuma, puxado
+pelo LinkedIn, cujo card não traz texto.
 
 As keywords são casadas como palavra/frase inteira sobre o texto normalizado
 (minúsculas, sem acento, pontuação virando espaço). Isso evita que "go" case

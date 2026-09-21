@@ -79,7 +79,7 @@ def seed(db_session):
                      description="React e CSS.", tecnologias=[react]),
         ]),
         vaga("vagas", "2002", snapshots=[snapshot(
-            "Estágio em Suporte Técnico", "Suporte/Infra", company="Umbrella",
+            "Estágio em Suporte Técnico", "Suporte Técnico", company="Umbrella",
             seniority="Estágio", location="Curitiba / PR",
             workplace_type="Não informado", published_date=None,
             description="Atendimento e chamados.",

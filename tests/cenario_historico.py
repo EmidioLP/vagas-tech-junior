@@ -9,7 +9,7 @@ Tres dias de coleta (D1, D2, D3) e uma execucao que falhou em D4:
 |------|----------|-----------|-----------|-------------------------------------------------------------------------|
 | A    | gupy     | D1 → D3   | não       | D1 Backend/Remoto/Acme · D2 Backend/Remoto · D3 Data/Remoto (Python, SQL) |
 | B    | linkedin | D1 → D2   | D3        | D1 Data/Presencial (Java)                                               |
-| C    | vagas    | D2 → D3   | não       | D2 Suporte/Infra/sem modalidade/Beta (SQL)                              |
+| C    | vagas    | D2 → D3   | não       | D2 Suporte Técnico/sem modalidade/Beta (SQL)                            |
 | D    | gupy     | D3        | não       | D3 Frontend/Híbrido/" ACME"                                             |
 
 A tem 3 snapshots e conta como uma vaga unica. O D1 de A cita Java, que nao
@@ -74,7 +74,7 @@ def popular(banco) -> None:
     vaga_c = JobRecord(
         source="vagas", external_id="C", url=None,
         first_seen_at=momento(D2), last_seen_at=momento(D3), is_active=True,
-        snapshots=[snapshot(D2, "Suporte N1", "Suporte/Infra", None, "Beta", [sql])],
+        snapshots=[snapshot(D2, "Suporte N1", "Suporte Técnico", None, "Beta", [sql])],
     )
     vaga_d = JobRecord(
         source="gupy", external_id="D", url="http://portal.exemplo/vagas/d",

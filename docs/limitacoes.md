@@ -76,6 +76,10 @@ classificação em [`classificacao.md`](classificacao.md).
   a mais é o problema menor.
 - **A extração de tecnologias mede menção, não exigência.** Uma vaga que diz
   "diferencial: Python" conta igual a uma que exige Python.
+- **A taxonomia de 17 áreas agravou isso.** Com mais áreas, cada uma tem menos
+  vagas: na coleta de 15/09, os painéis por área passaram a cobrir 77% das vagas
+  com tecnologia, contra 92% na taxonomia de 10 áreas
+  ([ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md)).
 - **Áreas pequenas dão contagens de tecnologia instáveis.** Com 9 vagas em
   DevOps, uma tecnologia citada em 2 delas já entra no top 8. Por isso o dashboard
   esconde o ranking geral abaixo de 30 vagas com tecnologia e os painéis por área
@@ -116,13 +120,21 @@ classificação em [`classificacao.md`](classificacao.md).
 - **Cada snapshot guarda a classificação do dia em que foi gravado.** Área,
   pontuação, `area_matches` e tecnologias são calculadas na coleta com os YAMLs
   daquele momento.
-- **Mudar `scraper/rules/*.yml` não reclassifica o passado.** Como área e
+- **Mudar `scraper/rules/*.yml` não reclassifica o passado sozinho.** Como área e
   tecnologias entram no `content_hash`, a coleta seguinte grava snapshot novo para
   as vagas ainda vistas cuja classificação mudou. Vagas já encerradas e snapshots
   antigos ficam como estavam.
+- **Para a área, dá para reclassificar.** `scripts/reclassificar_areas.py` refaz a
+  classificação de todo o histórico a partir de `title` e `description`, que é tudo
+  o que o classificador lê, e recalcula o `content_hash` — sem esse recálculo a
+  coleta seguinte gravaria um snapshot por vaga registrando uma mudança que nunca
+  houve (medido: 426 de 597). Foi o que a mudança de taxonomia de 21/09 usou
+  ([ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md)). Para tecnologias não
+  existe equivalente.
 - **A série histórica mistura versões de regra.** Um salto de uma área no
   Histórico do dashboard pode ser mudança de regra, não de mercado. O snapshot não
   guarda qual versão das regras o gerou; o git log de `scraper/rules/` é a
   referência.
-- **Não há como reprocessar**, porque o dado bruto dos portais não é guardado
-  ([ADR 0004](decisoes/0004-sem-medalhao-nem-dbt.md)).
+- **Não há como reprocessar o bruto**, porque o JSON/HTML dos portais não é
+  guardado ([ADR 0004](decisoes/0004-sem-medalhao-nem-dbt.md)). O que dá para
+  refazer é o que se calcula a partir dos campos guardados, como a área.

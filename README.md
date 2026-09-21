@@ -1,8 +1,9 @@
 # vagas-tech-junior
 
 Raspagem de vagas de emprego para responder, **com dados reais**, uma pergunta:
-qual área de tecnologia (Backend, Frontend, Data, Mobile, DevOps, QA, Fullstack,
-Suporte/Infra, Segurança) tem mais vagas para desenvolvedores júnior no Brasil em 2026?
+qual área de tecnologia (Suporte Técnico, Engenharia de Software, Backend, Data,
+Frontend, Mobile, DevOps, QA, Fullstack, Infraestrutura, Service Desk, Sistemas/ERP,
+IA, Segurança e mais) tem mais vagas para desenvolvedores júnior no Brasil em 2026?
 
 O projeto coleta vagas em portais públicos, filtra apenas nível de entrada
 (júnior/estágio/trainee/aprendiz), remove duplicatas e classifica cada vaga em uma
@@ -39,24 +40,34 @@ deploy, verificação e rollback em `docs/deploy.md`.
 
 > **Números atuais: [dashboard](https://vagas-tech-junior.streamlit.app/)**, com
 > filtros por fonte, área, modalidade e período. Os achados abaixo são da análise
-> da **coleta de 15/09/2026** (597 vagas de nível de entrada de sete portais); o
-> relatório completo, com tabelas e gráficos, está em
-> [`docs/resultados-2026-09-15.md`](docs/resultados-2026-09-15.md).
+> da **coleta de 15/09/2026** (603 vagas de nível de entrada de sete portais, como
+> gravadas no banco), reclassificada com a taxonomia de 17 áreas adotada em 21/09
+> ([ADR 0008](docs/decisoes/0008-taxonomia-de-areas-expandida.md)).
+>
+> O relatório [`docs/resultados-2026-09-15.md`](docs/resultados-2026-09-15.md) é
+> **registro datado** e mantém a taxonomia de 10 áreas da época: os dois descrevem
+> a mesma coleta com vocabulários diferentes.
 
-- **Suporte/Infra é a área identificável que mais contrata júnior**: 122 vagas,
-  contra 94 de Backend. Foi a terceira coleta seguida com a mesma ordem, cada uma
-  com mais fontes (182 → 374 → 597 vagas), então não parece artefato de amostra
-  pequena.
-- **Um terço das vagas cai em "Outros/TI Geral", que não é uma área.** São vagas
-  cujo título não permite inferir a área, e 110 das 199 vêm do LinkedIn, cujo card
-  não traz descrição. Elas ficam explícitas em vez de distribuídas por chute.
+- **A maior área é "Engenharia de Software" (156 vagas, 25,9%) — e ela é um
+  catch-all, de propósito.** São vagas de desenvolvimento que não declaram stack no
+  título ("Desenvolvedor Júnior", "Analista de Sistemas Jr"). Antes eram empurradas
+  para Backend ou caíam em "Outros". É por isso que Backend aparece com 54 vagas
+  aqui e 92 na taxonomia antiga: ela o inflava.
+- **Somada, a família de suporte empata com ela**: Suporte Técnico (126),
+  Infraestrutura/Redes, Service Desk, Field Service e Hardware dão 153 vagas
+  (25,4%). Suporte Técnico sozinho é a segunda maior área. É a terceira coleta
+  seguida com suporte no topo entre as especialidades declaradas, cada uma com mais
+  fontes (182 → 374 → 597 vagas).
+- **"Outros/TI Geral" caiu de 206 para 65 vagas (10,8%)** com a taxonomia nova. O
+  que sobra são vagas cujo título não permite inferir área nenhuma ("Estágio em TI",
+  "Jovem Aprendiz - Tecnologia"), boa parte sem descrição no card do portal.
 - **Mais da metade das vagas com modalidade informada é presencial (54%).** As
   remotas são 29%, mas 64 das 96 vêm de um único agregador (Quero Vagas Tech):
   parte do número é mistura de fontes, não mercado.
 - **SQL é a tecnologia mais citada (102 vagas).** Em proporção, a leitura muda por
   área: SQL aparece em 80% das vagas de Data com tecnologia informada, contra 51%
-  das de Backend. Suporte/Infra é dominada por Redes/TCP-IP, Hardware e Windows, e
-  Frontend pede JavaScript em 86% das vagas.
+  das de Backend. A família de suporte é dominada por Redes/TCP-IP, Hardware e
+  Windows, e Frontend pede JavaScript em 86% das vagas.
 - **Data e QA foram as áreas que mais ganharam espaço** entre as coletas: Data de
   5,3% para 9,5%, QA de 4,5% para 6,5%.
 
@@ -75,7 +86,8 @@ vieram de rodar contra dados reais:
   admissão".
 - **Keywords contidas em outras somavam duas vezes.** "DESENVOLVEDOR BACKEND
   JÚNIOR - SUSTENTAÇÃO E SUPORTE TÉCNICO" pontuava `suporte técnico` (peso alto)
-  *e* `suporte` (peso médio) pelo mesmo trecho, e ia parar em Suporte/Infra por
+  *e* `suporte` (peso médio) pelo mesmo trecho, e ia parar em Suporte/Infra (a
+  área que hoje se chama Suporte Técnico) por
   15 a 14 em vez de Backend.
 - **A mesma vaga aparecia duas vezes quando dois portais a anunciavam**, porque
   cada um escreve o nome da empresa do seu jeito ("Minsait" e "Minsait an Indra

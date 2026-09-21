@@ -12,6 +12,18 @@
 # ("ci cd" casa com "CI/CD", "banco de dados" casa com "Banco de Dados").
 # Keywords com espaco sao casadas como frase; keywords de uma palavra sao
 # casadas com limite de palavra (nao ha match parcial dentro de outra palavra).
+#
+# Tres faixas de peso:
+#   peso_alto    sinal forte e especifico ("engenheiro de software", "backend");
+#   peso_medio   sinal de apoio ("python", "erp");
+#   peso_generico  pontua igual a peso_medio mas NAO aciona o titulo dominante.
+#                Para termos amplos demais para definir a area sozinhos
+#                ("desenvolvedor junior"): dao a area de ultimo recurso sem
+#                impedir a descricao de decidir. Ver ADR 0008.
+#
+# A taxonomia de areas deriva do projeto tech-skills-br
+# (https://github.com/diasgarcia/tech-skills-br, licenca MIT), com desvios
+# registrados no ADR 0008.
 
 settings:
   title_boost: 3.0
@@ -162,6 +174,32 @@ areas:
       - analytics
       - modelagem de dados
       - dataviz
+
+  Inteligência Artificial:
+    peso_alto:
+      - inteligencia artificial
+      - machine learning
+      - aprendizado de maquina
+      - deep learning
+      - engenheiro de ia
+      - engenheiro de machine learning
+      - cientista de ia
+      - visao computacional
+      - processamento de linguagem natural
+      - llm
+      - llms
+      # "IA" sozinho nao entra: "ia" e forma do verbo ir e casaria descricao.
+      - agentes de ia
+      - agente de ia
+      - ia generativa
+      - engenharia de prompt
+      - mlops
+    peso_medio:
+      - tensorflow
+      - pytorch
+      - scikit-learn
+      - redes neurais
+      - modelos preditivos
 
   Frontend:
     peso_alto:
@@ -325,31 +363,230 @@ areas:
       - desenvolvedor full
     peso_medio: []
 
-  Suporte/Infra:
+  # Dev sem stack declarada. Antes caia em "Outros/TI Geral", que era um terco
+  # da coleta: "Analista de Desenvolvimento Jr" e uma vaga de software, nao uma
+  # vaga sem area.
+  Engenharia de Software:
     peso_alto:
-      - suporte tecnico
+      - engenharia de software
+      - engenheiro de software
+      - engenheira de software
+      - desenvolvedor de software
+      - desenvolvedora de software
+      - desenvolvimento de software
+      - desenvolvedor de sistemas
+      - desenvolvimento de sistemas
+      - analista de desenvolvimento
+      - analista de sistemas
+      - analise de sistemas
+      - software engineer
+      - software developer
+      - software engineering
+      # "Engenheiro(a) de Software" vira "engenheiro a de software".
+      - engenheiro a de software
+      - engenheira de software
+      - desenvolvedor de jogos
+      - game developer
+      - analista de integracao
+      - analista de integracoes
+      # Frases inteiras: "integracao" sozinho casa vaga administrativa.
+      - integracao de sistemas
+      - integracao de software
+      - mainframe
+      # RPA e low-code sao desenvolvimento sem stack de servidor. O projeto
+      # tech-skills-br manda para Backend; aqui nao, porque "Desenvolvedor RPA"
+      # nao escreve servico nenhum.
+      - desenvolvedor rpa
+      - desenvolvimento rpa
+      - low-code
+      - low code
+      - automacao de processos
+    # Faixa generica: pontua igual a peso_medio, mas nao aciona o titulo
+    # dominante. "Desenvolvedor Junior" com descricao de ETL e Airflow tem que
+    # poder virar Data; se estes termos sinalizassem o titulo, nao poderia.
+    peso_generico:
+      - desenvolvedor junior
+      - desenvolvedora junior
+      - desenvolvedor jr
+      - desenvolvedora jr
+      - desenvolvedor a junior
+      - desenvolvedor a jr
+      - desenvolvedor trainee
+      - analista desenvolvedor
+      # Variantes em ingles. "developer" sozinho e seguro nesta faixa: em
+      # "Backend Developer" a area com stack pontua 12 e vence os 3 daqui.
+      - developer
+      - programmer
+      - estagio desenvolvimento
+      - estagio em desenvolvimento
+      - estagiario de desenvolvimento
+      - estagiario a de desenvolvimento
+      - estagio software
+      - programador
+      - programadora
+      - programacao
+      - algoritmos
+      - estrutura de dados
+
+  Sistemas / ERP:
+    peso_alto:
+      - analista de erp
+      - consultor erp
+      - analista totvs
+      - analista sap
+      - consultor sap
+      - consultor totvs
+      - analista protheus
+      - implantador erp
+      - analista de implantacao
+      - implantacao de sistemas
+      - implantacao de software
+      - analista de negocios de ti
+      - analista de processos de ti
+      - governanca de ti
+      - gestao de ti
+      # Sem preposicao: "analista sistemas" nao casa "analista de sistemas".
+      - analista sistemas
+      - assistente sistemas
+      - estagio sistemas
+      - sap business one
+      - sap mes
+      - itsm
+      - servicenow
+      - salesforce
+    peso_medio:
+      - erp
+      - sap
+      - totvs
+      - protheus
+      - sankhya
+      - datasul
+      - dynamics 365
+      - itil
+      - cobit
+      - implantacao
+
+  Service Desk / Help Desk:
+    peso_alto:
+      - service desk
       - help desk
       - helpdesk
-      - service desk
+      - central de atendimento
+      - central de servicos
+      - analista de service desk
+      - operador de service desk
+    peso_medio:
+      - chamados
+      - ticket
+      - primeiro nivel
+      - n1
+      - sla
+
+  Suporte Técnico:
+    peso_alto:
+      - suporte tecnico
       - analista de suporte
       - tecnico de suporte
       - suporte de ti
-      - infraestrutura de ti
-      - analista de redes
+      - suporte de sistemas
+      - suporte de aplicacoes
+      - estagio suporte
+      - estagio em suporte
+      - estagiario de suporte
+      - operador de suporte
+      # Titulos genericos de TI que na pratica sao suporte. Sem eles, tudo isso
+      # caia em "Outros/TI Geral" -- era a maior fatia do balde-resto.
+      - assistente de ti
+      - auxiliar de ti
+      - tecnico de ti
+      - tecnico em ti
+      - tecnico informatica
+      - tecnico em informatica
+      - tecnico de informatica
+      - estagiario de ti
+      - estagiario a de ti
+      - estagio de ti
+      - estagio ti
+      - estagio em ti
+      - aprendiz de ti
+      - aprendiz ti
+      - aprendiz em ti
+      - jovem aprendiz de ti
+      - auxiliar de informatica
+      - assistente de informatica
+      # "T.I." vira "t i" na normalizacao.
+      - auxiliar de t i
+      - assistente de t i
+      - assistente de tecnologia da informacao
+      - auxiliar de tecnologia da informacao
+      - aprendiz de tecnologia da informacao
+      - estagiario de tecnologia da informacao
     peso_medio:
+      # NAO colocar "atendimento" sozinho: casa vaga de atendimento ao cliente
+      # que passou pelo portao por outro motivo. Mesma regra do "seguranca".
       - suporte
-      - chamados
-      - ticket
+      - atendimento tecnico
       - atendimento ao usuario
       - manutencao de computadores
-      - hardware
+
+  Infraestrutura / Redes:
+    peso_alto:
+      - infraestrutura de ti
+      - analista de infraestrutura
+      - analista de redes
+      - administrador de redes
+      - tecnico de redes
+      - network engineer
+      - noc
+      - data center
+      - datacenter
+    peso_medio:
+      - redes
       - windows server
       - active directory
-      - redes
       - switch
       - roteador
+      - firewall de rede
       - telefonia
+      - vpn
+      - cabeamento
+
+  Field Service / Hardware:
+    peso_alto:
+      - field service
+      - tecnico de campo
+      - suporte em campo
+      - tecnico de manutencao
+      - manutencao de hardware
+      - tecnico de impressoras
+    peso_medio:
+      - hardware
       - impressora
+      - montagem de equipamentos
+      - troca de pecas
+
+  Hardware / Eletrônica:
+    peso_alto:
+      - engenharia de hardware
+      - engenheiro de hardware
+      - desenvolvimento de hardware
+      - hardware engineer
+      - tecnico em eletronica
+      - engenharia eletronica
+      - desenvolvimento de firmware
+      - firmware
+      # Embarcado liga software a hardware: fica aqui para nao perder p/ Backend.
+      - software embarcado
+      - sistemas embarcados
+      - desenvolvedor embarcado
+      - engenheiro de automacao
+      - automacao industrial
+    peso_medio:
+      - eletronica
+      - circuitos
+      - microcontrolador
+      - microcontroladores
+      - arduino
 
   Segurança:
     peso_alto:
@@ -375,3 +612,4 @@ areas:
 weights:
   peso_alto: 4.0
   peso_medio: 1.0
+  peso_generico: 1.0
