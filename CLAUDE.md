@@ -20,7 +20,8 @@ of portals → Actions → pipeline → Neon → API/dashboard, one sentence per
 repo tree and a table of every doc). When editing docs:
 - `docs/decisoes/` holds short ADRs (context, decision, consequences with cost,
   what would change it): Neon branches, `jobs` + hash snapshots, Actions instead of
-  Airflow, no medallion/dbt, Render + Streamlit Cloud, quality checks in Python. A new
+  Airflow, no medallion/dbt, Render + Streamlit Cloud, quality checks in Python,
+  série histórica in Python with a measured trigger to migrate. A new
   structural decision, or reversing one, is a new ADR (mark the old one superseded,
   don't delete it).
 - Moved out of the README in stage 13: `docs/fontes.md` (per-portal details,
@@ -64,6 +65,8 @@ python -m pytest tests/api -q                          # API tests only (auto-sk
 # Dashboard (read-only Streamlit over jobs/job_snapshots/collection_runs; DATABASE_URL, or DASHBOARD_DB to override)
 streamlit run dashboard/app.py
 python -m pytest tests/dashboard -q
+python scripts/medir_serie_historica.py              # custo da série histórica no banco configurado
+python scripts/medir_serie_historica.py --projetar 730  # ... num histórico sintético (ADR 0007)
 
 # API (read-only REST over the collected data)
 pip install -r requirements.txt
@@ -224,8 +227,13 @@ Overview/Tecnologias are the current photo (active jobs + latest snapshot via
 `max(collected_at)` join; period doesn't apply). Histórico reconstructs each UTC
 collection day in Python (`serie_historica`): open = `first_seen_at` before day
 end and not `closed_at` by then, area/modalidade from the snapshot in force at
-day end. Vagas lists jobs *seen* in the period, links only via `url_segura`
-(http/https). Tecnologias hides the overall ranking below `BASE_MINIMA_TECNOLOGIAS`
+day end. It sweeps **per job** (each job visits only the days between its debut
+and its closure), never per day over every job — that was O(days × jobs), and the
+default period is the whole history, so both grow together. Cost is measured by
+`scripts/medir_serie_historica.py`; ADR 0007 holds the numbers and the trigger to
+move the grouping into SQL. `tests/dashboard/test_serie_equivalencia.py` keeps the
+old per-day loop as the reference the sweep must match. Vagas lists jobs *seen*
+in the period, links only via `url_segura` (http/https). Tecnologias hides the overall ranking below `BASE_MINIMA_TECNOLOGIAS`
 (30; base = active jobs citing any technology); the per-area panels
 (`tecnologias_por_area`, each area with its own base, 0–100% axis) hide areas
 below `BASE_MINIMA_POR_AREA` (15) and mark 15–29 as indicative. Filters are always bind params. The data

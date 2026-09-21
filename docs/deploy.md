@@ -154,8 +154,10 @@ O dashboard não grava nada. Nenhum rollback envolve os dados.
   visitante vê um botão para acordá-lo, e a subida leva cerca de 1 minuto.
 - **Recursos.** Os recursos são limitados (cerca de 1 GB de memória). As
   consultas trazem só agregados e páginas de 50 vagas; a série histórica carrega
-  `jobs` e snapshots do período em memória, o que cabe folgado no volume atual
-  (centenas de vagas por coleta).
+  `jobs` e snapshots do período em memória — cerca de 20 MB depois de dois anos
+  de coleta, então a memória não é o limite. O que cresce é o tempo de montar a
+  série: está medido, com gatilho para mover o agrupamento para o banco, no
+  [ADR 0007](decisoes/0007-serie-historica-em-python.md).
 - **Neon.** O compute da `dados-main` também dorme sem uso. A primeira consulta
   depois disso demora alguns segundos, e o cache de 10 minutos do dashboard
   reduz as idas ao banco.

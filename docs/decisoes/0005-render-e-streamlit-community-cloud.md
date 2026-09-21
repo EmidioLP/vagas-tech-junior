@@ -32,8 +32,9 @@ Detalhes: [`../api.md`](../api.md#deploy), [`../deploy.md`](../deploy.md).
   - **hibernação:** a API dorme após 15 minutos sem uso, e o primeiro acesso leva
     cerca de 1 minuto. O dashboard dorme após alguns dias e mostra um botão para acordar;
   - o deploy do dashboard e as variáveis dos dois serviços são manuais, fora do git;
-  - recursos limitados (cerca de 1 GB de memória no Streamlit), e o histórico é carregado em
-    memória;
+  - recursos limitados (cerca de 1 GB de memória no Streamlit), e o histórico é
+    carregado em memória. Medido depois: o gargalo é o tempo de montar a série, não
+    a memória ([0007](0007-serie-historica-em-python.md));
   - dois fornecedores a mais, além do Neon e do GitHub. Nenhum deles tem SLA no
     plano gratuito.
 
