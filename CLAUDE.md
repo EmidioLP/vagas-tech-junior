@@ -4,8 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Python scraper that answers, with real data, which tech area (Backend, Frontend,
-Data, Mobile, DevOps, QA, Fullstack, Suporte/Infra, Segurança) hires the most
+A Python scraper that answers, with real data, which tech area (17 of them since
+ADR 0008: Suporte Técnico, Engenharia de Software, Backend, Data, Frontend, Mobile,
+DevOps, QA, Fullstack, Infraestrutura/Redes, Service Desk, Field Service, Hardware,
+Sistemas/ERP, IA, Segurança, Outros/TI Geral) hires the most
 entry-level developers in Brazil. It collects jobs from public portals (six by default, seven registered),
 filters to entry-level, classifies each job into a tech area by keyword rules,
 dedupes, and writes a history to PostgreSQL (Neon) on a GitHub Actions schedule;
@@ -21,7 +23,8 @@ repo tree and a table of every doc). When editing docs:
 - `docs/decisoes/` holds short ADRs (context, decision, consequences with cost,
   what would change it): Neon branches, `jobs` + hash snapshots, Actions instead of
   Airflow, no medallion/dbt, Render + Streamlit Cloud, quality checks in Python,
-  série histórica in Python with a measured trigger to migrate. A new
+  série histórica in Python with a measured trigger to migrate, expanded area
+  taxonomy with history reclassified. A new
   structural decision, or reversing one, is a new ADR (mark the old one superseded,
   don't delete it).
 - Moved out of the README in stage 13: `docs/fontes.md` (per-portal details,
@@ -72,6 +75,8 @@ python scripts/medir_serie_historica.py --projetar 730  # ... num histórico sin
 pip install -r requirements.txt
 uvicorn api.app:app --reload            # docs at http://127.0.0.1:8000/docs (reads jobs/job_snapshots)
 python scripts/carregar_seed.py         # seed/vagas.csv -> history of a LOCAL migrated DB (refuses DBs with collection_runs)
+python scripts/reclassificar_areas.py             # simulate reclassifying history after an areas.yml change
+python scripts/reclassificar_areas.py --aplicar   # ... and write it (ADR 0008)
 
 # Migrations (Alembic; URL comes from scraper/config.py, never alembic.ini)
 alembic upgrade head --sql              # review SQL without connecting
@@ -189,16 +194,29 @@ portals) — no simulated data is ever substituted for a blocked source.
 
 Business logic lives in three commented YAML files, editable without touching
 Python:
-- `areas.yml` — per-area keywords at two weight tiers (`peso_alto`=4.0,
-  `peso_medio`=1.0), plus `tech_gate` (title/description signals + exclusions)
-  that decides if a listing is even a tech job before it's scored.
+- `areas.yml` — per-area keywords at three weight tiers (`peso_alto`=4.0,
+  `peso_medio`=1.0, `peso_generico`=1.0), plus `tech_gate` (title/description
+  signals + exclusions) that decides if a listing is even a tech job before it's
+  scored. The taxonomy (17 areas) derives from the MIT-licensed
+  [tech-skills-br](https://github.com/diasgarcia/tech-skills-br); deviations are in
+  ADR 0008.
 - `seniority.yml` — what counts as entry-level vs. above.
 - `skills.yml` — technologies/tools searched for and their aliases.
 
 Key scoring rules in `classifier.py`: a title match counts 3x a description
 match (`title_boost`); if any area matched in the title, only title-matched
 areas compete ("título dominante"); jobs scoring below `min_score` (3.0) fall
-into "Outros/TI Geral" rather than being force-assigned. Keywords match as
+into "Outros/TI Geral" rather than being force-assigned. **`peso_generico` keywords
+score but never set `title_score`**, so they don't trigger título dominante — that
+is what lets "Desenvolvedor Júnior" (generic, → Engenharia de Software) still lose
+to a description full of ETL/Airflow (→ Data). Putting broad terms in `peso_medio`
+instead silently breaks description-based classification.
+
+Changing `areas.yml` does not reclassify history by itself. `scripts/reclassificar_areas.py`
+does, re-running the classifier over stored `title`/`description` and **recomputing
+`content_hash`** — without that, the next collection writes one snapshot per job for
+a state change that never happened (measured: 426 of 597). It refuses to write
+unless it can first reproduce every stored hash from the stored fields. Keywords match as
 whole words/phrases over normalized text (lowercased, accents stripped) to
 avoid substring false positives (e.g. "go" inside "Goiânia").
 

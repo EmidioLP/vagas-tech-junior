@@ -24,6 +24,12 @@ class AreaScore:
     title_score: float = 0.0
 
 
+# Faixa de keywords que pontuam sem sinalizar o titulo. Serve para termos
+# amplos demais para definir a area sozinhos ("desenvolvedor junior",
+# "programador"): eles dao a area de ultimo recurso, mas nao calam a descricao.
+TIER_GENERICO = "peso_generico"
+
+
 def _compile_keyword(keyword: str) -> re.Pattern:
     """Casa a keyword como palavra/frase inteira no texto normalizado."""
     kw = normalize(keyword)
@@ -60,14 +66,15 @@ class AreaClassifier:
         # Peso a partir do qual uma keyword conta como sinal "forte" no portao.
         self.strong_weight: float = self.tiers.get("peso_alto", 4.0)
 
-        # area -> lista de (pattern, peso, keyword original)
-        self.areas: dict[str, list[tuple[re.Pattern, float, str]]] = {}
+        # area -> lista de (pattern, peso, keyword original, generica)
+        self.areas: dict[str, list[tuple[re.Pattern, float, str, bool]]] = {}
         for area, tiers in (rules.get("areas") or {}).items():
-            compiled: list[tuple[re.Pattern, float, str]] = []
+            compiled: list[tuple[re.Pattern, float, str, bool]] = []
             for tier_name, keywords in (tiers or {}).items():
                 weight = self.tiers.get(tier_name, 1.0)
+                generica = tier_name == TIER_GENERICO
                 for kw in keywords or []:
-                    compiled.append((_compile_keyword(kw), weight, kw))
+                    compiled.append((_compile_keyword(kw), weight, kw, generica))
             # Da keyword mais longa para a mais curta: `score_all` usa essa
             # ordem para nao contar duas vezes o mesmo trecho de texto.
             compiled.sort(key=lambda item: -len(normalize(item[2])))
@@ -92,7 +99,7 @@ class AreaClassifier:
 
     def _strong_patterns(self):
         for keywords in self.areas.values():
-            for pattern, weight, _kw in keywords:
+            for pattern, weight, _kw, _generica in keywords:
                 if weight >= self.strong_weight:
                     yield pattern
 
@@ -122,12 +129,17 @@ class AreaClassifier:
             usados_titulo: list[tuple[int, int]] = []
             usados_corpo: list[tuple[int, int]] = []
 
-            for pattern, weight, raw_kw in keywords:
+            for pattern, weight, raw_kw, generica in keywords:
                 no_titulo = self._primeiro_livre(pattern, title_text, usados_titulo)
                 if no_titulo is not None:
                     usados_titulo.append(no_titulo)
                     total += weight * self.title_boost
-                    title_total += weight * self.title_boost
+                    # Keyword generica pontua, mas NAO conta como sinal de
+                    # titulo: senao "Desenvolvedor Junior" sozinho acionaria o
+                    # titulo dominante e impediria a descricao (ETL, Airflow,
+                    # data warehouse) de decidir a area. Ver TIER_GENERICO.
+                    if not generica:
+                        title_total += weight * self.title_boost
                     matches.append(f"{raw_kw}(t)")
                     continue
 

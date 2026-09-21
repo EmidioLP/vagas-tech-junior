@@ -5,10 +5,14 @@ from __future__ import annotations
 from api import vocabulary
 
 
-def test_lista_as_dez_areas(client):
+def test_lista_todas_as_areas_do_vocabulario(client):
+    """O numero de areas vem de `areas.yml`, nao de uma constante no teste:
+    a taxonomia mudou uma vez (ADR 0008) e vai mudar de novo."""
     corpo = client.get("/areas").json()
-    assert len(corpo) == len(vocabulary.areas()) == 10
+    assert len(corpo) == len(vocabulary.areas())
     assert {a["area"] for a in corpo} == set(vocabulary.areas())
+    # O balde-resto precisa existir: e para onde vai vaga sem area identificada.
+    assert "Outros/TI Geral" in vocabulary.areas()
 
 
 def test_areas_ordenadas_por_quantidade(client):

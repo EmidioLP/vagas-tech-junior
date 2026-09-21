@@ -53,7 +53,7 @@ def test_empresas_ignoram_maiusculas_e_espacos(leitor):
 
 def test_distribuicao_usa_o_estado_atual_e_conta_cada_vaga_uma_vez(leitor):
     assert consultas.distribuicao(leitor, SEM_FILTRO, "area") == [
-        Contagem("Data", 1), Contagem("Frontend", 1), Contagem("Suporte/Infra", 1),
+        Contagem("Data", 1), Contagem("Frontend", 1), Contagem("Suporte Técnico", 1),
     ]
     assert consultas.distribuicao(leitor, SEM_FILTRO, "modalidade") == [
         Contagem("Híbrido", 1), Contagem("Não informado", 1), Contagem("Remoto", 1),
@@ -75,7 +75,7 @@ def test_dimensao_desconhecida_e_recusada(leitor):
     (Filtros(areas=("Backend",)), 0),  # A ja nao e Backend
     (Filtros(modalidades=("Não informado",)), 1),
     (Filtros(fontes=("gupy",), modalidades=("Remoto",)), 1),
-    (Filtros(fontes=("gupy", "vagas"), areas=("Data", "Suporte/Infra")), 2),
+    (Filtros(fontes=("gupy", "vagas"), areas=("Data", "Suporte Técnico")), 2),
     (Filtros(fontes=("gupy' OR '1'='1",)), 0),
 ])
 def test_cada_filtro_muda_a_fotografia(leitor, filtros, esperado):
@@ -91,7 +91,7 @@ def test_periodo_nao_muda_a_fotografia_atual(leitor):
 def test_opcoes_de_filtro_vem_do_banco(leitor):
     assert consultas.opcoes_filtro(leitor) == consultas.OpcoesFiltro(
         fontes=("gupy", "linkedin", "vagas"),
-        areas=("Backend", "Data", "Frontend", "Suporte/Infra"),
+        areas=("Backend", "Data", "Frontend", "Suporte Técnico"),
         modalidades=("Remoto", "Híbrido", "Presencial", "Não informado"),
         primeiro_dia=D1,
         ultimo_dia=D3,  # a execucao que falhou em D4 nao conta
@@ -106,10 +106,10 @@ def test_serie_por_dia_de_coleta(leitor):
         PontoSerie(D1, abertas=2, novas=2, snapshots=2,
                    abertas_por_area={"Backend": 1, "Data": 1}),
         PontoSerie(D2, abertas=3, novas=1, snapshots=2,
-                   abertas_por_area={"Backend": 1, "Data": 1, "Suporte/Infra": 1}),
+                   abertas_por_area={"Backend": 1, "Data": 1, "Suporte Técnico": 1}),
         # B foi encerrada em D3; A virou Data.
         PontoSerie(D3, abertas=3, novas=1, snapshots=2,
-                   abertas_por_area={"Data": 1, "Suporte/Infra": 1, "Frontend": 1}),
+                   abertas_por_area={"Data": 1, "Suporte Técnico": 1, "Frontend": 1}),
     ]
 
 
@@ -139,7 +139,7 @@ def test_serie_filtra_fonte_e_modalidade(leitor):
 def test_periodo_recorta_os_dias_de_coleta(leitor):
     assert [p.dia for p in consultas.serie_historica(leitor, Filtros(inicio=D2, fim=D3))] == [D2, D3]
     assert consultas.serie_historica(leitor, Filtros(inicio=D2, fim=D2)) == [
-        PontoSerie(D2, 3, 1, 2, {"Backend": 1, "Data": 1, "Suporte/Infra": 1}),
+        PontoSerie(D2, 3, 1, 2, {"Backend": 1, "Data": 1, "Suporte Técnico": 1}),
     ]
 
 
@@ -232,11 +232,11 @@ def test_tecnologias_respeitam_filtros(leitor):
 
 def test_tecnologias_por_area_usam_a_base_de_cada_area(leitor):
     Area, Ranking = consultas.TecnologiasDaArea, consultas.RankingTecnologias
-    # A (Data) cita Python e SQL; C (Suporte/Infra) cita SQL; D (Frontend) nao cita nada.
+    # A (Data) cita Python e SQL; C (Suporte Técnico) cita SQL; D (Frontend) nao cita nada.
     # Java so aparece no snapshot antigo de A e na vaga encerrada B.
     assert consultas.tecnologias_por_area(leitor, SEM_FILTRO) == [
         Area("Data", Ranking(1, 1, (Contagem("Python", 1), Contagem("SQL", 1)))),
-        Area("Suporte/Infra", Ranking(1, 1, (Contagem("SQL", 1),))),
+        Area("Suporte Técnico", Ranking(1, 1, (Contagem("SQL", 1),))),
         Area("Frontend", Ranking(0, 1, ())),
     ]
 

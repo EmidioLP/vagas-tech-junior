@@ -153,6 +153,7 @@ vagas-tech-junior/
 ├── scripts/
 │   ├── carregar_seed.py     # seed/vagas.csv → histórico de um banco local
 │   ├── medir_serie_historica.py  # custo da série do dashboard (ADR 0007)
+│   ├── reclassificar_areas.py    # refaz a área do histórico (ADR 0008)
 │   └── sanitizar_log.py     # limpa o log da coleta antes de publicar
 ├── seed/vagas.csv           # coleta de 15/09/2026, para subir a API localmente
 ├── docs/                    # este diretório

@@ -22,5 +22,6 @@ antigo recebe `Status: substituído por NNNN` em vez de ser apagado.
 | [0005](0005-render-e-streamlit-community-cloud.md) | API no Render e dashboard no Streamlit Community Cloud |
 | [0006](0006-qualidade-em-python.md) | Checagens de qualidade em Python, sem ferramenta dedicada |
 | [0007](0007-serie-historica-em-python.md) | Série histórica reconstruída em Python, com gatilho medido para migrar |
+| [0008](0008-taxonomia-de-areas-expandida.md) | Taxonomia de áreas expandida, com reclassificação do histórico |
 
 Visão geral do fluxo: [`../architecture.md`](../architecture.md).

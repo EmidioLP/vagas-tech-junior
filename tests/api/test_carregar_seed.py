@@ -63,7 +63,7 @@ def _snapshots(banco) -> list[JobSnapshot]:
 def test_carrega_vagas_no_historico_com_tecnologias(tmp_path, banco_historico):
     csv_path = _escrever_csv(tmp_path, [
         _linha(),
-        _linha(external_id="2", title="Suporte Jr", area="Suporte/Infra",
+        _linha(external_id="2", title="Suporte Jr", area="Suporte Técnico",
                skills="Linux, Tecnologia-Inexistente"),
     ])
     resumo = carregar(csv_path, banco_historico, COLETA)
