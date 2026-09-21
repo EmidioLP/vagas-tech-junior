@@ -49,4 +49,5 @@ reais dos portais, e as regras de negócio ficam em YAML.
   passam a organizar melhor que consultas espalhadas.
 - **Volume ordens de grandeza maior** (dezenas de milhares de vagas por coleta)
   ou consultas históricas lentas: agregados materializados passam a compensar o
-  custo de mantê-los.
+  custo de mantê-los. Para a série histórica do dashboard, "lenta" já tem número
+  medido em [0007](0007-serie-historica-em-python.md).

@@ -26,7 +26,7 @@ Filtros viram sempre bind params (`in_`, comparacoes): nada e interpolado no SQL
 from __future__ import annotations
 
 import math
-from bisect import bisect_left
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -377,6 +377,12 @@ def serie_historica(engine: Engine, filtros: Filtros) -> list[PontoSerie]:
     depende do fuso da sessao. Area e modalidade de cada vaga vem do estado
     vigente no fim do dia, entao uma vaga que mudou de Backend para Data conta
     em Backend antes da mudanca e em Data depois.
+
+    A varredura e **por vaga**, nao por dia: cada vaga visita so os dias entre a
+    estreia e o encerramento, com um ponteiro que avanca sobre os proprios
+    snapshots. Visitar todas as vagas em todos os dias custaria O(dias x vagas),
+    que cresce ao quadrado no tempo, porque o periodo padrao da tela e o
+    historico inteiro e os dois crescem juntos (ADR 0007).
     """
     inicio, fim = _limites(filtros)
     execucoes = select(CollectionRun.started_at).where(CollectionRun.status.in_(STATUS_QUE_CONTAM))
@@ -418,28 +424,49 @@ def serie_historica(engine: Engine, filtros: Filtros) -> list[PontoSerie]:
         if _passa(filtros, area, modalidade):
             snapshots_por_dia[coletado_em.date()] += 1
 
-    pontos = []
-    for dia in dias:
-        fim_do_dia = _inicio_do_dia(dia + timedelta(days=1))
-        abertas = novas = 0
-        por_area: Counter[str] = Counter()
-        for job_id, primeiro_avistamento, encerrada_em in linhas_vagas:
-            primeiro_avistamento = _utc(primeiro_avistamento)
-            if primeiro_avistamento >= fim_do_dia:
-                continue
-            posicao = bisect_left(momentos[job_id], fim_do_dia) - 1
+    # Fim (exclusivo) de cada dia, em ordem: e sobre esta lista que cada vaga
+    # localiza a propria janela por bisect, em vez de percorrer todos os dias.
+    fins = [_inicio_do_dia(dia + timedelta(days=1)) for dia in dias]
+    abertas = [0] * len(dias)
+    novas = [0] * len(dias)
+    por_area: list[Counter[str]] = [Counter() for _ in dias]
+
+    for job_id, primeiro_avistamento, encerrada_em in linhas_vagas:
+        estreia = _utc(primeiro_avistamento)
+        encerramento = _utc(encerrada_em) if encerrada_em is not None else None
+        # Primeiro dia que termina depois da estreia; antes dele a vaga nao existia.
+        comeco = bisect_right(fins, estreia)
+        if comeco >= len(dias):
+            continue
+        # Ultimo dia que termina ate o encerramento: depois dele ela nao esta aberta.
+        fechamento = len(dias) - 1 if encerramento is None else bisect_right(fins, encerramento) - 1
+        # O dia de estreia e sempre visitado, mesmo se a vaga fechou nele: e o
+        # unico dia em que ela pode contar como nova.
+        fechamento = max(fechamento, comeco)
+
+        momentos_da_vaga = momentos.get(job_id, ())
+        estados_da_vaga = estados.get(job_id, ())
+        # Ultimo snapshot ate o fim do dia corrente. So anda para a frente, entao
+        # o custo por vaga e o numero de snapshots dela, nao um bisect por dia.
+        posicao = -1
+        for indice in range(comeco, fechamento + 1):
+            fim_do_dia = fins[indice]
+            while (posicao + 1 < len(momentos_da_vaga)
+                   and momentos_da_vaga[posicao + 1] < fim_do_dia):
+                posicao += 1
             if posicao < 0:
-                continue
-            area, modalidade = estados[job_id][posicao]
+                continue  # sem snapshot ate aqui: a vaga ainda nao tem estado vigente
+            area, modalidade = estados_da_vaga[posicao]
             if not _passa(filtros, area, modalidade):
                 continue
-            if primeiro_avistamento.date() == dia:
-                novas += 1
-            if encerrada_em is None or _utc(encerrada_em) >= fim_do_dia:
-                abertas += 1
-                por_area[area] += 1
-        pontos.append(PontoSerie(dia, abertas, novas, snapshots_por_dia[dia], dict(por_area)))
-    return pontos
+            if estreia.date() == dias[indice]:
+                novas[indice] += 1
+            if encerramento is None or encerramento >= fim_do_dia:
+                abertas[indice] += 1
+                por_area[indice][area] += 1
+
+    return [PontoSerie(dia, abertas[i], novas[i], snapshots_por_dia[dia], dict(por_area[i]))
+            for i, dia in enumerate(dias)]
 
 
 def url_segura(url: str | None) -> str | None:

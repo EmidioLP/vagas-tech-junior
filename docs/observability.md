@@ -87,6 +87,11 @@ LIMIT 10;
 - **Qualidade:** nenhum alerta alto sem investigação até a próxima coleta.
 - **API:** responde em até ~60s. O plano free do Render hiberna após 15 minutos e
   leva ~50s para acordar.
+- **Dashboard (Histórico):** a série do período completo em até 5s contra a
+  `dados-main` (`DASHBOARD_DB=<url> python scripts/medir_serie_historica.py`; em
+  21/09/2026 eram 0,6s, quase todo ida e volta até o Neon). Acima disso, o
+  agrupamento sai do Python e vai para o banco
+  ([ADR 0007](decisoes/0007-serie-historica-em-python.md)).
 
 São metas de um projeto de portfólio sem plantão: servem para saber o que olhar,
 não para cobrar disponibilidade.

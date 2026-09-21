@@ -21,5 +21,6 @@ antigo recebe `Status: substituído por NNNN` em vez de ser apagado.
 | [0004](0004-sem-medalhao-nem-dbt.md) | Sem camadas Bronze/Silver/Gold nem dbt no volume atual |
 | [0005](0005-render-e-streamlit-community-cloud.md) | API no Render e dashboard no Streamlit Community Cloud |
 | [0006](0006-qualidade-em-python.md) | Checagens de qualidade em Python, sem ferramenta dedicada |
+| [0007](0007-serie-historica-em-python.md) | Série histórica reconstruída em Python, com gatilho medido para migrar |
 
 Visão geral do fluxo: [`../architecture.md`](../architecture.md).

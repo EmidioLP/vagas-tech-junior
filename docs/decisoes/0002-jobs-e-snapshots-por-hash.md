@@ -35,7 +35,8 @@ Detalhes: [`../data-model.md`](../data-model.md).
 - **Custa:**
   - a série "vagas abertas por dia" não existe pronta: o dashboard a reconstrói
     em Python a partir de `first_seen_at`/`closed_at` e do snapshot vigente
-    (`serie_historica`);
+    (`serie_historica`). O custo disso está medido, com gatilho para migrar, em
+    [0007](0007-serie-historica-em-python.md);
   - `closed_at` sai com atraso de pelo menos uma coleta, e uma vaga reaberta perde
     o registro do encerramento anterior
     ([limitação](../../dashboard/README.md#limitação-do-histórico));
