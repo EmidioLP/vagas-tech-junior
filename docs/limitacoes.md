@@ -172,6 +172,16 @@ classificação em [`classificacao.md`](classificacao.md).
   houve (medido: 426 de 597). Foi o que a mudança de taxonomia de 21/09 usou
   ([ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md)). Para tecnologias não
   existe equivalente.
+- **A coleta de 22/09/2026 gravou ~270 snapshots sem mudança real.** A
+  reclassificação de 21/09 gravou `area_matches` com `"; "` e sem limite de itens,
+  enquanto a coleta usa `", "` e no máximo 12 (`classifier.formatar_evidencia`).
+  Como a evidência entra no `content_hash`, a coleta seguinte viu assinatura
+  diferente em quase toda vaga: das 272 vagas com snapshot em 22/09 que já tinham
+  um anterior, 270 mudaram só no separador. Esses snapshots **não foram apagados**
+  (o histórico não se apaga), então **22/09 tem uma contagem inflada de mudanças
+  de estado** no Histórico. As contagens de vagas não mudam, porque contam `jobs`
+  únicos. O script passou a usar o mesmo formato da coleta, e um teste com mais de
+  uma keyword passou a pegar a divergência.
 - **Para a modalidade que falta, também.** O mesmo script preenche a modalidade
   dos snapshots gravados sem ela, pela regra de `modalidade.yml`, e nunca mexe na
   modalidade informada pelo portal

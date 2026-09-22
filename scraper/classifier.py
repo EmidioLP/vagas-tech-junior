@@ -204,6 +204,16 @@ def default_classifier() -> AreaClassifier:
     return AreaClassifier.from_file()
 
 
+def formatar_evidencia(matches: list[str]) -> str:
+    """Texto de `area_matches`, como a coleta grava.
+
+    Entra no `content_hash`: quem regrava a evidencia (a reclassificacao do
+    historico) tem de usar exatamente este formato, ou a coleta seguinte ve
+    assinatura diferente e grava um snapshot por vaga sem mudanca real.
+    """
+    return ", ".join(matches[:12])
+
+
 def classify_jobs(jobs: list[Job], clf: AreaClassifier | None = None) -> list[Job]:
     """Preenche `area`, `area_score` e `area_matches` em cada vaga."""
     clf = clf or default_classifier()
@@ -211,7 +221,7 @@ def classify_jobs(jobs: list[Job], clf: AreaClassifier | None = None) -> list[Jo
         result = clf.classify(job.title, job.description)
         job.area = result.area
         job.area_score = result.score
-        job.area_matches = ", ".join(result.matches[:12])
+        job.area_matches = formatar_evidencia(result.matches)
     return jobs
 
 
