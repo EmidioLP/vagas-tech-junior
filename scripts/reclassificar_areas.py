@@ -117,6 +117,7 @@ def montar_plano(snapshots, clf, inferidor=None) -> tuple[Plano, list[Alteracao]
     from persistence.assinatura import assinatura_snapshot
 
     from api.vocabulary import areas as vocabulario
+    from scraper.classifier import formatar_evidencia
     from scraper.models import NAO_INFORMADO
     from scraper.modalidade import default_inferidor
 
@@ -140,7 +141,8 @@ def montar_plano(snapshots, clf, inferidor=None) -> tuple[Plano, list[Alteracao]
         if anterior is None or s.collected_at > anterior[0].collected_at:
             ultimo[s.job_id] = (s, resultado.area, modalidade)
 
-        matches = "; ".join(resultado.matches)
+        # O formato da coleta, nao outro: a evidencia entra no content_hash.
+        matches = formatar_evidencia(resultado.matches)
         if (s.area != resultado.area or (s.area_matches or "") != matches
                 or s.workplace_type != modalidade):
             campos = _campos(s)

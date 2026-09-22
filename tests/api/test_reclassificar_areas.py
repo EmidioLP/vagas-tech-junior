@@ -47,8 +47,11 @@ class _ClassificadorFixo:
 
 
 def _vaga(titulo="Analista de Suporte Jr", area="Área Antiga"):
+    # Descricao com mais de uma keyword: com uma so, o separador da evidencia
+    # nao aparece e um formato diferente do da coleta passaria despercebido.
     return Job(source="gupy", external_id="1", title=titulo, company="Acme",
-               description="Atendimento a chamados de usuarios.", area=area,
+               description="Atendimento a chamados de usuarios, suporte tecnico "
+                           "e help desk.", area=area,
                area_score=12.0, area_matches="suporte(t)")
 
 
@@ -97,17 +100,16 @@ def test_plano_aponta_a_area_que_saiu_do_vocabulario(banco):
 
 
 def _como_o_pipeline_classificaria(vaga):
-    """A coleta roda o classificador: area, score e evidencia saem dele.
+    """A coleta roda `classify_jobs`: area, score e evidencia saem dele.
 
-    Fixar esses campos na mao tornaria o teste irreal -- os tres entram na
-    assinatura, entao a coleta seguinte so bate se vierem do classificador.
+    Tem de ser a funcao da coleta, nao uma copia: os tres campos entram na
+    assinatura, e uma copia com outro formato de evidencia (o script ja usou
+    "; " enquanto a coleta usa ", ") esconde exatamente o bug que este teste
+    existe para pegar.
     """
-    from scraper.classifier import default_classifier
+    from scraper.classifier import classify_jobs
 
-    r = default_classifier().classify(vaga.title, vaga.description or "")
-    vaga.area, vaga.area_score = r.area, r.score
-    vaga.area_matches = "; ".join(r.matches)
-    return vaga
+    return classify_jobs([vaga])[0]
 
 
 def test_depois_de_reclassificar_a_coleta_seguinte_nao_grava_snapshot(banco_historico):
