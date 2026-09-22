@@ -76,7 +76,7 @@ passos de coleta, filtros e exportação.
 | `ci.yml` | Roda a suíte em Python 3.11 e 3.13, sem secrets e sem rede. | [`automation.md`](automation.md#ci) |
 | Guarda de intervalo (`scraper/execucao.py`) | Pula a coleta se ainda não passaram `COLLECTION_INTERVAL_DAYS` (1) dias desde a última coleta completa; com X=1 ela só barra uma segunda execução no mesmo dia UTC. | [`automation.md`](automation.md#frequência-cron-diário--guarda-de-intervalo) |
 | Coleta (`scraper/sources/`) | Uma classe por portal; falha de um termo ou de uma fonte não derruba as outras. | [`fontes.md`](fontes.md) |
-| Filtros e classificação | Nível de entrada → dedupe → portão "é vaga de tech?" → área por keywords ponderadas → tecnologias citadas, com regras em `scraper/rules/*.yml`. | [`classificacao.md`](classificacao.md) |
+| Filtros e classificação | Nível de entrada → dedupe → portão "é vaga de tech?" → área por keywords ponderadas → tecnologias citadas → modalidade inferida quando o portal não informa, com regras em `scraper/rules/*.yml`. | [`classificacao.md`](classificacao.md) |
 | Persistência (`persistence/repositorio.py`) | Upsert idempotente em `jobs` por `(source, external_id)` e snapshot novo só quando o `content_hash` muda. | [`data-model.md`](data-model.md#persistência) |
 | Qualidade (`scraper/qualidade.py`) | Alertas de plausibilidade; um alerta alto impede a fonte de encerrar vagas e deixa o job vermelho. | [`data-quality.md`](data-quality.md) |
 | Encerramento | Fecha vagas ausentes em duas coletas confiáveis de dias diferentes. Nada é apagado. | [`data-model.md`](data-model.md#vagas-encerradas-is_active--false) |
@@ -126,7 +126,7 @@ vagas-tech-junior/
 │   ├── http_client.py       # sessão educada: delay + retry + UA
 │   ├── seniority.py, dedupe.py, classifier.py, skills.py
 │   ├── export.py, charts.py # saídas do --csv
-│   ├── rules/               # areas.yml, seniority.yml, skills.yml
+│   ├── rules/               # areas.yml, seniority.yml, skills.yml, modalidade.yml
 │   └── sources/             # base.py (contrato JobSource) + um arquivo por portal:
 │                            # gupy, vagas_com, programathor, trampos, linkedin,
 │                            # querovagastech, geekhunter, solides
@@ -153,7 +153,7 @@ vagas-tech-junior/
 ├── scripts/
 │   ├── carregar_seed.py     # seed/vagas.csv → histórico de um banco local
 │   ├── medir_serie_historica.py  # custo da série do dashboard (ADR 0007)
-│   ├── reclassificar_areas.py    # refaz a área do histórico (ADR 0008)
+│   ├── reclassificar_areas.py    # refaz área e modalidade do histórico (ADR 0008, 0010)
 │   └── sanitizar_log.py     # limpa o log da coleta antes de publicar
 ├── seed/vagas.csv           # coleta de 15/09/2026, para subir a API localmente
 ├── docs/                    # este diretório

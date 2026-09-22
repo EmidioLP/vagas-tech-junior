@@ -65,6 +65,9 @@ class Settings:
     # Limites de coleta
     page_size: int = 100  # a API da Gupy rejeita limit > 100 (HTTP 400)
     max_pages_per_term: int = 5
+    # Teto de paginas de detalhe do LinkedIn por coleta (uma por vaga de entrada;
+    # ver `scraper/sources/linkedin.py`). 0 desliga a busca do detalhe.
+    linkedin_max_detalhes: int = 300
 
     # Filtros
     only_junior: bool = True

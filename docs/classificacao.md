@@ -84,13 +84,49 @@ As vagas são classificadas em **Remoto**, **Híbrido**, **Presencial** e
 - **Vagas.com** classifica as vagas em três modalidades ("Na empresa",
   "Na empresa e Home Office", "100% Home Office"), mas **o card da listagem só
   mostra "100% Home Office" ou o nome da cidade** — um card híbrido e um
-  presencial são indistinguíveis ali. Por isso só o remoto é afirmado; o resto
-  fica como "Não informado" em vez de ser adivinhado como presencial.
+  presencial são indistinguíveis ali. Por isso o card só afirma o remoto; o resto
+  passa pela inferência abaixo, em vez de ser adivinhado como presencial.
+- **LinkedIn** também só afirma o remoto pelo card, quando o local diz isso. A
+  descrição vem da página de detalhe de cada vaga de entrada
+  ([detalhe](fontes.md#sobre-o-linkedin-jobs)) e passa pela inferência.
 
 As três modalidades existem como filtro de busca no Vagas.com, mas os resultados
 filtrados não reconciliam com a paginação da busca normal (para alguns termos o
 filtro "Na empresa" sozinho já devolve a página inteira), então esse caminho foi
 descartado.
+
+### Modalidade inferida do texto
+
+Quando a fonte não informa a modalidade, `scraper/modalidade.py` tenta lê-la no
+texto, com as regras de `scraper/rules/modalidade.yml`
+([ADR 0010](decisoes/0010-detalhe-do-linkedin-e-modalidade-inferida.md)). Roda no
+pipeline junto da extração de tecnologias, antes de a exportação truncar a
+descrição, e **nunca sobrescreve** a modalidade do portal.
+
+- **Título e local decidem primeiro.** Neles, palavra solta vale ("Estágio em TI
+  (Presencial)", "São Paulo, SP (Híbrido)"). A descrição só entra se eles não
+  citam nada.
+- **Na descrição, só frases de modalidade** ("modelo híbrido", "100% remoto",
+  "regime presencial"). Palavra solta ali cai em armadilhas: "suporte **remoto**" e
+  "atendimento **presencial**" são atividades, "auxílio **home office**" é
+  benefício de vaga híbrida, e "cloud, on premises e **híbrido**" é
+  infraestrutura. As armadilhas conhecidas ficam em `excecoes` e são apagadas do
+  texto antes da busca.
+- **Duas modalidades citadas não viram chute.** Híbrido com presencial é híbrido
+  ("1 dia por semana presencial"). Híbrido com remoto, ou remoto com presencial, é
+  ambíguo ("tecnologia 100% remoto, demais times híbrido") e fica "Não informado".
+- **Cidade não é modalidade.** Nas fontes que informam a modalidade, das 168 vagas
+  com cidade cujo texto não diz o regime, 75% eram presenciais, 21% híbridas e 4%
+  remotas (22/09/2026). Assumir Presencial pela cidade erraria 1 em 4, quase sempre
+  em vaga híbrida. Como os cards do LinkedIn e do Vagas.com quase sempre trazem
+  cidade, essa regra transformaria todo "Não informado" em Presencial. Por isso
+  ela não existe.
+
+Medido em 22/09/2026 contra as vagas cuja modalidade o portal informa: **85
+acertos em 97 palpites**. Dos 12 erros, 8 são rótulos do Quero Vagas Tech
+contraditos pelo próprio título ("Estágio (Presencial)" marcado como remoto). Os
+outros vêm de descrições que falam da modalidade da empresa ou do processo
+seletivo, não da vaga.
 
 ## Extração de tecnologias
 
@@ -126,13 +162,15 @@ eixo x vai só até 3, o raio vira uma "pílula" horizontal.
 
 ## Editando as regras
 
-Toda a lógica de negócio está em três YAMLs comentados — **você não precisa
+Toda a lógica de negócio está em quatro YAMLs comentados — **você não precisa
 mexer em Python para ajustar**:
 
 - **`scraper/rules/areas.yml`** — áreas, keywords, pesos e o portão de relevância.
 - **`scraper/rules/seniority.yml`** — o que conta como nível de entrada e o que
   é nível acima.
 - **`scraper/rules/skills.yml`** — tecnologias procuradas e seus apelidos.
+- **`scraper/rules/modalidade.yml`** — frases de modalidade e armadilhas, usadas
+  só quando o portal não informa.
 
 Duas armadilhas já documentadas lá dentro, aprendidas rodando com dados reais:
 

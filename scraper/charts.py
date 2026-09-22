@@ -229,8 +229,8 @@ def chart_skills(
     contagem absoluta nao permite comparar um painel com o outro.
 
     A base do percentual e o numero de vagas da area que **informam alguma
-    tecnologia**, nao o total da area. Nem toda vaga informa: o card do LinkedIn
-    nao traz descricao, entao em "Outros/TI Geral" so 31 das 144 vagas tem
+    tecnologia**, nao o total da area. Nem toda vaga informa: ate 21/09/2026 o
+    LinkedIn vinha sem descricao, e em "Outros/TI Geral" so 31 das 144 vagas tinham
     tecnologia. Usar o total daria percentuais artificialmente baixos justamente
     nas areas mais contaminadas por essa limitacao.
 

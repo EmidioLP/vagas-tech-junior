@@ -62,8 +62,11 @@ class Expectativa:
 
 
 # Vazios observados em 15/09 (vagas finais por fonte com amostra): descricao 0-1%
-# (LinkedIn 100%: o card nao tem descricao); empresa 0%; "Não informado" 0-1%
-# (LinkedIn e Vagas.com 100%: a listagem nao informa); sem data 0-13% (ProgramaThor
+# (LinkedIn 100%: o card nao tem descricao; desde 22/09 ela vem do detalhe, mas a
+# isencao fica -- se o detalhe for bloqueado, a descricao volta a faltar sem que a
+# fonte tenha falhado); empresa 0%; "Não informado" 0-1%
+# (LinkedIn e Vagas.com 100%: a listagem nao informa; `scraper/modalidade.py` infere
+# parte do texto desde 22/09 -- recalibrar com dados); sem data 0-13% (ProgramaThor
 # 100%); sem tecnologias 3-13% (LinkedIn 88%, Vagas.com 74%).
 EXPECTATIVA_VAZIOS: dict[str, Expectativa] = {
     "description": Expectativa(0.20, ALTA, frozenset({"linkedin"})),

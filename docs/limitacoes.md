@@ -9,13 +9,19 @@ classificação em [`classificacao.md`](classificacao.md).
 - **Coleta de páginas e APIs públicas, sem login.** Os endpoints de Gupy, Trampos.co,
   LinkedIn, Quero Vagas Tech e Solides são os que o próprio front de cada site
   chama; não são APIs oficiais nem têm contrato de uso para terceiros.
-- **`robots.txt` respeitado onde muda o caminho.** Na GeekHunter, `/api/` e
-  `/feeds/` são proibidos, então a coleta vai pelo sitemap e pela página de cada
-  vaga ([detalhe](fontes.md#sobre-a-geekhunter)).
+- **`robots.txt` respeitado onde muda o caminho, com uma exceção.** Na
+  GeekHunter, `/api/` e `/feeds/` são proibidos, então a coleta vai pelo sitemap
+  e pela página de cada vaga ([detalhe](fontes.md#sobre-a-geekhunter)). **O
+  LinkedIn é a exceção:** o `robots.txt` dele proíbe `/jobs-guest/` (e `/` para
+  qualquer robô), e o projeto usa esse caminho tanto na busca quanto no detalhe de
+  cada vaga de entrada. É decisão consciente do mantenedor, com teto e disjuntor
+  ([ADR 0010](decisoes/0010-detalhe-do-linkedin-e-modalidade-inferida.md)).
 - **Carga pequena de propósito.** User-Agent identificável, 1,5 s entre
   requisições com jitter, backoff em 429/5xx respeitando `Retry-After`, e nada de
-  buscar uma página por vaga quando isso multiplicaria a carga (LinkedIn, e as
-  773 páginas da GeekHunter) ([Educação com o servidor](fontes.md#educação-com-o-servidor)).
+  buscar uma página por vaga quando isso multiplicaria a carga (as 773 páginas da
+  GeekHunter) ([Educação com o servidor](fontes.md#educação-com-o-servidor)). No
+  LinkedIn, o detalhe é buscado só para as vagas de entrada, até 300 por coleta
+  (cerca de 250 requisições a mais por dia).
 - **Termos de uso não são alterados pela licença.** A licença MIT cobre o código.
   As vagas pertencem aos portais e às empresas, e raspá-las continua sujeito aos
   termos de cada site. Nenhum dado raspado é versionado além de `seed/vagas.csv`.
@@ -43,8 +49,11 @@ classificação em [`classificacao.md`](classificacao.md).
 - **Classificação por keyword erra em casos ambíguos.** A coluna `area_matches`
   (no CSV e no snapshot) mostra o que disparou cada classificação, para auditar e
   ajustar o YAML.
-- **O LinkedIn não traz descrição** no card, então é classificado só pelo título e
-  cai muito mais em "Outros/TI Geral".
+- **O LinkedIn só tem descrição quando o detalhe responde.** O card da busca não
+  a traz; ela vem da página de detalhe de cada vaga de entrada. Se o detalhe
+  falhar ou passar do teto, a vaga fica só com o título e cai muito mais em
+  "Outros/TI Geral". As vagas do LinkedIn gravadas antes de 22/09/2026 não têm
+  descrição.
 - **Nível de entrada vem do título** em várias fontes. Na GeekHunter, o pré-filtro
   usa o slug. Uma vaga júnior sem marca de nível no título passa batido. O nível
   declarado pela Quero Vagas Tech e pelo Solides é ignorado de propósito: a
@@ -62,7 +71,19 @@ classificação em [`classificacao.md`](classificacao.md).
 - **Modalidade incompleta.** LinkedIn e Vagas.com não distinguem presencial de
   híbrido no card. Na coleta de 15/09/2026, o LinkedIn inteiro e 19 vagas do
   Vagas.com ficaram "Não informado" ([relatório](resultados-2026-09-15.md#remoto-híbrido-ou-presencial)).
-  Para ler só o dado afirmado, filtre por fonte no dashboard.
+  Desde 22/09/2026 a modalidade que falta é inferida do título, do local e da
+  descrição ([detalhe](classificacao.md#modalidade-inferida-do-texto)). Numa
+  amostra de 39 vagas do LinkedIn, 14 ganharam modalidade; as outras, em geral,
+  não citam modalidade em lugar nenhum. A inferência é conservadora e erra pouco,
+  mas é inferência: para ler só o dado afirmado pelo portal, filtre Gupy, Solides,
+  Quero Vagas Tech e GeekHunter no dashboard.
+
+  Como referência para ler o "Não informado": nas fontes que informam a
+  modalidade, das 168 vagas com cidade cujo texto não diz o regime, 126 eram
+  presenciais (75%), 36 híbridas (21%) e 6 remotas (4%) (medido em 22/09/2026). O
+  projeto **não** assume Presencial só porque a cidade foi informada: erraria 1 em
+  4, quase sempre lendo híbrido como presencial, e o chute ficaria indistinguível
+  do dado afirmado ([detalhe](classificacao.md#modalidade-inferida-do-texto)).
 - **Restam ~2 duplicatas cruzadas** que a deduplicação não pega, e isso é
   deliberado. As regras de texto exigem título idêntico e nomes de empresa
   compatíveis; sobram os casos em que o título também muda ("Analista de Testes
@@ -151,6 +172,13 @@ classificação em [`classificacao.md`](classificacao.md).
   houve (medido: 426 de 597). Foi o que a mudança de taxonomia de 21/09 usou
   ([ADR 0008](decisoes/0008-taxonomia-de-areas-expandida.md)). Para tecnologias não
   existe equivalente.
+- **Para a modalidade que falta, também.** O mesmo script preenche a modalidade
+  dos snapshots gravados sem ela, pela regra de `modalidade.yml`, e nunca mexe na
+  modalidade informada pelo portal
+  ([ADR 0010](decisoes/0010-detalhe-do-linkedin-e-modalidade-inferida.md)). As
+  vagas antigas do LinkedIn não têm descrição gravada, então nelas só título e
+  local contam. Na primeira coleta com o detalhe do LinkedIn, cada vaga ativa
+  dele ganha um snapshot novo: a descrição passou a ser observada.
 - **A série histórica mistura versões de regra.** Um salto de uma área no
   Histórico do dashboard pode ser mudança de regra, não de mercado. O snapshot não
   guarda qual versão das regras o gerou; o git log de `scraper/rules/` é a

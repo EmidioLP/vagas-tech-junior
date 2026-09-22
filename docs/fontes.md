@@ -111,11 +111,35 @@ falha em silêncio: a API responde `200` e devolve vagas dos Estados Unidos
 quase tudo; `geoId=106057199` acertou 10 de 10 nos testes, e é o que o código
 usa. Das 244 vagas da coleta de 15/09/2026, nenhuma veio de fora do Brasil.
 
-Limitação importante: o card da busca **não traz a descrição da vaga**, então a
-classificação desta fonte se apoia só no título. O efeito é visível — **45% das
-vagas do LinkedIn caem em "Outros/TI Geral"**, contra 25% nas demais fontes, porque títulos como "ANALISTA DE SISTEMAS JR" ou "Analista de
-Desenvolvimento Júnior" realmente não dizem a área. Buscar a descrição exigiria
-uma requisição por vaga, multiplicando a carga no portal.
+O card da busca **não traz a descrição da vaga**. Até 21/09/2026 a classificação
+desta fonte se apoiava só no título, e o efeito era visível: **45% das vagas do
+LinkedIn caíam em "Outros/TI Geral"**, contra 25% nas demais fontes, porque
+títulos como "ANALISTA DE SISTEMAS JR" ou "Analista de Desenvolvimento Júnior"
+realmente não dizem a área. A modalidade também só aparece na descrição: 92% das
+vagas ficavam "Não informado".
+
+Desde 22/09/2026, depois da busca o coletor pede a página de detalhe de cada vaga
+([ADR 0010](decisoes/0010-detalhe-do-linkedin-e-modalidade-inferida.md)):
+
+    GET https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/<id>
+
+A descrição está em `div.show-more-less-html__markup`. Os limites do detalhe:
+
+- **Só vagas de entrada.** O título precisa passar no filtro de senioridade; as
+  outras o pipeline descartaria de qualquer jeito.
+- **Um detalhe por id.** A mesma vaga volta em vários termos.
+- **Teto por coleta:** `Settings.linkedin_max_detalhes` (300); `0` desliga.
+- **Disjuntor:** para depois de 3 falhas seguidas, sinal de bloqueio.
+- **A falha no detalhe não conta como falha da fonte**
+  (`PoliteSession.get(..., conta_falha=False)`). A vaga já foi listada e segue sem
+  descrição; se contasse, o LinkedIn viraria `partial` e deixaria de encerrar
+  vagas ausentes.
+
+São cerca de 250 requisições a mais por coleta (uns 6 minutos).
+
+**O `robots.txt` do LinkedIn proíbe `/jobs-guest/`**: tem `Disallow: /` para
+qualquer robô e o caminho explícito para cada robô nomeado. Vale para a busca e
+para o detalhe ([`limitacoes.md`](limitacoes.md#éticas-e-de-uso-dos-dados)).
 
 É também a fonte com maior chance de passar a bloquear. Se isso acontecer, a
 sessão devolve `None`, o coletor entrega o que tiver e as outras fontes seguem

@@ -270,9 +270,12 @@ Resumo; a lista completa, com o porquê de cada item, está em
   muito nos percentuais.
 - **Catho e Indeed estão bloqueados** e a ProgramaThor bloqueia IP de nuvem.
   Nenhum dado é simulado no lugar deles.
-- **Classificação por keyword erra em casos ambíguos**, e o LinkedIn, sem
-  descrição, é classificado só pelo título. A coluna `area_matches` mostra o que
-  disparou cada classificação.
+- **Classificação por keyword erra em casos ambíguos**, e as vagas do LinkedIn
+  anteriores a 22/09/2026, sem descrição, foram classificadas só pelo título. A
+  coluna `area_matches` mostra o que disparou cada classificação.
+- **Modalidade inferida em parte.** Quando o portal não informa (LinkedIn,
+  Vagas.com), a modalidade é lida no texto da vaga; o que ele não diz fica "Não
+  informado".
 - **Uma coleta por dia:** vagas muito curtas podem não aparecer, e o
   encerramento de uma vaga é registrado com atraso.
 - **Mudar as regras não reclassifica o passado:** o histórico mistura versões das
