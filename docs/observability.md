@@ -37,10 +37,23 @@ intervalo.
 | `sem_coleta` | nenhuma coleta completa registrada | **503** | tela de banco vazio |
 | `indisponivel` | banco não respondeu (só o tipo do erro aparece) | **503** | "Dados indisponíveis" |
 
-Com X = 2, o dado vence a partir de **5 dias** sem coleta completa, o que tolera uma
-coleta perdida. `coleta_parada` aparece antes: o cron acorda todo dia e registra até
-as execuções puladas, então dois dias sem nenhuma linha em `collection_runs`
-significam agendamento parado.
+Com X = 1 (a coleta diária adotada em 22/09/2026), o dado vence a partir de
+**3 dias** sem coleta completa, o que continua tolerando uma coleta perdida — a
+tolerância é de uma coleta, e a janela de relógio acompanha X.
+`coleta_parada` continua querendo dizer a mesma coisa — o cron acorda todo dia e
+registra até as execuções puladas, então dois dias sem nenhuma linha em
+`collection_runs` significam agendamento parado.
+
+**Com X = 1 os dois limiares se encontram no 3º dia, e `vencido` vem primeiro na
+cadeia.** Com X = 2, um agendamento parado acendia `coleta_parada` no 3º dia e só
+virava `vencido` no 5º — o aviso de "cron morreu" chegava antes do dado estragar.
+Agora, no cenário de cron parado, o estado que aparece é `vencido`. Nada é perdido
+em alerta (os dois respondem **503** e os dois estão em `ESTADOS_COM_PROBLEMA`), só
+em rótulo: para separar "cron parado" de "coleta falhando", leia
+`dias_desde_ultima_execucao` e `status_ultima_execucao`, que vêm na mesma resposta.
+Se houver execuções recentes, o problema é a coleta; se não houver, é o
+agendamento. Foi uma escolha consciente: ver
+[ADR 0009](decisoes/0009-coleta-diaria.md).
 
 A resposta nunca traz URL, host, usuário nem mensagem do driver:
 
@@ -48,15 +61,15 @@ A resposta nunca traz URL, host, usuário nem mensagem do driver:
 {
   "estado": "em_dia",
   "saudavel": true,
-  "ultima_coleta": "2026-09-15T22:01:58Z",
+  "ultima_coleta": "2026-09-21T15:30:58Z",
   "status_ultima_coleta": "partial",
   "dias_desde_ultima_coleta": 1,
-  "intervalo_dias": 2,
-  "limite_dias": 4,
-  "ultima_execucao": "2026-09-16T13:55:40Z",
-  "status_ultima_execucao": "skipped",
+  "intervalo_dias": 1,
+  "limite_dias": 2,
+  "ultima_execucao": "2026-09-22T09:02:40Z",
+  "status_ultima_execucao": "success",
   "dias_desde_ultima_execucao": 0,
-  "proxima_coleta": "2026-09-17"
+  "proxima_coleta": "2026-09-23"
 }
 ```
 
@@ -130,7 +143,9 @@ não para cobrar disponibilidade.
 - **Sintoma:** `/health/dados` responde 503 com `vencido`, e o dashboard mostra
   aviso.
 - **Diagnóstico:** `collection_runs` recentes. Há execuções, mas `failed` ou fora do
-  escopo completo? Então é o caso 1 ou coletas manuais parciais.
+  escopo completo? Então é o caso 1 ou coletas manuais parciais. **Com X = 1,
+  `vencido` também cobre o caso 4**: se `dias_desde_ultima_execucao` na resposta for
+  maior que 2, não há execução nenhuma e o problema é o agendamento, não a coleta.
 - **Ação:** corrigir a causa e disparar uma coleta completa manual.
 
 ### 4. Coleta parada ou agendamento desativado

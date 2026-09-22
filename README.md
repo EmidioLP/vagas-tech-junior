@@ -104,8 +104,8 @@ Limitações conhecidas estão em [Limitações honestas](#limitações-honestas
 
 ## Como funciona
 
-Seis portais na coleta padrão: Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero
-Vagas Tech e GeekHunter. A ProgramaThor funciona só localmente, e Catho e Indeed
+Sete portais na coleta padrão: Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero
+Vagas Tech, GeekHunter e Solides. A ProgramaThor funciona só localmente, e Catho e Indeed
 estão bloqueados ([docs/fontes.md](docs/fontes.md)).
 
 ```mermaid
@@ -157,7 +157,7 @@ Uma coleta pequena, só com a Gupy e uma página por termo, gravando arquivos em
 python main.py --no-db --csv --sources gupy --max-pages 1
 ```
 
-Sem `--sources` e `--max-pages`, a coleta usa as 6 fontes padrão e 13 termos de
+Sem `--sources` e `--max-pages`, a coleta usa as 7 fontes padrão e 13 termos de
 busca, e leva bem mais tempo.
 
 **Alternativa só com Docker, sem coletar:** `docker compose up --build` sobe a API com
@@ -213,7 +213,7 @@ python main.py --strict --delay 3
 
 | Flag | Efeito |
 |------|--------|
-| `--sources gupy vagas` | Quais portais consultar (padrão: os 6 da coleta padrão; `programathor` só explicitamente) |
+| `--sources gupy vagas` | Quais portais consultar (padrão: os 7 da coleta padrão; `programathor` só explicitamente) |
 | `--terms "..." "..."` | Substitui a lista padrão de termos |
 | `--max-pages N` | Máximo de páginas por termo, por portal (padrão 5) |
 | `--page-size N` | Vagas por página (a Gupy limita a 100) |
@@ -273,7 +273,7 @@ Resumo; a lista completa, com o porquê de cada item, está em
 - **Classificação por keyword erra em casos ambíguos**, e o LinkedIn, sem
   descrição, é classificado só pelo título. A coluna `area_matches` mostra o que
   disparou cada classificação.
-- **Uma coleta a cada 2 dias:** vagas muito curtas podem não aparecer, e o
+- **Uma coleta por dia:** vagas muito curtas podem não aparecer, e o
   encerramento de uma vaga é registrado com atraso.
 - **Mudar as regras não reclassifica o passado:** o histórico mistura versões das
   regras de classificação.

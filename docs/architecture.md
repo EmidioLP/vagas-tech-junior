@@ -8,7 +8,7 @@ hoje; o porquê das escolhas está nos ADRs de [`decisoes/`](decisoes/README.md)
 
 ```mermaid
 flowchart LR
-    portais["Portais públicos<br/>6 na coleta padrão<br/>(ProgramaThor só local)"]
+    portais["Portais públicos<br/>7 na coleta padrão<br/>(ProgramaThor só local)"]
 
     subgraph actions["GitHub Actions"]
         collect["collect.yml<br/>cron diário 09:00 UTC<br/>+ disparo manual"]
@@ -71,10 +71,10 @@ passos de coleta, filtros e exportação.
 
 | Componente | O que faz | Detalhe |
 |---|---|---|
-| Portais | Seis fontes públicas na coleta padrão (`DEFAULT_SOURCES`). A ProgramaThor fica fora porque bloqueia IP de nuvem; Catho e Indeed estão bloqueados e nada é simulado. | [`fontes.md`](fontes.md) |
+| Portais | Sete fontes públicas na coleta padrão (`DEFAULT_SOURCES`). A ProgramaThor fica fora porque bloqueia IP de nuvem; Catho e Indeed estão bloqueados e nada é simulado. | [`fontes.md`](fontes.md) |
 | `collect.yml` | O cron acorda todo dia e roda `python main.py --trigger schedule --respect-interval`; quem decide se coleta é a guarda de intervalo, não o cron. | [`automation.md`](automation.md) |
 | `ci.yml` | Roda a suíte em Python 3.11 e 3.13, sem secrets e sem rede. | [`automation.md`](automation.md#ci) |
-| Guarda de intervalo (`scraper/execucao.py`) | Pula a coleta se ainda não passaram `COLLECTION_INTERVAL_DAYS` (2) dias desde a última coleta completa. | [`automation.md`](automation.md#frequência-cron-diário--guarda-de-intervalo) |
+| Guarda de intervalo (`scraper/execucao.py`) | Pula a coleta se ainda não passaram `COLLECTION_INTERVAL_DAYS` (1) dias desde a última coleta completa; com X=1 ela só barra uma segunda execução no mesmo dia UTC. | [`automation.md`](automation.md#frequência-cron-diário--guarda-de-intervalo) |
 | Coleta (`scraper/sources/`) | Uma classe por portal; falha de um termo ou de uma fonte não derruba as outras. | [`fontes.md`](fontes.md) |
 | Filtros e classificação | Nível de entrada → dedupe → portão "é vaga de tech?" → área por keywords ponderadas → tecnologias citadas, com regras em `scraper/rules/*.yml`. | [`classificacao.md`](classificacao.md) |
 | Persistência (`persistence/repositorio.py`) | Upsert idempotente em `jobs` por `(source, external_id)` e snapshot novo só quando o `content_hash` muda. | [`data-model.md`](data-model.md#persistência) |
@@ -129,7 +129,7 @@ vagas-tech-junior/
 │   ├── rules/               # areas.yml, seniority.yml, skills.yml
 │   └── sources/             # base.py (contrato JobSource) + um arquivo por portal:
 │                            # gupy, vagas_com, programathor, trampos, linkedin,
-│                            # querovagastech, geekhunter
+│                            # querovagastech, geekhunter, solides
 ├── persistence/
 │   ├── repositorio.py       # upsert idempotente, snapshots, encerramento
 │   ├── assinatura.py        # content_hash dos snapshots

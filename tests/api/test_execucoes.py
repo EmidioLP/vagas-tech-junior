@@ -2,7 +2,9 @@
 
 A coleta e o relogio sao substituidos: os testes simulam dias passando e portais
 falhando sem tocar a rede. Cada execucao com banco vira uma linha em
-`collection_runs`. O intervalo e o do projeto: a cada 2 dias.
+`collection_runs`. O intervalo aqui e X=2, escolhido de proposito: com o X=1 do
+projeto (ADR 0009) a guarda so barra duas execucoes no mesmo dia, e o caso de
+"dentro do intervalo, pula" nao teria como ser exercitado.
 """
 
 from __future__ import annotations

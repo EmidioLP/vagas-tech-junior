@@ -1,7 +1,7 @@
 # Fontes de dados
 
 Como cada portal é acessado e o que foi descoberto testando cada um ao vivo. A
-coleta padrão usa seis portais (`DEFAULT_SOURCES` em `scraper/sources/__init__.py`);
+coleta padrão usa sete portais (`DEFAULT_SOURCES` em `scraper/sources/__init__.py`);
 a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 [`architecture.md`](architecture.md); limites da coleta em
 [`limitacoes.md`](limitacoes.md).
@@ -15,6 +15,7 @@ a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 | **LinkedIn Jobs** | API de convidado, sem login: `GET .../jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=<termo>&geoId=106057199` | Funcionando, maior volume |
 | **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
 | **GeekHunter** | Sitemap + página HTML de cada vaga, com dados estruturados JobPosting | Funcionando, volume pequeno |
+| **Solides** (`vagas.solides.com.br`) | API JSON pública que o front consome: `GET https://apigw.solides.com.br/jobs/v3/portal-vacancies?title=<termo>&page=<n>&take=<n>` | Funcionando, sem autenticação |
 | **Catho** | — | **Bloqueado** (ver abaixo) |
 | **Indeed BR** | — | **Bloqueado** (ver abaixo) |
 
@@ -194,6 +195,56 @@ plataforma — áreas que as 10 categorias do projeto não cobrem.
 A limitação é conhecida: o slug só mostra o título. Vaga júnior anunciada como
 "Desenvolvedor Front-end", sem marca de nível no título, passa batido. Buscar as
 773 páginas resolveria e custaria uns 20 minutos de requisição.
+
+## Sobre o Solides
+
+O Solides é um SaaS de RH; o portal público dele agrega as vagas de todas as
+empresas clientes. O endpoint acima é o mesmo JSON que o navegador chama ao usar
+a busca, descoberto inspecionando a aba Network. É público, não pede login, e o
+User-Agent identificável do projeto é aceito — não é preciso fingir navegador. O
+`robots.txt` de `vagas.solides.com.br` e de `solides.jobs` libera tudo
+(`User-agent: * / Allow: /`); o `apigw` não serve `robots.txt`.
+
+Detalhes descobertos testando o endpoint ao vivo, e que o código trata:
+
+- **`title` é o único filtro de texto que funciona.** `search`, `q`, `keyword`,
+  `term` e `name` são aceitos e silenciosamente ignorados — devolvem o acervo
+  inteiro (~73 mil vagas de todas as áreas). O `title` casa por palavra, sem
+  acento e com abreviação (`title=devops junior` traz "Analista DevOps Jr"), mas
+  olha **só o título**: a descrição não entra na busca. Vaga júnior de tecnologia
+  cujo título não repita nenhum dos 13 termos do projeto passa batido.
+- **`take` é no máximo 25** — acima disso a API responde `HTTP 400`
+  (`"take deve ser menos ou igual a 25"`). Sem `take`, o default é 10.
+  `limit`, `perPage` e `pageSize` são ignorados.
+- **O `id` vem inteiro ou alfanumérico curto** (`"vgV6ou5UrL"`): 5 de 40 medidas
+  não eram numéricas. Por isso vira texto antes de virar `external_id`. Na
+  deduplicação, o link com id numérico rende a chave `solides.jobs:<id>`; o
+  alfanumérico não casa nenhuma regra e a vaga cai no critério título+empresa.
+- **`showModality` é ignorado de propósito.** Veio `false` em 7 de 40 vagas,
+  sempre com `jobType` preenchido: o campo controla a exibição no portal, não a
+  validade do dado. A modalidade é gravada nas duas situações — o Solides afirma
+  `presencial`/`hibrido`/`remoto` explicitamente, como a Gupy. `homeOffice` é uma
+  flag separada e legada (veio `true` em 2 de 200, enquanto 18 tinham
+  `jobType=remoto`) e só serve de reserva.
+- **A senioridade declarada pelo portal é ignorada**, pela mesma razão do Quero
+  Vagas Tech: numa medição de 6 vagas de "desenvolvedor junior", 3 vinham com
+  `seniority` vazio, uma chamada "vaga testre" vinha como `Junior` e outra,
+  "Analista Full Stack Júnior / Pleno", como `['Pleno', 'Junior']`. Quem decide
+  o nível aqui é o regex sobre o título.
+- **Muita vaga antiga continua listada como aberta.** `currentState` veio
+  `em_andamento` em 200 de 200, mas nas 39 vagas finais de 22/09/2026 a idade
+  mediana era de **235 dias** e 14 passavam de um ano (a mais velha, de
+  16/05/2019); 4 traziam "Banco de Talentos" no título. A coleta não filtra por
+  idade — grava a `createdAt` que o portal publica e o viés fica registrado em
+  [`limitacoes.md`](limitacoes.md).
+
+Medido em 22/09/2026 com os 13 termos do projeto: **13 requisições, 41 vagas
+brutas, 39 finais** depois de dedupe e portão de relevância — todo termo coube em
+uma página de 25. Todas vieram com descrição, empresa, link e data; a modalidade
+saiu 24 presencial, 10 híbrido e 5 remoto.
+
+Parte deste acervo já chegava ao projeto de forma indireta, pela curadoria do
+Quero Vagas Tech; a deduplicação por título+empresa colapsa a sobreposição.
 
 ## Sobre a Catho — bloqueada
 

@@ -43,7 +43,8 @@ DIAS_ENTRE_COLETAS = 2
 # perto das 600 vagas observadas: 55 novas x 11 coletas.
 VIDA_MINIMA, VIDA_MAXIMA = 1, 21
 
-FONTES = ("gupy", "linkedin", "vagas", "trampos", "querovagastech", "geekhunter")
+FONTES = ("gupy", "linkedin", "vagas", "trampos", "querovagastech", "geekhunter",
+          "solides")
 # Taxonomia atual (ADR 0008). So varia os dados sinteticos, mas uma lista
 # desatualizada aqui viraria documentacao errada da taxonomia.
 AREAS = ("Suporte Técnico", "Engenharia de Software", "Backend", "Frontend", "Data",

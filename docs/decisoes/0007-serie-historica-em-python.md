@@ -132,3 +132,14 @@ Duas leituras dos números:
 - Refinamento numérico do gatilho qualitativo de
   [0004](0004-sem-medalhao-nem-dbt.md) ("consultas históricas lentas"), que continua
   valendo para o resto do projeto.
+
+## Nota de 22/09/2026 — a cadência mudou
+
+A medição e o volume de referência acima assumem **uma coleta a cada 2 dias**. O
+[ADR 0009](0009-coleta-diaria.md) passou a coleta para diária, e "dias de coleta"
+é exatamente a grandeza que dobra: os "cerca de 3 anos" do gatilho de 500 dias
+passam a ser **~1,4 ano**, e o tempo de CPU da série ~dobra para o mesmo intervalo
+de calendário, porque a varredura por vaga soma tempos de vida medidos em dias de
+coleta. A decisão desta ADR não muda — muda o prazo. Vale refazer a medição contra
+a `dados-main` depois de algumas dezenas de coletas diárias, como o próprio texto
+acima já pedia para quando "o perfil do histórico mudar".

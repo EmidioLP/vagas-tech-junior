@@ -40,8 +40,11 @@ variável a cada execução. Por isso a frequência fica dividida em dois papéi
     **sem acessar nenhum portal**.
   - Senão, coleta normalmente.
 
-**O projeto coleta a cada 2 dias** (`COLLECTION_INTERVAL_DAYS=2`). Mudar X não
-exige commit, cron novo nem mudança de lógica: basta alterar a Variable (passo 2).
+**O projeto coleta todo dia** (`COLLECTION_INTERVAL_DAYS=1`, desde 22/09/2026;
+antes eram 2 dias — ver [ADR 0009](decisoes/0009-coleta-diaria.md)). Com X=1 a
+guarda praticamente não pula: ela só barra uma segunda execução no mesmo dia
+UTC. Mudar X não exige commit, cron novo nem mudança de lógica: basta alterar a
+Variable (passo 2).
 
 #### Horário: sempre UTC
 
@@ -57,10 +60,11 @@ exige commit, cron novo nem mudança de lógica: basta alterar a Variable (passo
 
 #### Regra da guarda
 
-- **Compara datas em UTC, não horas.** Com X = 2 e a última coleta completa em
-  15/09 (em qualquer horário), a execução de 16/09 é pulada e a próxima coleta
-  roda em 17/09. Assim o cron que acorda às 09:02 não pula o dia só porque a
-  coleta anterior começou às 09:05.
+- **Compara datas em UTC, não horas.** Com X = 1 e a última coleta completa em
+  21/09 (em qualquer horário), a execução de 22/09 já coleta. Assim o cron que
+  acorda às 09:02 não pula o dia só porque a coleta anterior começou às 09:05 —
+  é por isso que a guarda compara datas, e é o que ela ainda barra com X = 1: uma
+  segunda execução no mesmo dia UTC (uma agendada depois de uma forçada).
 - **Contam como "última coleta"** só as execuções que:
   - gravaram no banco;
   - terminaram com `success` ou `partial`;
@@ -79,7 +83,7 @@ Regras em `scraper/execucao.py`; consulta e gravação em `persistence/execucoes
 
 ```powershell
 # o que a execução agendada faz
-$env:COLLECTION_INTERVAL_DAYS = "2"
+$env:COLLECTION_INTERVAL_DAYS = "1"
 python main.py --max-pages 5 --trigger schedule --respect-interval --resumo coleta/resumo.md
 
 # disparo manual padrão: força a coleta
@@ -101,8 +105,8 @@ python main.py --max-pages 1 --trigger manual --sources gupy --no-db --csv --no-
 A execução agendada não tem inputs: sempre grava no banco, com as fontes padrão, 5
 páginas por termo e a guarda.
 
-**Fontes padrão:** Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero Vagas Tech e
-GeekHunter. A **ProgramaThor fica fora**: desde 15/09/2026 ela responde HTTP 403
+**Fontes padrão:** Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero Vagas Tech,
+GeekHunter e Solides. A **ProgramaThor fica fora**: desde 15/09/2026 ela responde HTTP 403
 para os servidores do GitHub Actions. A fonte continua no código e funciona da
 máquina local com `--sources programathor`, e as vagas antigas dela continuam na
 API. A lista fica em `scraper/sources/__init__.py` (`FORA_DA_COLETA_PADRAO`).
@@ -147,8 +151,8 @@ versionado:
 
 - **Interface web:** *Settings → Secrets and variables → Actions → aba Variables →
   New repository variable*. Nome `COLLECTION_INTERVAL_DAYS`; valor inteiro positivo.
-  O do projeto é `2`.
-- **GitHub CLI:** `gh variable set COLLECTION_INTERVAL_DAYS --body 2`.
+  O do projeto é `1`.
+- **GitHub CLI:** `gh variable set COLLECTION_INTERVAL_DAYS --body 1`.
   `gh variable list` mostra o valor atual.
 
 A variável é obrigatória para a execução agendada e não tem valor padrão no
@@ -192,7 +196,7 @@ Toda execução com banco e X conhecido informa, no terminal e logo abaixo do
 status no resumo:
 
 ```
-Última coleta: dia 15/09/2026 e próxima: dia 17/09/2026 (a cada 2 dias).
+Última coleta: dia 21/09/2026 e próxima: dia 22/09/2026 (a cada 1 dia).
 ```
 
 - **Última coleta** é a última coleta **completa** que não falhou. Se a execução
@@ -231,7 +235,7 @@ preenchida e é encerrada:** `is_active = false` e `closed_at` com a data. Ela n
   descartem nesta coleta (por exemplo, o título virou "Pleno").
 - **A primeira ausência só marca** `missing_since`. A segunda, em **outro dia
   (UTC)**, encerra. Duas coletas no mesmo dia (uma agendada e uma forçada) contam
-  como uma. Com coleta a cada 2 dias, uma vaga preenchida sai em cerca de 4 dias.
+  como uma. Com coleta diária, uma vaga preenchida sai em cerca de 2 dias.
 - **Se a vaga reaparecer**, a ausência zera; se já estava encerrada, volta a
   ativa.
 - **Por que duas ausências:** a coleta lê no máximo 5 páginas por termo, e uma
@@ -333,7 +337,7 @@ merge, verifique nesta ordem:
 4. **Registro:** `collection_runs` na `dados-main` tem a execução. Conte só
    números e datas.
 5. **Agendamento:** `gh workflow view collect.yml` mostra o workflow habilitado.
-   A próxima execução é às 09:00 UTC, e a guarda pula até completar 2 dias.
+   A próxima execução é às 09:00 UTC; com X=1 a guarda deixa passar todo dia.
 
 Se algo der errado: `docs/rollback-merge.md`.
 
