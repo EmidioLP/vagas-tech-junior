@@ -17,7 +17,8 @@ equipe operando. O repositório já está no GitHub e o orçamento é zero.
 - **`collect.yml`**: o cron acorda o workflow todo dia às 09:00 UTC, e a **guarda
   de intervalo** (`--respect-interval`, `scraper/execucao.py`) decide se coleta,
   lendo `collection_runs`. X vem de uma Repository Variable
-  (`COLLECTION_INTERVAL_DAYS=2`). Também é possível disparar à mão.
+  (`COLLECTION_INTERVAL_DAYS`, valia `2` aqui; é `1` desde
+  [0009](0009-coleta-diaria.md)). Também é possível disparar à mão.
 - O que um orquestrador daria fica no próprio código: isolamento por fonte e por
   termo (`JobSource.fetch`, `collect`), status `success`/`partial`/`failed` com
   exit code, registro de toda execução (inclusive as puladas) em

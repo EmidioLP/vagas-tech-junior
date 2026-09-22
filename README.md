@@ -273,7 +273,7 @@ Resumo; a lista completa, com o porquê de cada item, está em
 - **Classificação por keyword erra em casos ambíguos**, e o LinkedIn, sem
   descrição, é classificado só pelo título. A coluna `area_matches` mostra o que
   disparou cada classificação.
-- **Uma coleta a cada 2 dias:** vagas muito curtas podem não aparecer, e o
+- **Uma coleta por dia:** vagas muito curtas podem não aparecer, e o
   encerramento de uma vaga é registrado com atraso.
 - **Mudar as regras não reclassifica o passado:** o histórico mistura versões das
   regras de classificação.

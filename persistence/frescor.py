@@ -17,7 +17,10 @@ Estados, em ordem de avaliacao (datas comparadas por dia UTC, como a guarda):
 - `vencido`: a ultima coleta completa tem mais de 2 x X dias;
 - `coleta_parada`: nenhuma execucao (nem pulada) ha mais de 2 dias. O cron acorda
   todo dia e registra ate os pulos, entao o silencio indica agendamento parado ou
-  desativado, antes mesmo de o dado vencer;
+  desativado. **Com X = 1 este estado quase nao aparece:** o limite dele (2 dias)
+  empata com o de `vencido` (2 x X = 2), e `vencido` e avaliado primeiro, entao um
+  cron parado acende `vencido`. Os dois respondem 503; para separar os casos,
+  leia `dias_desde_ultima_execucao`. Decisao registrada no ADR 0009;
 - `em_dia`.
 """
 
@@ -35,8 +38,10 @@ from api.models import CollectionRun
 # fontes. Status que contam como "ultima coleta" para a guarda de intervalo.
 STATUS_QUE_CONTAM = ("success", "partial")
 
-# Com X = 2 (o valor do projeto), o dado vence a partir de 5 dias sem coleta
-# completa: tolera uma coleta perdida (o GitHub pode descartar execucoes agendadas).
+# Com X = 1 (o valor do projeto desde 22/09/2026), o dado vence a partir de 3 dias
+# sem coleta completa: tolera uma coleta perdida (o GitHub pode descartar execucoes
+# agendadas). O multiplo e em coletas, nao em dias -- a tolerancia continua sendo de
+# uma coleta perdida qualquer que seja X, so a janela de relogio acompanha X.
 MULTIPLO_DO_INTERVALO = 2
 # O cron acorda todo dia e toda execucao e registrada, inclusive as puladas.
 DIAS_SEM_EXECUCAO = 2

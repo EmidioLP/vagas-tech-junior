@@ -54,7 +54,7 @@ um campo fica isento dele:
 
 Exit 1 deixa o job do GitHub Actions vermelho, e o GitHub avisa por e-mail. A
 execução **continua contando** para a guarda de intervalo (`partial`): o dado foi
-gravado, e o cron não fica recoletando todo dia por causa de um alerta. Como a
+gravado, e um alerta não faz a coleta rodar fora da cadência combinada. Como a
 fonte com alerta alto não fica `ok`, ela não encerra vagas. Isso impede que uma
 queda brusca feche metade das vagas abertas.
 

@@ -97,13 +97,23 @@ classificação em [`classificacao.md`](classificacao.md).
 
 ## Frequência
 
-- **Uma coleta a cada 2 dias**, disparada por um cron diário que o GitHub não
-  garante no horário. Uma execução perdida adia a coleta em um dia
-  ([`automation.md`](automation.md#frequência-cron-diário--guarda-de-intervalo)).
-- **Vagas que abrem e fecham entre duas coletas** podem nunca aparecer.
+- **Uma coleta por dia** desde 22/09/2026 (antes eram 2 dias), disparada por um
+  cron diário que o GitHub não garante no horário. Uma execução perdida adia a
+  coleta em um dia
+  ([`automation.md`](automation.md#frequência-cron-diário--guarda-de-intervalo),
+  [ADR 0009](decisoes/0009-coleta-diaria.md)).
+- **Vagas que abrem e fecham entre duas coletas** podem nunca aparecer. A janela
+  encolheu de dois dias para um, mas não fechou: vaga publicada e removida no
+  mesmo dia continua invisível.
 - **`closed_at` sai atrasado:** a vaga só é encerrada depois de faltar em duas
   coletas confiáveis de dias diferentes, então a data de encerramento é a da
   segunda ausência, não a do fim real do anúncio.
+- **A régua do encerramento mudou no meio do histórico.** Com a coleta de 2 em 2
+  dias, uma vaga ausente levava ~4 dias para ser encerrada; com a coleta diária,
+  leva ~2. As vagas gravadas antes de 22/09/2026 foram encerradas pela régua
+  antiga e **não** são recalculadas, então a vida média observada das vagas cai
+  a partir dessa data sem que o mercado tenha mudado. Ler a série histórica
+  atravessando 22/09/2026 exige esse cuidado.
 - **Dias perdidos não são recuperáveis.** Os portais não mostram o passado, e o
   histórico só tem o que foi coletado.
 
