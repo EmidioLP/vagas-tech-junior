@@ -1,0 +1,139 @@
+# Regras para inferir a modalidade de trabalho a partir do texto da vaga.
+#
+# Usadas SO quando o portal nao informa a modalidade (LinkedIn, Vagas.com e casos
+# isolados): o valor estruturado do portal nunca e sobrescrito.
+#
+# Como funciona (scraper/modalidade.py):
+#   1. O texto e normalizado como no resto do projeto: minusculas, sem acento,
+#      pontuacao vira espaco ("100% remoto" vira "100 remoto").
+#   2. As `excecoes` sao apagadas do texto antes de qualquer busca.
+#   3. `frases` sao procuradas em titulo, local e descricao; `palavras` so em
+#      titulo e local, onde um "Remoto" solto e de fato a modalidade.
+#   4. Titulo + local decidem primeiro; a descricao so entra se eles nao citam
+#      nada (ela mistura a modalidade da vaga com a da empresa e a do processo
+#      seletivo).
+#   5. Em cada texto: hibrido com presencial e hibrido ("1 dia por semana
+#      presencial"); hibrido com remoto, ou remoto com presencial, e ambiguo
+#      ("tecnologia 100% remoto, demais times hibrido") e fica "Não informado".
+#
+# Casamento por palavra/frase inteira (sem match parcial dentro de outra palavra).
+#
+# Armadilhas conhecidas -- por isso remoto/presencial NAO sao palavras soltas na
+# descricao:
+#   "suporte remoto", "acesso remoto"       -> atividade, nao modalidade
+#   "atendimento presencial"               -> atividade (Field Service, suporte)
+#   "auxilio home office"                  -> beneficio, aparece em vaga hibrida
+#   "nuvem hibrida", "aplicativo hibrido"  -> tecnologia, nao modalidade
+#   "cloud, on premises e hibrido"         -> idem; por isso hibrido tambem so
+#                                             vale solto no titulo e no local
+#   cidade informada, sem outra pista      -> NAO e presencial: 75% presencial,
+#                                             21% hibrido, 4% remoto nas fontes
+#                                             que informam (22/09/2026); ver
+#                                             docs/classificacao.md
+
+excecoes:
+  - suporte remoto
+  - suporte tecnico remoto
+  - atendimento remoto
+  - acesso remoto
+  - assistencia remota
+  - suporte presencial
+  - atendimento presencial
+  - suporte tecnico presencial
+  - auxilio home office
+  - ajuda de custo home office
+  - ajuda de custo para home office
+  - auxilio para home office
+  - kit home office
+  - nuvem hibrida
+  - cloud hibrida
+  - hybrid cloud
+  - infraestrutura hibrida
+  - ambiente hibrido
+  - arquitetura hibrida
+  - aplicativo hibrido
+  - app hibrido
+  - desenvolvimento hibrido
+  - mobile hibrido
+
+frases:
+  Remoto:
+    - 100 remoto
+    - 100 remota
+    - 100 home office
+    - home office 100
+    - totalmente remoto
+    - totalmente remota
+    - trabalho remoto
+    - modelo remoto
+    - regime remoto
+    - formato remoto
+    - modalidade remoto
+    - modalidade remota
+    - modalidade home office
+    - modelo home office
+    - regime home office
+    - regime de home office
+    - vaga remota
+    - vaga e remota
+    - posicao remota
+    - posicao e remota
+    - estagio remoto
+    - atuacao remota
+    - full remote
+    - fully remote
+    - remote first
+  Híbrido:
+    - modelo hibrido
+    - trabalho hibrido
+    - regime hibrido
+    - formato hibrido
+    - modalidade hibrida
+    - modalidade hibrido
+    - modelo de trabalho hibrido
+    - vaga hibrida
+    - vaga e hibrida
+    - posicao hibrida
+    - posicao e hibrida
+    - estagio hibrido
+    - atuacao hibrida
+    - jornada hibrida
+    - hybrid work
+    - hybrid model
+    # Alternativas ("remoto ou hibrido"): somadas a outra modalidade citada,
+    # deixam a vaga ambigua em vez de cair na outra.
+    - remoto ou hibrido
+    - hibrido ou remoto
+    - presencial ou hibrido
+    - hibrido ou presencial
+  Presencial:
+    - 100 presencial
+    - totalmente presencial
+    - trabalho presencial
+    - modelo presencial
+    - regime presencial
+    - formato presencial
+    - modalidade presencial
+    - vaga presencial
+    - vaga e presencial
+    - posicao presencial
+    - posicao e presencial
+    - estagio presencial
+    - atuacao presencial
+    - atuar presencialmente
+    - trabalhar presencialmente
+    - on site
+    - onsite
+
+palavras:
+  Remoto:
+    - remoto
+    - remota
+    - home office
+    - remote
+  Híbrido:
+    - hibrido
+    - hibrida
+    - hybrid
+  Presencial:
+    - presencial

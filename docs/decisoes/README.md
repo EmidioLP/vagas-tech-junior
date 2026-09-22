@@ -24,5 +24,6 @@ antigo recebe `Status: substituído por NNNN` em vez de ser apagado.
 | [0007](0007-serie-historica-em-python.md) | Série histórica reconstruída em Python, com gatilho medido para migrar |
 | [0008](0008-taxonomia-de-areas-expandida.md) | Taxonomia de áreas expandida, com reclassificação do histórico |
 | [0009](0009-coleta-diaria.md) | Coleta diária (`COLLECTION_INTERVAL_DAYS=1`), em vez de a cada dois dias |
+| [0010](0010-detalhe-do-linkedin-e-modalidade-inferida.md) | Descrição do LinkedIn pela página de detalhe e modalidade inferida do texto |
 
 Visão geral do fluxo: [`../architecture.md`](../architecture.md).

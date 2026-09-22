@@ -543,7 +543,8 @@ def top_tecnologias(engine: Engine, filtros: Filtros, limite: int = 15) -> Ranki
     """Tecnologias citadas no estado atual das vagas unicas ativas.
 
     Mede mencao, nao exigencia. A base do percentual sao as vagas que citam alguma
-    tecnologia: o card do LinkedIn nao tem descricao e quase nunca cita.
+    tecnologia: as vagas do LinkedIn anteriores a 22/09/2026 nao tem descricao
+    e quase nunca citam.
     """
     recorte, citacoes = _recorte_tecnologias(filtros)
     quantidade = func.count(distinct(recorte.c.job_id)).label("vagas")

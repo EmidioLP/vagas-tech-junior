@@ -1,4 +1,4 @@
-"""Reclassificacao do historico depois de uma mudanca em `areas.yml`.
+"""Reclassificacao do historico depois de uma mudanca em `areas.yml` ou `modalidade.yml`.
 
 Duas propriedades importam, e as duas sao faceis de quebrar sem perceber:
 
@@ -162,3 +162,50 @@ def test_o_script_recusa_gravar_com_assinatura_divergente(banco_historico, capsy
 
     assert main(["--db", str(banco_historico)]) == 3
     assert "nao se reproduz" in capsys.readouterr().err
+
+
+def _plano_modalidade(banco_historico, **campos):
+    engine = make_engine(banco_historico)
+    try:
+        persistir_vagas([Job(source="linkedin", external_id="9", title="Dev Jr",
+                             company="Acme", **campos)], engine, COLETA)
+        snapshots = _snapshots(engine)
+    finally:
+        engine.dispose()
+    return montar_plano(snapshots, _ClassificadorFixo("Suporte Técnico"))
+
+
+def test_modalidade_ausente_e_inferida(banco_historico):
+    plano, alteracoes = _plano_modalidade(
+        banco_historico, description="Modelo de trabalho 100% remoto.",
+        workplace_type="Não informado")
+    (alteracao,) = alteracoes
+    assert alteracao.workplace_type == "Remoto"
+    assert plano.modalidade_antes == {"Não informado": 1}
+    assert plano.modalidade_depois == {"Remoto": 1}
+
+
+def test_modalidade_informada_nunca_muda(banco_historico):
+    plano, alteracoes = _plano_modalidade(
+        banco_historico, description="Modelo de trabalho 100% remoto.",
+        workplace_type="Presencial")
+    assert [a.workplace_type for a in alteracoes] == ["Presencial"]
+    assert plano.modalidade_depois == {"Presencial": 1}
+
+
+def test_aplicar_grava_a_modalidade_com_assinatura_reproduzivel(banco_historico):
+    engine = make_engine(banco_historico)
+    try:
+        persistir_vagas([Job(source="vagas", external_id="7", title="Dev Jr (Híbrido)",
+                             company="Acme", workplace_type="Não informado")],
+                        engine, COLETA)
+    finally:
+        engine.dispose()
+    assert main(["--db", str(banco_historico), "--aplicar"]) == 0
+    engine = make_engine(banco_historico)
+    try:
+        (snapshot,) = _snapshots(engine)
+        assert snapshot.workplace_type == "Híbrido"
+        assert conferir_assinaturas([snapshot]) == []
+    finally:
+        engine.dispose()

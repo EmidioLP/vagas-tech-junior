@@ -422,8 +422,8 @@ def tecnologias(dados: Dados) -> None:
     st.write("Tecnologias citadas nas vagas únicas ativas.")
     st.caption(
         "Conta menção, não exigência: \"diferencial: Python\" conta igual a \"exige "
-        "Python\". O card do LinkedIn não traz descrição, então as vagas dele quase "
-        "nunca entram na base."
+        "Python\". As vagas do LinkedIn anteriores a 22/09/2026 não têm descrição, "
+        "então quase nunca entram na base."
     )
 
     try:

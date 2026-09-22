@@ -68,8 +68,13 @@ class PoliteSession:
             time.sleep(remaining + random.uniform(0, 0.4))
         self._last_request_at = time.monotonic()
 
-    def get(self, url: str, **kwargs) -> requests.Response | None:
-        """GET com delay + retry. Devolve `None` em caso de falha definitiva."""
+    def get(self, url: str, conta_falha: bool = True, **kwargs) -> requests.Response | None:
+        """GET com delay + retry. Devolve `None` em caso de falha definitiva.
+
+        `conta_falha=False` e para requisicoes acessorias (o detalhe de uma vaga
+        do LinkedIn): a vaga ja foi listada, entao a falha nao deve marcar a
+        fonte como `partial` -- o que impediria o encerramento de vagas ausentes.
+        """
         self._wait_turn()
         kwargs.setdefault("timeout", self.timeout_seconds)
         self.request_count += 1
@@ -77,11 +82,13 @@ class PoliteSession:
             response = self.session.get(url, **kwargs)
         except requests.RequestException as exc:
             logger.warning("Falha de rede em %s: %s", url, exc)
-            self.failed_count += 1
+            if conta_falha:
+                self.failed_count += 1
             return None
 
         if response.status_code >= 400:
-            self.failed_count += 1
+            if conta_falha:
+                self.failed_count += 1
             logger.warning(
                 "HTTP %s em %s (params=%s)",
                 response.status_code,

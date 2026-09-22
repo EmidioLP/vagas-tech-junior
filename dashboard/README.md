@@ -83,7 +83,8 @@ A diferença entre **fotografia atual** e **histórico** está em todas as telas
 
 - **Mede menção, não exigência.** "Diferencial: Python" conta igual a "exige Python".
 - **A base é declarada na tela** ("N das M vagas ativas citam alguma tecnologia").
-  O card do LinkedIn não traz descrição, então as vagas dele quase nunca entram.
+  As vagas do LinkedIn anteriores a 22/09/2026 não têm descrição (o card não traz;
+  depois disso ela vem da página de detalhe), então quase nunca entram.
 - **Com menos de 30 vagas na base** (`BASE_MINIMA_TECNOLOGIAS`), o ranking geral
   não é mostrado: uma única vaga já mudaria a ordem. A tela pede para ampliar os
   filtros.
