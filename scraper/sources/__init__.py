@@ -8,6 +8,7 @@ from .gupy import GupySource
 from .linkedin import LinkedInSource
 from .programathor import ProgramathorSource
 from .querovagastech import QueroVagasTechSource
+from .solides import SolidesSource
 from .trampos import TramposSource
 from .vagas_com import VagasComSource
 
@@ -19,6 +20,7 @@ SOURCE_REGISTRY: dict[str, type[JobSource]] = {
     LinkedInSource.name: LinkedInSource,
     QueroVagasTechSource.name: QueroVagasTechSource,
     GeekHunterSource.name: GeekHunterSource,
+    SolidesSource.name: SolidesSource,
 }
 
 AVAILABLE_SOURCES = list(SOURCE_REGISTRY)
@@ -34,5 +36,5 @@ DEFAULT_SOURCES = [nome for nome in AVAILABLE_SOURCES if nome not in FORA_DA_COL
 
 __all__ = ["JobSource", "GupySource", "VagasComSource", "ProgramathorSource",
            "TramposSource", "LinkedInSource", "QueroVagasTechSource",
-           "GeekHunterSource", "SOURCE_REGISTRY", "AVAILABLE_SOURCES",
-           "DEFAULT_SOURCES", "FORA_DA_COLETA_PADRAO"]
+           "GeekHunterSource", "SolidesSource", "SOURCE_REGISTRY",
+           "AVAILABLE_SOURCES", "DEFAULT_SOURCES", "FORA_DA_COLETA_PADRAO"]

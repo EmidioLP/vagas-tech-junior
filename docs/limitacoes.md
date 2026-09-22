@@ -7,8 +7,8 @@ classificação em [`classificacao.md`](classificacao.md).
 ## Éticas e de uso dos dados
 
 - **Coleta de páginas e APIs públicas, sem login.** Os endpoints de Gupy, Trampos.co,
-  LinkedIn e Quero Vagas Tech são os que o próprio front de cada site chama; não
-  são APIs oficiais nem têm contrato de uso para terceiros.
+  LinkedIn, Quero Vagas Tech e Solides são os que o próprio front de cada site
+  chama; não são APIs oficiais nem têm contrato de uso para terceiros.
 - **`robots.txt` respeitado onde muda o caminho.** Na GeekHunter, `/api/` e
   `/feeds/` são proibidos, então a coleta vai pelo sitemap e pela página de cada
   vaga ([detalhe](fontes.md#sobre-a-geekhunter)).
@@ -47,8 +47,18 @@ classificação em [`classificacao.md`](classificacao.md).
   cai muito mais em "Outros/TI Geral".
 - **Nível de entrada vem do título** em várias fontes. Na GeekHunter, o pré-filtro
   usa o slug. Uma vaga júnior sem marca de nível no título passa batido. O nível
-  declarado pela Quero Vagas Tech é ignorado de propósito, porque marca gerentes
-  como `Intern`.
+  declarado pela Quero Vagas Tech e pelo Solides é ignorado de propósito: a
+  primeira marca gerentes como `Intern`, e o segundo deixa o campo vazio na
+  maioria das vagas.
+- **A busca do Solides olha só o título.** A descrição não entra no filtro de
+  texto da API, então vaga de tecnologia cujo título não repita nenhum dos 13
+  termos do projeto não é encontrada nessa fonte
+  ([detalhe](fontes.md#sobre-o-solides)).
+- **O Solides lista vagas antigas como abertas.** Nas 39 vagas finais de
+  22/09/2026 a idade mediana era de 235 dias e 14 passavam de um ano, incluindo
+  anúncios de "Banco de Talentos" que a empresa nunca encerra. A coleta não
+  filtra por idade — grava a data que o portal publica —, então a contagem de
+  vagas abertas dessa fonte é inflada por anúncio perene.
 - **Modalidade incompleta.** LinkedIn e Vagas.com não distinguem presencial de
   híbrido no card. Na coleta de 15/09/2026, o LinkedIn inteiro e 19 vagas do
   Vagas.com ficaram "Não informado" ([relatório](resultados-2026-09-15.md#remoto-híbrido-ou-presencial)).

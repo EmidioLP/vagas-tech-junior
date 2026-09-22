@@ -73,6 +73,11 @@ As vagas são classificadas em **Remoto**, **Híbrido**, **Presencial** e
 
 - **Gupy** expõe a modalidade explicitamente no campo `workplaceType`
   (`remote` / `hybrid` / `on-site`) — é dado afirmado pelo portal.
+- **Solides** também afirma as três em `jobType`
+  (`presencial` / `hibrido` / `remoto`), preenchido em todas as vagas medidas.
+  O campo `showModality`, que o portal usa para esconder a modalidade na tela,
+  é ignorado: ele controla a exibição, não a validade do dado
+  ([detalhe](fontes.md#sobre-o-solides)).
 - As demais fontes leem a modalidade de flags nativas ou do local do card, cada
   uma no seu arquivo em `scraper/sources/`; os casos que mudam a leitura estão em
   [`fontes.md`](fontes.md).

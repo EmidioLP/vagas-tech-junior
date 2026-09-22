@@ -50,8 +50,8 @@ class Settings:
     # que as duas listas batem). A ProgramaThor fica de fora: responde HTTP 403
     # para IPs de nuvem.
     sources: list[str] = field(
-        default_factory=lambda: ["gupy", "vagas", "trampos",
-                                 "linkedin", "querovagastech", "geekhunter"]
+        default_factory=lambda: ["gupy", "vagas", "trampos", "linkedin",
+                                 "querovagastech", "geekhunter", "solides"]
     )
     output_dir: Path = DEFAULT_OUTPUT_DIR
 

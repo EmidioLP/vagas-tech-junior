@@ -32,7 +32,7 @@ on:
         options: [banco, sem-banco]
         default: banco
       fontes:
-        description: "Fontes separadas por espaco; vazio = padrao (gupy vagas trampos linkedin querovagastech geekhunter). programathor fica fora: HTTP 403 no GitHub"
+        description: "Fontes separadas por espaco; vazio = padrao (gupy vagas trampos linkedin querovagastech geekhunter solides). programathor fica fora: HTTP 403 no GitHub"
         type: string
         required: false
         default: ""

@@ -101,8 +101,8 @@ python main.py --max-pages 1 --trigger manual --sources gupy --no-db --csv --no-
 A execução agendada não tem inputs: sempre grava no banco, com as fontes padrão, 5
 páginas por termo e a guarda.
 
-**Fontes padrão:** Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero Vagas Tech e
-GeekHunter. A **ProgramaThor fica fora**: desde 15/09/2026 ela responde HTTP 403
+**Fontes padrão:** Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero Vagas Tech,
+GeekHunter e Solides. A **ProgramaThor fica fora**: desde 15/09/2026 ela responde HTTP 403
 para os servidores do GitHub Actions. A fonte continua no código e funciona da
 máquina local com `--sources programathor`, e as vagas antigas dela continuam na
 API. A lista fica em `scraper/sources/__init__.py` (`FORA_DA_COLETA_PADRAO`).
