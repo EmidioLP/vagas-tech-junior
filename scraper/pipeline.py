@@ -1,5 +1,8 @@
 """Orquestracao: coleta -> senioridade -> dedupe -> classificacao -> banco -> CSV opcional.
 
+A classificacao inclui a area, as tecnologias e, quando o portal nao informa, a
+modalidade inferida do texto (`scraper/modalidade.py`).
+
 O banco (`jobs` + `job_snapshots`) e a fonte de verdade. A exportacao de CSV,
 relatorio e graficos e opcional e nao e pre-requisito da gravacao.
 
@@ -39,6 +42,7 @@ from . import qualidade
 from .export import build_ranking, export_all
 from .http_client import PoliteSession
 from .models import Job, SourceStats
+from .modalidade import completar_modalidade
 from .seniority import SeniorityFilter, filter_entry_level
 from .skills import attach_skills
 from .sources import SOURCE_REGISTRY
@@ -319,9 +323,11 @@ def _processar(
                     len(jobs), dropped_non_tech)
 
     jobs = classify_jobs(jobs, classifier)
-    # Antes da exportacao: `to_row` trunca a descricao, e as tecnologias precisam
-    # do texto completo (a Gupy devolve a descricao inteira).
+    # Antes da exportacao: `to_row` trunca a descricao, e as tecnologias e a
+    # modalidade precisam do texto completo (a Gupy devolve a descricao inteira).
     jobs = attach_skills(jobs)
+    # So onde o portal nao informou (LinkedIn, Vagas.com): nunca sobrescreve.
+    jobs = completar_modalidade(jobs)
     ranking = build_ranking(jobs)
 
     meta = {

@@ -1,4 +1,4 @@
-"""Reclassifica a area de todos os snapshots com as regras atuais de areas.yml.
+"""Reclassifica a area (e infere a modalidade ausente) dos snapshots com as regras atuais.
 
 A area de cada snapshot foi gravada com as regras vigentes na coleta. Quando
 `scraper/rules/areas.yml` muda, o passado fica com a classificacao antiga: a
@@ -7,7 +7,13 @@ recentes, e as checagens de qualidade acusariam area fora do dominio nas vagas
 que ficaram com um nome de area que nao existe mais.
 
 Este script refaz a classificacao a partir de `title` + `description`, que e
-exatamente o que o classificador le, e **recalcula o `content_hash`**. Sem
+exatamente o que o classificador le, e **recalcula o `content_hash`**.
+
+O mesmo vale para `scraper/rules/modalidade.yml`: snapshots gravados sem
+modalidade (nulo ou "Não informado") recebem a modalidade inferida de
+`title` + `description` + `location`. Modalidade ja informada nunca muda. As
+vagas antigas do LinkedIn nao tem descricao gravada, entao para elas so o
+titulo e o local contam. Sem
 recalcular, a coleta seguinte compararia a assinatura nova (area nova) com a
 gravada (area velha), veria diferenca e gravaria um snapshot novo para cada
 vaga -- uma mudanca de estado que nunca aconteceu.
@@ -18,7 +24,8 @@ vaga -- uma mudanca de estado que nunca aconteceu.
 
 **Escreve no banco.** Antes de rodar com `--aplicar` na `dados-main`, crie a
 branch de backup no Neon (`docs/neon-setup.md`). Nada e apagado: so as colunas
-`area`, `area_score`, `area_matches` e `content_hash` de `job_snapshots` mudam.
+`area`, `area_score`, `area_matches`, `workplace_type` e `content_hash` de
+`job_snapshots` mudam.
 
 Antes de qualquer escrita o script confere que consegue **reproduzir** o
 `content_hash` ja gravado a partir dos campos do snapshot. Se um unico hash nao
@@ -48,6 +55,9 @@ class Plano:
     vagas_antes: Counter = field(default_factory=Counter)
     vagas_depois: Counter = field(default_factory=Counter)
     fora_do_vocabulario: Counter = field(default_factory=Counter)
+    # Modalidade atual de cada vaga, antes e depois da inferencia.
+    modalidade_antes: Counter = field(default_factory=Counter)
+    modalidade_depois: Counter = field(default_factory=Counter)
 
 
 def _campos(snapshot) -> dict:
@@ -78,11 +88,39 @@ def conferir_assinaturas(snapshots) -> list[int]:
     return [s.id for s in snapshots if assinatura_snapshot(_campos(s)) != s.content_hash]
 
 
-def montar_plano(snapshots, clf) -> tuple[Plano, list]:
-    """Calcula a area nova de cada snapshot. Nao grava."""
+@dataclass
+class Alteracao:
+    """Os campos novos de um snapshot, com a assinatura ja recalculada."""
+
+    snapshot_id: int
+    area: str
+    area_score: float
+    area_matches: str
+    workplace_type: str | None
+    content_hash: str
+
+
+def _modalidade_nova(snapshot, inferidor) -> str | None:
+    """Modalidade inferida so onde falta; a informada fica como esta."""
+    from scraper.modalidade import sem_modalidade
+
+    atual = snapshot.workplace_type
+    if not sem_modalidade(atual):
+        return atual
+    inferida = inferidor.inferir(snapshot.title or "", snapshot.description or "",
+                                 snapshot.location or "")
+    return atual if sem_modalidade(inferida) else inferida
+
+
+def montar_plano(snapshots, clf, inferidor=None) -> tuple[Plano, list[Alteracao]]:
+    """Calcula a area e a modalidade novas de cada snapshot. Nao grava."""
     from persistence.assinatura import assinatura_snapshot
 
     from api.vocabulary import areas as vocabulario
+    from scraper.models import NAO_INFORMADO
+    from scraper.modalidade import default_inferidor
+
+    inferidor = inferidor or default_inferidor()
 
     conhecidas = set(vocabulario())
     plano = Plano(snapshots=len(snapshots))
@@ -92,6 +130,7 @@ def montar_plano(snapshots, clf) -> tuple[Plano, list]:
 
     for s in snapshots:
         resultado = clf.classify(s.title or "", s.description or "")
+        modalidade = _modalidade_nova(s, inferidor)
         plano.antes[s.area or "(sem area)"] += 1
         plano.depois[resultado.area] += 1
         if s.area and s.area not in conhecidas:
@@ -99,25 +138,29 @@ def montar_plano(snapshots, clf) -> tuple[Plano, list]:
 
         anterior = ultimo.get(s.job_id)
         if anterior is None or s.collected_at > anterior[0].collected_at:
-            ultimo[s.job_id] = (s, resultado.area)
+            ultimo[s.job_id] = (s, resultado.area, modalidade)
 
-        if (s.area != resultado.area
-                or (s.area_matches or "") != "; ".join(resultado.matches)):
+        matches = "; ".join(resultado.matches)
+        if (s.area != resultado.area or (s.area_matches or "") != matches
+                or s.workplace_type != modalidade):
             campos = _campos(s)
             campos.update(area=resultado.area, area_score=resultado.score,
-                          area_matches="; ".join(resultado.matches))
-            alteracoes.append((s.id, resultado, assinatura_snapshot(campos)))
+                          area_matches=matches, workplace_type=modalidade)
+            alteracoes.append(Alteracao(s.id, resultado.area, resultado.score, matches,
+                                        modalidade, assinatura_snapshot(campos)))
             plano.mudam += 1
 
-    for snapshot, area_nova in ultimo.values():
+    for snapshot, area_nova, modalidade_nova in ultimo.values():
         plano.vagas_antes[snapshot.area or "(sem area)"] += 1
         plano.vagas_depois[area_nova] += 1
+        plano.modalidade_antes[snapshot.workplace_type or NAO_INFORMADO] += 1
+        plano.modalidade_depois[modalidade_nova or NAO_INFORMADO] += 1
     return plano, alteracoes
 
 
-def _tabela(titulo: str, antes: Counter, depois: Counter) -> None:
+def _tabela(titulo: str, antes: Counter, depois: Counter, rotulo: str = "area") -> None:
     print(f"\n{titulo}")
-    print(f"  {'area':30s} {'antes':>6s} {'depois':>7s}  {'':>6s}")
+    print(f"  {rotulo:30s} {'antes':>6s} {'depois':>7s}  {'':>6s}")
     for area in sorted(set(antes) | set(depois), key=lambda a: -depois.get(a, 0)):
         a, d = antes.get(area, 0), depois.get(area, 0)
         seta = "" if a == d else f"{d - a:+d}"
@@ -167,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             plano, alteracoes = montar_plano(snapshots, default_classifier())
 
             print(f"{plano.snapshots} snapshots conferidos, assinatura reproduzida em todos.")
-            print(f"{plano.mudam} snapshot(s) mudariam de area ou de evidencia.")
+            print(f"{plano.mudam} snapshot(s) mudariam de area, de evidencia ou de modalidade.")
             if plano.fora_do_vocabulario:
                 print("\nAreas gravadas que nao existem mais em areas.yml "
                       "(disparam alerta alto de qualidade ate serem reclassificadas):")
@@ -177,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
             _tabela("Por snapshot (historico inteiro):", plano.antes, plano.depois)
             _tabela("Por vaga, pelo snapshot mais recente (o que API e dashboard mostram):",
                     plano.vagas_antes, plano.vagas_depois)
+            _tabela("Modalidade por vaga, pelo snapshot mais recente:",
+                    plano.modalidade_antes, plano.modalidade_depois, "modalidade")
 
             if not args.aplicar:
                 print("\nSimulacao. Nada foi gravado. Use --aplicar para gravar.")
@@ -185,12 +230,13 @@ def main(argv: list[str] | None = None) -> int:
             por_id = {s.id: s for s in snapshots}
             # `db.begin()` nao serve aqui: a leitura acima ja abriu a
             # transacao da sessao. Um commit so no fim: ou tudo muda, ou nada.
-            for snapshot_id, resultado, assinatura in alteracoes:
-                s = por_id[snapshot_id]
-                s.area = resultado.area
-                s.area_score = resultado.score
-                s.area_matches = "; ".join(resultado.matches)
-                s.content_hash = assinatura
+            for alteracao in alteracoes:
+                s = por_id[alteracao.snapshot_id]
+                s.area = alteracao.area
+                s.area_score = alteracao.area_score
+                s.area_matches = alteracao.area_matches
+                s.workplace_type = alteracao.workplace_type
+                s.content_hash = alteracao.content_hash
             db.commit()
             print(f"\nGravado: {len(alteracoes)} snapshot(s) atualizados.")
             return 0
