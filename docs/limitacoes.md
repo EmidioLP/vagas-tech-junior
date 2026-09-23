@@ -78,6 +78,13 @@ classificação em [`classificacao.md`](classificacao.md).
   mas é inferência: para ler só o dado afirmado pelo portal, filtre Gupy, Solides,
   Quero Vagas Tech e GeekHunter no dashboard.
 
+  O LinkedIn tem a modalidade como campo, mas só para quem está logado, e o filtro
+  de modalidade da busca é ignorado sem login ([detalhe](fontes.md#sobre-o-linkedin-jobs)).
+  Numa amostra de 50 vagas de entrada com descrição (23/09/2026), 31 seguiram "Não
+  informado", e umas 20 delas não citam modalidade em lugar nenhum. É um teto da
+  fonte, não da regra. Por isso a Overview do dashboard diz de que fontes vêm as
+  vagas sem modalidade e dá o % remoto também só entre as que informam.
+
   Como referência para ler o "Não informado": nas fontes que informam a
   modalidade, das 168 vagas com cidade cujo texto não diz o regime, 126 eram
   presenciais (75%), 36 híbridas (21%) e 6 remotas (4%) (medido em 22/09/2026). O

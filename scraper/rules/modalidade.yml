@@ -30,6 +30,10 @@
 #                                             21% hibrido, 4% remoto nas fontes
 #                                             que informam (22/09/2026); ver
 #                                             docs/classificacao.md
+#
+# Teto desta inferencia no LinkedIn: numa amostra de 50 vagas de entrada
+# (23/09/2026), 31 ficaram "Não informado" e ~20 delas nao citam modalidade em
+# lugar nenhum. O campo estruturado do LinkedIn so existe logado (docs/fontes.md).
 
 excecoes:
   - suporte remoto
@@ -98,6 +102,8 @@ frases:
     - estagio hibrido
     - atuacao hibrida
     - jornada hibrida
+    # "transporte e alimentacao para os dias presenciais": ha dias que nao sao.
+    - dias presenciais
     - hybrid work
     - hybrid model
     # Alternativas ("remoto ou hibrido"): somadas a outra modalidade citada,
@@ -122,6 +128,8 @@ frases:
     - atuacao presencial
     - atuar presencialmente
     - trabalhar presencialmente
+    # Rodape de vagas publicadas via Gupy: "informacoes adicionais contrato efetivo presencial".
+    - contrato efetivo presencial
     - on site
     - onsite
 

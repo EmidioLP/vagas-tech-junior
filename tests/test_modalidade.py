@@ -20,6 +20,9 @@ from scraper.modalidade import completar_modalidade, inferir_modalidade, sem_mod
         ("Atuação presencial no escritório de Curitiba.", "Presencial"),
         ("Modelo híbrido, 3 dias no escritório.", "Híbrido"),
         ("Trabalho Híbrido em São Paulo.", "Híbrido"),
+        # Frases de vagas reais do LinkedIn (amostra de 23/09/2026).
+        ("Informações adicionais: Contrato efetivo, presencial.", "Presencial"),
+        ("Vale transporte e alimentação para os dias presenciais.", "Híbrido"),
         ("Nenhuma pista aqui.", "Não informado"),
         ("", "Não informado"),
     ],
@@ -37,6 +40,7 @@ def test_frases_de_modalidade_na_descricao(descricao, esperado):
         "Projetos em ambientes cloud, on premises e híbrido.",
         "Experiência com nuvem híbrida (AWS e Azure).",
         "Acesso remoto a servidores.",
+        "Prestar suporte técnico aos usuários, presencial e remoto.",
     ],
 )
 def test_armadilhas_nao_viram_modalidade(descricao):
