@@ -63,7 +63,7 @@ A diferença entre **fotografia atual** e **histórico** está em todas as telas
 | **Vagas novas no dia** | vagas únicas com `first_seen_at` naquele dia |
 | **Último avistamento** | `jobs.last_seen_at`: a coleta mais recente que listou a vaga |
 | **Empresas** | nomes distintos entre as vagas ativas, sem diferença de maiúsculas nem espaços nas bordas. Vagas sem empresa não contam |
-| **% remoto** | vagas ativas com modalidade Remoto sobre **todas** as vagas ativas, inclusive as que não informam modalidade (a tela mostra quantas são) |
+| **% remoto** | vagas ativas com modalidade Remoto sobre **todas** as vagas ativas, inclusive as que não informam modalidade. A legenda abaixo dos KPIs mostra quantas não informam, de que fontes (quase todas do LinkedIn, que só mostra a modalidade para quem está logado) e o % remoto só entre as que informam |
 | **Fontes** | portais com pelo menos uma vaga ativa |
 | **Base de tecnologias** | vagas ativas do recorte que citam ao menos uma tecnologia. O % de cada tecnologia é sobre essa base |
 

@@ -131,6 +131,14 @@ class Indicadores:
             return None
         return 100 * self.remotas / self.vagas_ativas
 
+    @property
+    def percentual_remoto_informado(self) -> float | None:
+        """Remotas so entre as ativas que informam modalidade (o LinkedIn quase nunca informa)."""
+        informadas = self.vagas_ativas - self.sem_modalidade
+        if informadas <= 0:
+            return None
+        return 100 * self.remotas / informadas
+
 
 @dataclass(frozen=True)
 class Contagem:

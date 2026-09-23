@@ -7,7 +7,7 @@ Cada pagina recebe um `Dados`, com as consultas ja embrulhadas em cache pelo
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 
 import altair as alt
@@ -21,6 +21,7 @@ from dashboard.consultas import (
     DadosIndisponiveis,
     Filtros,
     Indicadores,
+    NAO_INFORMADO,
     OpcoesFiltro,
     PaginaVagas,
     PontoSerie,
@@ -101,6 +102,19 @@ def formatar_percentual(valor: float | None) -> str:
     if valor is None:
         return "—"
     return f"{valor:.1f}%".replace(".", ",")
+
+
+def frase_sem_modalidade(indicadores: Indicadores, por_fonte: list[Contagem]) -> str:
+    """Quantas vagas nao informam modalidade, de que fontes, e o % remoto das demais."""
+    frase = (f"{formatar_inteiro(indicadores.sem_modalidade)} das "
+             f"{formatar_inteiro(indicadores.vagas_ativas)} vagas ativas não informam modalidade")
+    if indicadores.sem_modalidade and por_fonte:
+        frase += ": " + ", ".join(f"{formatar_inteiro(c.vagas)} de {c.rotulo}" for c in por_fonte)
+    frase += "."
+    if indicadores.sem_modalidade and indicadores.percentual_remoto_informado is not None:
+        frase += (" Entre as que informam, "
+                  f"{formatar_percentual(indicadores.percentual_remoto_informado)} são remotas.")
+    return frase
 
 
 def frase_agenda(resumo: ResumoGeral) -> str | None:
@@ -244,6 +258,10 @@ def overview(dados: Dados) -> None:
         indicadores = dados.indicadores(filtros)
         if indicadores.vagas_ativas:
             distribuicoes = {d: dados.distribuicao(filtros, d) for d in ("area", "modalidade", "fonte")}
+        sem_modalidade_por_fonte = []
+        if indicadores.sem_modalidade:
+            sem_modalidade_por_fonte = dados.distribuicao(
+                replace(filtros, modalidades=(NAO_INFORMADO,)), "fonte")
     except DadosIndisponiveis as exc:
         _aviso_indisponivel(exc)
         return
@@ -272,10 +290,7 @@ def overview(dados: Dados) -> None:
         "Fontes", formatar_inteiro(indicadores.fontes),
         help="Portais com pelo menos uma vaga ativa.",
     )
-    st.caption(
-        f"{formatar_inteiro(indicadores.sem_modalidade)} das "
-        f"{formatar_inteiro(indicadores.vagas_ativas)} vagas ativas não informam modalidade."
-    )
+    st.caption(frase_sem_modalidade(indicadores, sem_modalidade_por_fonte))
 
     coluna_area, coluna_modalidade, coluna_fonte = st.columns(3)
     with coluna_area:

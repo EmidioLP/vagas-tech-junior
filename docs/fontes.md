@@ -137,6 +137,22 @@ A descrição está em `div.show-more-less-html__markup`. Os limites do detalhe:
 
 São cerca de 250 requisições a mais por coleta (uns 6 minutos).
 
+**A modalidade estruturada do LinkedIn só existe para quem está logado.** A
+página da vaga logada mostra "Presencial", "Híbrido" ou "Remoto" em
+"Correspondência de preferências", mas nada disso chega sem login (testado em
+23/09/2026):
+
+- o detalhe de convidado só traz, em `description__job-criteria-item`, nível de
+  experiência, tipo de emprego, função e setores, e não tem JSON-LD;
+- a página pública `/jobs/view/<id>` só cita modalidade na lista de vagas
+  parecidas, não na própria vaga;
+- o filtro de modalidade `f_WT=1|2|3` é **ignorado em silêncio**, tanto na API de
+  convidado quanto na busca pública: os mesmos ids voltam para qualquer valor.
+
+Coletar logado exigiria credencial no Actions e contrariaria os termos de uso, e
+não é feito. A modalidade do LinkedIn fica por conta da inferência pelo texto
+([`classificacao.md`](classificacao.md#modalidade-inferida-do-texto)).
+
 **O `robots.txt` do LinkedIn proíbe `/jobs-guest/`**: tem `Disallow: /` para
 qualquer robô e o caminho explícito para cada robô nomeado. Vale para a busca e
 para o detalhe ([`limitacoes.md`](limitacoes.md#éticas-e-de-uso-dos-dados)).

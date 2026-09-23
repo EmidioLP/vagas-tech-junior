@@ -107,7 +107,8 @@ descrição, e **nunca sobrescreve** a modalidade do portal.
   (Presencial)", "São Paulo, SP (Híbrido)"). A descrição só entra se eles não
   citam nada.
 - **Na descrição, só frases de modalidade** ("modelo híbrido", "100% remoto",
-  "regime presencial"). Palavra solta ali cai em armadilhas: "suporte **remoto**" e
+  "regime presencial", "contrato efetivo presencial"; "dias presenciais" conta
+  como híbrido, porque há dias que não são). Palavra solta ali cai em armadilhas: "suporte **remoto**" e
   "atendimento **presencial**" são atividades, "auxílio **home office**" é
   benefício de vaga híbrida, e "cloud, on premises e **híbrido**" é
   infraestrutura. As armadilhas conhecidas ficam em `excecoes` e são apagadas do

@@ -43,6 +43,20 @@ def test_indicadores_contam_vagas_unicas_ativas(leitor):
     assert indicadores == consultas.Indicadores(
         vagas_ativas=3, empresas=2, remotas=1, sem_modalidade=1, fontes=2)
     assert indicadores.percentual_remoto == pytest.approx(100 / 3)
+    # C nao informa modalidade: das 2 que informam (A e D), 1 e remota.
+    assert indicadores.percentual_remoto_informado == pytest.approx(50)
+
+
+def test_percentual_remoto_informado_sem_vagas_informadas_nao_e_zero():
+    todas_sem_modalidade = consultas.Indicadores(
+        vagas_ativas=2, empresas=1, remotas=0, sem_modalidade=2, fontes=1)
+    assert todas_sem_modalidade.percentual_remoto_informado is None
+    assert consultas.Indicadores(0, 0, 0, 0, 0).percentual_remoto_informado is None
+
+
+def test_sem_modalidade_por_fonte(leitor):
+    filtros = Filtros(modalidades=("Não informado",))
+    assert consultas.distribuicao(leitor, filtros, "fonte") == [consultas.Contagem("vagas", 1)]
 
 
 def test_empresas_ignoram_maiusculas_e_espacos(leitor):

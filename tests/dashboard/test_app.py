@@ -210,6 +210,40 @@ def test_overview_filtro_sem_vagas_mostra_estado_vazio():
     assert "Nenhuma vaga ativa com esses filtros" in _textos(app)
 
 
+def test_overview_diz_de_que_fontes_vem_o_nao_informado():
+    pedidos = []
+
+    def distribuicao(filtros, dimensao):
+        pedidos.append((filtros.modalidades, dimensao))
+        if filtros.modalidades == ("Não informado",):
+            return [Contagem("linkedin", 90), Contagem("vagas", 10)]
+        return DISTRIBUICAO
+
+    app = _rodar_pagina("overview", _dados(distribuicao=distribuicao))
+
+    assert not app.exception
+    # 617 remotas das 1.134 que informam modalidade.
+    assert ("100 das 1.234 vagas ativas não informam modalidade: 90 de linkedin, "
+            "10 de vagas. Entre as que informam, 54,4% são remotas.") in _textos(app)
+    assert (("Não informado",), "fonte") in pedidos
+
+
+def test_overview_sem_vaga_sem_modalidade_nao_detalha():
+    todas_informam = consultas.Indicadores(vagas_ativas=10, empresas=3, remotas=4,
+                                           sem_modalidade=0, fontes=2)
+    pedidos = []
+    app = _rodar_pagina("overview", _dados(
+        indicadores=lambda filtros: todas_informam,
+        distribuicao=lambda filtros, dimensao: pedidos.append(filtros.modalidades) or DISTRIBUICAO,
+    ))
+
+    assert not app.exception
+    textos = _textos(app)
+    assert "0 das 10 vagas ativas não informam modalidade." in textos
+    assert "Entre as que informam" not in textos
+    assert ("Não informado",) not in pedidos
+
+
 # --- Histórico ---------------------------------------------------------------------
 
 
