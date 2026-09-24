@@ -67,10 +67,12 @@ class Expectativa:
 # fonte tenha falhado); empresa 0%; "Não informado" 0-1%
 # (LinkedIn e Vagas.com 100%: a listagem nao informa; `scraper/modalidade.py` infere
 # parte do texto desde 22/09 -- recalibrar com dados); sem data 0-13% (ProgramaThor
-# 100%); sem tecnologias 3-13% (LinkedIn 88%, Vagas.com 74%).
+# 100%); sem tecnologias 3-13% (LinkedIn 88%, Vagas.com 74%). Abler, medido em
+# 24/09: empresa vazia em 43% (37 de 87), porque o coletor descarta o nome quando
+# a empresa marca `hideCompany`; sem tecnologias 49%.
 EXPECTATIVA_VAZIOS: dict[str, Expectativa] = {
     "description": Expectativa(0.20, ALTA, frozenset({"linkedin"})),
-    "company": Expectativa(0.20, ALTA),
+    "company": Expectativa(0.20, ALTA, frozenset({"abler"})),
     "workplace_type": Expectativa(0.40, BAIXA, frozenset({"linkedin", "vagas"})),
     "published_date": Expectativa(0.40, BAIXA, frozenset({"programathor"})),
     "skills": Expectativa(0.50, BAIXA, frozenset({"linkedin", "vagas"})),

@@ -152,6 +152,12 @@ def test_vagas_com_e_isento_de_modalidade_e_tecnologias():
     assert _verificar(_vagas("vagas", workplace_type="Não informado", skills=[])) == []
 
 
+def test_abler_e_isento_de_empresa():
+    """`hideCompany`: 43% das vagas do Abler sem empresa em 24/09/2026."""
+    assert _verificar(_vagas("abler", company="")) == []
+    assert _regras(_verificar(_vagas("recrutei", company=""))) == [("campo_vazio", "recrutei")]
+
+
 def test_mesmo_campo_vazio_alerta_em_fonte_que_nao_e_isenta():
     alertas = _verificar(_vagas("gupy", workplace_type="Não informado", skills=[]))
     assert {(a.regra, a.fonte, a.severidade) for a in alertas} == {("campo_vazio", "gupy", "baixa")}
