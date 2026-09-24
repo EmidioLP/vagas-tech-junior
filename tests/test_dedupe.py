@@ -146,6 +146,8 @@ def test_lista_vazia():
     ("https://br.linkedin.com/jobs/view/estagiario-de-ti-at-x-4464615185", "linkedin.com:4464615185"),
     ("https://www.linkedin.com/jobs/view/4464615185/", "linkedin.com:4464615185"),
     ("https://atracaodetalentos.totvs.app/vempratotvs/11639/tech", "totvs.app:11639"),
+    ("https://empregos.recrutei.com.br/vaga/gex-corporation/158928-analista-de-atendimento",
+     "recrutei.com.br:158928"),
 ])
 def test_identidade_no_link_reconhece_o_id(url, esperado):
     assert identidade_no_link(url) == esperado
@@ -155,6 +157,8 @@ def test_identidade_no_link_reconhece_o_id(url, esperado):
     # Slug de titulo NAO e id: seria igual em duas empresas do mesmo portal.
     "https://www.geekhunter.com/pt/locaweb/jobs/desenvolvedor--a--junior---net--1",
     "https://vaga-ja.com/vagas/empresa-x/estagio-em-comercio-exterior",
+    # O numero do fim do slug do Abler nao e o id da vaga (slug 637999, vaga 393184).
+    "https://candidatos.abler.com.br/vagas/desenvolvedor-fullstack-junior-637999",
     "https://empresa.gupy.io/",
     "#",
     "",

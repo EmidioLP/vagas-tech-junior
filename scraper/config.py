@@ -51,7 +51,8 @@ class Settings:
     # para IPs de nuvem.
     sources: list[str] = field(
         default_factory=lambda: ["gupy", "vagas", "trampos", "linkedin",
-                                 "querovagastech", "geekhunter", "solides"]
+                                 "querovagastech", "geekhunter", "solides",
+                                 "recrutei", "abler"]
     )
     output_dir: Path = DEFAULT_OUTPUT_DIR
 

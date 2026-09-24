@@ -39,7 +39,7 @@ um campo fica isento dele:
 | Campo | Limite | Severidade | Isentas | Observado em 15/09 |
 |---|---|---|---|---|
 | descrição | 20% | alta | LinkedIn (o card não tem descrição; vem do detalhe, que pode ser bloqueado sem a fonte falhar) | 0–1%; LinkedIn 100% |
-| empresa | 20% | alta | — | 0% |
+| empresa | 20% | alta | Abler (empresa que marca `hideCompany` fica vazia; 43% em 24/09) | 0% |
 | modalidade "Não informado" | 40% | baixa | LinkedIn, Vagas.com.br (a listagem não informa; a inferência pelo texto cobre só parte) | 0–1%; LinkedIn e Vagas.com 100% |
 | data de publicação | 40% | baixa | ProgramaThor (não informa) | 0–13%; ProgramaThor 100% |
 | tecnologias | 50% | baixa | LinkedIn, Vagas.com.br (pouco texto) | 3–13%; LinkedIn 88%, Vagas.com 74% |

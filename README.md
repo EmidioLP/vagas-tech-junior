@@ -104,8 +104,8 @@ Limitações conhecidas estão em [Limitações honestas](#limitações-honestas
 
 ## Como funciona
 
-Sete portais na coleta padrão: Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero
-Vagas Tech, GeekHunter e Solides. A ProgramaThor funciona só localmente, e Catho e Indeed
+Nove portais na coleta padrão: Gupy, Vagas.com.br, Trampos.co, LinkedIn, Quero
+Vagas Tech, GeekHunter, Solides, Recrutei e Abler. A ProgramaThor funciona só localmente, e Catho e Indeed
 estão bloqueados ([docs/fontes.md](docs/fontes.md)).
 
 ```mermaid

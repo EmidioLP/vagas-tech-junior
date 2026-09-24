@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from .abler import AblerSource
 from .base import JobSource
 from .geekhunter import GeekHunterSource
 from .gupy import GupySource
 from .linkedin import LinkedInSource
 from .programathor import ProgramathorSource
 from .querovagastech import QueroVagasTechSource
+from .recrutei import RecruteiSource
 from .solides import SolidesSource
 from .trampos import TramposSource
 from .vagas_com import VagasComSource
@@ -21,6 +23,8 @@ SOURCE_REGISTRY: dict[str, type[JobSource]] = {
     QueroVagasTechSource.name: QueroVagasTechSource,
     GeekHunterSource.name: GeekHunterSource,
     SolidesSource.name: SolidesSource,
+    RecruteiSource.name: RecruteiSource,
+    AblerSource.name: AblerSource,
 }
 
 AVAILABLE_SOURCES = list(SOURCE_REGISTRY)
@@ -36,5 +40,6 @@ DEFAULT_SOURCES = [nome for nome in AVAILABLE_SOURCES if nome not in FORA_DA_COL
 
 __all__ = ["JobSource", "GupySource", "VagasComSource", "ProgramathorSource",
            "TramposSource", "LinkedInSource", "QueroVagasTechSource",
-           "GeekHunterSource", "SolidesSource", "SOURCE_REGISTRY",
+           "GeekHunterSource", "SolidesSource", "RecruteiSource", "AblerSource",
+           "SOURCE_REGISTRY",
            "AVAILABLE_SOURCES", "DEFAULT_SOURCES", "FORA_DA_COLETA_PADRAO"]
