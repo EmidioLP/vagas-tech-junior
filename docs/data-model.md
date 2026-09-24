@@ -135,7 +135,7 @@ para dar para contar e filtrar ao longo do tempo.
 ## Invariantes
 
 - **Uma vaga por `(source, external_id)`.** O mesmo id em portais diferentes são
-  vagas diferentes. As sete fontes sempre informam `external_id`, então os dois
+  vagas diferentes. Todas as fontes sempre informam `external_id`, então os dois
   campos são obrigatórios.
 - **No máximo um snapshot por vaga em cada coleta**, garantido por
   `(job_id, collected_at)` único.

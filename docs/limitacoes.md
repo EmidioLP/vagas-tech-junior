@@ -11,7 +11,9 @@ classificação em [`classificacao.md`](classificacao.md).
   chama; não são APIs oficiais nem têm contrato de uso para terceiros.
 - **`robots.txt` respeitado onde muda o caminho, com uma exceção.** Na
   GeekHunter, `/api/` e `/feeds/` são proibidos, então a coleta vai pelo sitemap
-  e pela página de cada vaga ([detalhe](fontes.md#sobre-a-geekhunter)). **O
+  e pela página de cada vaga ([detalhe](fontes.md#sobre-a-geekhunter)). No
+  Recrutei, a busca por palavra-chave é proibida, então a coleta vai pelas
+  listagens por categoria ([detalhe](fontes.md#sobre-o-recrutei)). **O
   LinkedIn é a exceção:** o `robots.txt` dele proíbe `/jobs-guest/` (e `/` para
   qualquer robô), e o projeto usa esse caminho tanto na busca quanto no detalhe de
   cada vaga de entrada. É decisão consciente do mantenedor, com teto e disjuntor
@@ -54,8 +56,8 @@ classificação em [`classificacao.md`](classificacao.md).
   falhar ou passar do teto, a vaga fica só com o título e cai muito mais em
   "Outros/TI Geral". As vagas do LinkedIn gravadas antes de 22/09/2026 não têm
   descrição.
-- **Nível de entrada vem do título** em várias fontes. Na GeekHunter, o pré-filtro
-  usa o slug. Uma vaga júnior sem marca de nível no título passa batido. O nível
+- **Nível de entrada vem do título** em várias fontes. Na GeekHunter e no Abler, o
+  pré-filtro usa o slug (no Abler, também exige tecnologia no slug). Uma vaga júnior sem marca de nível no título passa batido. O nível
   declarado pela Quero Vagas Tech e pelo Solides é ignorado de propósito: a
   primeira marca gerentes como `Intern`, e o segundo deixa o campo vazio na
   maioria das vagas.
@@ -67,7 +69,14 @@ classificação em [`classificacao.md`](classificacao.md).
   22/09/2026 a idade mediana era de 235 dias e 14 passavam de um ano, incluindo
   anúncios de "Banco de Talentos" que a empresa nunca encerra. A coleta não
   filtra por idade — grava a data que o portal publica —, então a contagem de
-  vagas abertas dessa fonte é inflada por anúncio perene.
+  vagas abertas dessa fonte é inflada por anúncio perene. O **Abler** tem o mesmo
+  viés: o sitemap mantém vagas de até dois anos "Em andamento"
+  ([detalhe](fontes.md#sobre-o-abler)).
+- **O Recrutei só é lido nas categorias `tecnologia` e `dados`**, e é um
+  agregador de consultorias de R&S, não do mercado inteiro. Vaga de TI que a
+  consultoria classificou em outra categoria não entra, e vaga de empresa
+  anônima é descartada porque a página dela não existe
+  ([detalhe](fontes.md#sobre-o-recrutei)).
 - **Modalidade incompleta.** LinkedIn e Vagas.com não distinguem presencial de
   híbrido no card. Na coleta de 15/09/2026, o LinkedIn inteiro e 19 vagas do
   Vagas.com ficaram "Não informado" ([relatório](resultados-2026-09-15.md#remoto-híbrido-ou-presencial)).

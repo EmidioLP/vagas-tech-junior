@@ -1,7 +1,7 @@
 # Fontes de dados
 
 Como cada portal é acessado e o que foi descoberto testando cada um ao vivo. A
-coleta padrão usa sete portais (`DEFAULT_SOURCES` em `scraper/sources/__init__.py`);
+coleta padrão usa nove portais (`DEFAULT_SOURCES` em `scraper/sources/__init__.py`);
 a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 [`architecture.md`](architecture.md); limites da coleta em
 [`limitacoes.md`](limitacoes.md).
@@ -16,6 +16,8 @@ a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 | **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
 | **GeekHunter** | Sitemap + página HTML de cada vaga, com dados estruturados JobPosting | Funcionando, volume pequeno |
 | **Solides** (`vagas.solides.com.br`) | API JSON pública que o front consome: `GET https://apigw.solides.com.br/jobs/v3/portal-vacancies?title=<termo>&page=<n>&take=<n>` | Funcionando, sem autenticação |
+| **Recrutei** (`empregos.recrutei.com.br`) | HTML das listagens por categoria (`/vagas/tecnologia`, `/vagas/dados`) + JSON-LD da página de cada vaga de entrada | Funcionando, sem busca por termo (o `robots.txt` proíbe) |
+| **Abler** (`candidatos.abler.com.br`) | Sitemap + página Nuxt de cada vaga (estado em `window.__NUXT__`) | Funcionando, ~120 MB por coleta |
 | **Catho** | — | **Bloqueado** (ver abaixo) |
 | **Indeed BR** | — | **Bloqueado** (ver abaixo) |
 
@@ -286,6 +288,117 @@ saiu 24 presencial, 10 híbrido e 5 remoto.
 Parte deste acervo já chegava ao projeto de forma indireta, pela curadoria do
 Quero Vagas Tech; a deduplicação por título+empresa colapsa a sobreposição.
 
+## Sobre o Recrutei
+
+Agregador das vagas publicadas pelas consultorias de R&S que usam a plataforma
+Recrutei (`empregos.recrutei.com.br`). A listagem é renderizada no servidor, como a
+do Vagas.com, e o coletor veio do projeto irmão vagas-remotas-alerta. Lá a
+superfície é a de vagas remotas mais as de RN e Fortaleza; aqui ela é nacional.
+
+**Não há busca por termo, e quem decide isso é o `robots.txt`.** O formulário do
+portal é `GET /busca?keyword=<termo>`, e o arquivo proíbe exatamente essa forma
+(`Disallow: /*?*keyword=*` e `/*?*q=*`). As listagens por categoria
+(`/vagas/<categoria>?page=N`) são liberadas, então a coleta percorre categorias em vez
+dos 13 termos. As categorias foram escolhidas por medição, em 24/09/2026:
+
+| Categoria | Vagas | Com nível de entrada no título |
+|---|---|---|
+| `tecnologia` | 521 | 47 |
+| `dados` | 208 | 21 |
+| `produto` | 202 | 15 |
+| `ti` | 153 | 14 |
+| `design` | 83 | 13 |
+| `seguranca` | 18 | 1 |
+| `erp` | 15 | 0 |
+| `suporte` | 10 | 2 |
+
+Todas as vagas de entrada de `ti`, `suporte`, `seguranca` e `erp` já estavam em
+`tecnologia`. Das outras, `produto` e `design` só acrescentavam marketing,
+arquitetura e direção de arte, e `dados` acrescentava um estágio de dados. A coleta
+usa `tecnologia` e `dados`. A taxonomia do portal é ruidosa ("Vendedor Interno
+Júnior" aparece em tecnologia), e quem filtra é o portão de relevância.
+
+**A descrição vem da página de cada vaga**, porque o card não traz nenhuma. A página
+tem um `JobPosting` em JSON-LD com descrição e data exata (o card só diz "há 1
+mês"). Antes de abrir as páginas há um pré-filtro de nível de entrada, que usa a
+**mesma** função do pipeline. Ele não inclui o portão de tecnologia, porque 8 das
+29 vagas finais de 24/09 só passaram nele pela descrição (por exemplo,
+"Analista de Solução de Dados Junior"). A falha no detalhe não conta como falha da
+fonte, como no LinkedIn.
+
+**Vaga de empresa anônima é descartada.** O card vem como "Empresa anônima", com
+link `/vaga/anonimo/<uuid>`, e essa página responde 404 para qualquer cliente
+(testado com o User-Agent do projeto e com um de navegador). Sem página não há
+descrição, e o link levaria a um 404. Foram 10 de 548 vagas em 24/09. Esses cards
+também explicam uma armadilha de paginação: uma página com um card anônimo tem 12
+cards e só 11 vagas, então o fim da listagem é decidido pelo número de cards.
+Contar vagas encerrava `tecnologia` em 131 das 521.
+
+"Presencial ou Remoto" vira **Híbrido**, não Remoto: o próprio portal deixa esse
+selo fora da listagem de home office, e `normalize_workplace` o leria como remoto.
+O link do card traz uma query de rastreio (`?has_bot=1`), que é descartada.
+
+Os termos de uso (`api.recrutei.com.br/files/termos.pdf`) são dirigidos ao
+candidato e não proíbem coleta automatizada nem reprodução do conteúdo.
+
+Medido em 24/09/2026: **548 vagas listadas, 51 com nível de entrada no título, 29
+no resultado final**. São cerca de 115 requisições, uns 3 minutos.
+
+## Sobre o Abler
+
+O Abler é um ATS; o portal de candidatos (`candidatos.abler.com.br`) reúne as vagas
+das empresas clientes. A API que o front usa responde `403 ORIGIN_NOT_ALLOWED` para
+quem não é o próprio portal. Forjar o `Origin` passaria, mas seria contornar um
+bloqueio escrito. O `robots.txt` libera tudo (`Allow: /`) e aponta o sitemap, então o
+caminho é o da GeekHunter: sitemap → filtro pelo slug → página da vaga. O coletor
+também veio do projeto irmão vagas-remotas-alerta.
+
+O pré-filtro exige nível de entrada **e** tecnologia no título do slug, com as
+mesmas funções do pipeline. Medido em 24/09/2026: **13.787 vagas no sitemap, 94
+candidatas**. Só o nível de entrada deixaria perto de 900 páginas, uns 25 minutos.
+
+A página é Nuxt renderizada no servidor, e a vaga inteira fica em
+`window.__NUXT__`, um literal JavaScript, não JSON. O coletor tem um leitor desse
+subconjunto (objetos com chave sem aspas, `void 0`, as variáveis da função que o Nuxt
+usa para comprimir valores repetidos). Cada página tem cerca de 1,3 MB, então a
+coleta baixa uns 120 MB.
+
+- **Não há corte por idade**, o mesmo critério do Solides. O irmão cortava pelo
+  `<lastmod>` do sitemap em 60 dias. Aqui, 8 candidatas com `lastmod` de 428 a 751
+  dias foram abertas uma a uma, e todas estavam `status: "Em andamento"`. O
+  sitemap não guarda vaga fechada; guarda vaga perene.
+- **Empresa oculta fica vazia.** Quando a empresa marca `hideCompany`, o nome
+  vem no dado mesmo assim, e o coletor o descarta: 43% das vagas em 24/09. Não
+  entra o rótulo "Empresa confidencial", porque a deduplicação por
+  título+empresa fundiria vagas ocultas de mesmo título. Por isso o Abler é
+  isento do limite de empresa vazia
+  ([`data-quality.md`](data-quality.md#vazios-esperados-por-fonte)).
+- **A senioridade declarada (`levelOfInterests`) é ignorada**: "Analista" numa
+  vaga júnior, "Especialista" em "Técnico de informática JR". Quem decide é o
+  título.
+- A modalidade vem de `workTypes`, sempre com um valor só. Nas 87 vagas finais
+  de 24/09 foram 69 presenciais, 11 híbridas e 7 remotas.
+- O número do fim do slug **não** é o id da vaga (slug `-637999`, vaga `393184`).
+  O id vem da página, e o link não gera chave de deduplicação.
+
+A limitação é a mesma da GeekHunter: vaga de entrada sem sinal de tecnologia no
+título passa batido.
+
+## Avaliadas e deixadas de fora
+
+O projeto irmão vagas-remotas-alerta coleta mais três portais, avaliados para este
+projeto em 24/09/2026 e deixados de fora:
+
+- **InfoJobs.** Os termos do portal proíbem tanto a cópia por "Robot/Crawler"
+  quanto a reprodução do conteúdo. O irmão só avisa título e link; aqui a
+  descrição é gravada e publicada pela API e pelo dashboard. Entrar exigiria um
+  ADR e um mecanismo de "não gravar a descrição".
+- **Mentora Dados.** Só publica vagas de dados, então inflaria a área Data no
+  ranking de áreas, que é a pergunta central do projeto. Os termos também proíbem
+  reproduzir as descrições, e parte das vagas fica atrás de paywall.
+- **We Work Remotely.** É um board global, em inglês, fora do recorte "Brasil", e
+  só 3 de 306 vagas medidas eram de nível de entrada.
+
 ## Sobre a Catho — bloqueada
 
 A Catho não é acessível por cliente HTTP simples: qualquer requisição sem
@@ -296,7 +409,8 @@ que Selenium resolveria sozinho.
 **Nenhum dado da Catho é simulado neste projeto.** Por isso a fonte ficou de
 fora. A estrutura de `scraper/sources/` foi feita para receber uma fonte nova
 em um arquivo só — **Remotar** e **Gupy Vagas** são candidatos ainda não
-avaliados.
+avaliados; InfoJobs, Mentora Dados e We Work Remotely foram avaliados e
+[deixados de fora](#avaliadas-e-deixadas-de-fora).
 
 ## Sobre o Indeed BR — bloqueado
 
