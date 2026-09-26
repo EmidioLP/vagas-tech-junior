@@ -143,6 +143,9 @@ Duas regras transversais, das mesmas fontes:
 2. Construtor novo em `dashboard/graficos.py` (função pura que devolve o gráfico)
    e teste em `tests/dashboard/test_graficos.py`, que inspeciona `to_dict()`.
 3. Cor nova de categoria: valide nos dois temas antes de fixar.
-4. Renderize **no próprio Streamlit** e olhe, nos temas claro e escuro
+4. Toda camada declara `tooltip`, só com campos legíveis. Camada sem tooltip (um
+   rótulo de texto, por exemplo) ganha o padrão do Streamlit, que mostra todos os
+   campos internos da marca; um teste cobre isso.
+5. Renderize **no próprio Streamlit** e olhe, nos temas claro e escuro
    (`streamlit run ... --theme.base dark|light`): sobreposição de rótulos, eixos e o
    dimensionamento do Streamlit não aparecem nos testes nem num renderizador avulso.
