@@ -115,14 +115,18 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
     # fixa: com `width="stretch"` o Streamlit encaixa eixo e legenda DENTRO da
     # altura declarada, e com `height=48` a area da barra ficava com ~0 px -- so
     # os rotulos apareciam (visto no Streamlit; o vl-convert nao reproduz).
-    base = alt.Chart(tabela).encode(y=alt.Y("barra:N", title=None, axis=None))
+    # O tooltip fica no base para valer tambem no rotulo: sem ele, o Streamlit
+    # mostra ao passar o mouse todos os campos internos da marca (meio, cor_texto...).
+    base = alt.Chart(tabela).encode(
+        y=alt.Y("barra:N", title=None, axis=None),
+        tooltip=["Modalidade", "Vagas", "Percentual"],
+    )
     segmentos = base.mark_bar().encode(
         x=alt.X("inicio:Q", title=None, scale=alt.Scale(domain=[0, 1]),
                 axis=alt.Axis(format="%", tickCount=5)),
         x2="fim:Q",
         color=alt.Color("Modalidade:N", scale=cores, sort=presentes,
                         legend=alt.Legend(orient="bottom", title=None)),
-        tooltip=["Modalidade", "Vagas", "Percentual"],
     )
     textos = base.mark_text(fontWeight="bold").encode(
         x="meio:Q",

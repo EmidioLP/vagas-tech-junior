@@ -136,3 +136,34 @@ def test_tecnologias_em_percentual_com_eixo_de_0_a_100():
     assert _marca(barras) == "bar"
     assert barras["encoding"]["x"]["scale"]["domain"] == [0, 100]
     assert [linha["Rótulo"] for linha in _dados(spec)] == ["50% (20)", "25% (10)"]
+
+
+CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor_texto", "rotulo", "Rótulo"}
+CONSTRUTORES = {
+    "ranking": lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
+    "modalidade": lambda: graficos.composicao_modalidade(
+        [Contagem("Remoto", 1), Contagem("Não informado", 1)]),
+    "linha": lambda: graficos.linha_estoque(_tabela(), "Vagas abertas"),
+    "colunas": lambda: graficos.colunas_por_dia(_tabela(), "Vagas novas"),
+    "por_area": lambda: graficos.multiplos_por_area(SERIE),
+    "percentuais": lambda: graficos.barras_percentuais(
+        RankingTecnologias(base=1, vagas_ativas=1, itens=(Contagem("SQL", 1),))),
+}
+
+
+def _camadas(spec: dict) -> list[dict]:
+    spec = spec.get("spec", spec)  # faceta
+    return spec.get("layer", [spec])
+
+
+@pytest.mark.parametrize("nome", CONSTRUTORES)
+def test_toda_camada_tem_tooltip_so_com_campos_legiveis(nome):
+    """Camada sem `tooltip` ganha o padrao do Streamlit, que lista todos os campos
+    da marca: no rotulo da modalidade apareciam `meio`, `barra`, `cor_texto`..."""
+    spec = CONSTRUTORES[nome]().to_dict()
+
+    for camada in _camadas(spec):
+        tooltip = camada["encoding"].get("tooltip")
+        assert tooltip, f"camada {_marca(camada)} sem tooltip"
+        campos = {t["field"] for t in (tooltip if isinstance(tooltip, list) else [tooltip])}
+        assert not campos & CAMPOS_INTERNOS
