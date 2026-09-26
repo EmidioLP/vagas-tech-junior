@@ -45,7 +45,12 @@ TEXTO_NO_SEGMENTO = {WORKPLACE_ORDER[2]: "#0b0b0b"}
 FRACAO_MINIMA_ROTULO = 0.06
 VAO_SEGMENTO = 0.004  # fracao da barra, ~2px numa coluna do dashboard
 
+# Alturas por passo (px por categoria), nunca altura total: com `width="stretch"` o
+# Streamlit encaixa eixos e legenda DENTRO da altura total declarada, e o que sobra
+# para as barras pode chegar a zero (ver `composicao_modalidade`).
 ALTURA_BARRA = 24  # px por categoria nas barras horizontais
+ALTURA_BARRA_TECNOLOGIA = 28
+ALTURA_BARRA_MODALIDADE = 36  # px da banda da barra empilhada
 FORMATO_DIA = "%d/%m"
 
 
@@ -70,7 +75,7 @@ def ranking(contagens: list[Contagem], rotulo: str, valor: str = "Vagas") -> alt
     )
     barras = base.mark_bar(color=AZUL, cornerRadiusEnd=4)
     textos = base.mark_text(align="left", dx=4, color=TINTA_ROTULO).encode(text="Rótulo:N")
-    return (barras + textos).properties(height=ALTURA_BARRA * len(tabela) + 10)
+    return (barras + textos).properties(height=alt.Step(ALTURA_BARRA))
 
 
 def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
@@ -100,13 +105,17 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
         })
         inicio += fracao
     linhas[-1]["fim"] = 1.0  # o ultimo segmento fecha a barra
-    tabela = pd.DataFrame(linhas)
+    tabela = pd.DataFrame(linhas).assign(barra="modalidade")
 
     presentes = list(tabela["Modalidade"])
     cores = alt.Scale(domain=presentes,
                       range=[CORES_MODALIDADE.get(m, COR_MODALIDADE_DESCONHECIDA)
                              for m in presentes])
-    base = alt.Chart(tabela)
+    # A barra ocupa uma banda de `y` com altura por passo, e nao uma altura total
+    # fixa: com `width="stretch"` o Streamlit encaixa eixo e legenda DENTRO da
+    # altura declarada, e com `height=48` a area da barra ficava com ~0 px -- so
+    # os rotulos apareciam (visto no Streamlit; o vl-convert nao reproduz).
+    base = alt.Chart(tabela).encode(y=alt.Y("barra:N", title=None, axis=None))
     segmentos = base.mark_bar().encode(
         x=alt.X("inicio:Q", title=None, scale=alt.Scale(domain=[0, 1]),
                 axis=alt.Axis(format="%", tickCount=5)),
@@ -120,7 +129,7 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
         text="rotulo:N",
         color=alt.Color("cor_texto:N", scale=None),
     )
-    return (segmentos + textos).properties(height=48)
+    return (segmentos + textos).properties(height=alt.Step(ALTURA_BARRA_MODALIDADE))
 
 
 def _eixo_dia() -> alt.X:
@@ -211,5 +220,5 @@ def barras_percentuais(ranking_tecnologias: RankingTecnologias) -> alt.LayerChar
     )
     barras = base.mark_bar(color=AZUL, cornerRadiusEnd=4)
     textos = base.mark_text(align="left", dx=4, color=TINTA_ROTULO).encode(text="Rótulo:N")
-    return (barras + textos).properties(height=28 * len(tabela) + 40)
+    return (barras + textos).properties(height=alt.Step(ALTURA_BARRA_TECNOLOGIA))
 
