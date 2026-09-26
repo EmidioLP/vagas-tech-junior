@@ -10,10 +10,10 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
+from dashboard import graficos
 from dashboard.consultas import (
     BASE_MINIMA_POR_AREA,
     BASE_MINIMA_TECNOLOGIAS,
@@ -199,10 +199,8 @@ def filtros_barra_lateral(opcoes: OpcoesFiltro, com_periodo: bool) -> Filtros:
     return Filtros(fontes, areas, modalidades, inicio, fim)
 
 
-def _barras(contagens: list[Contagem], rotulo: str, valor: str = "Vagas") -> None:
-    tabela = pd.DataFrame({rotulo: [c.rotulo for c in contagens],
-                           valor: [c.vagas for c in contagens]})
-    st.bar_chart(tabela, x=rotulo, y=valor, horizontal=True, sort=f"-{valor}")
+def _barras(contagens: list[Contagem], rotulo: str) -> None:
+    st.altair_chart(graficos.ranking(contagens, rotulo), width="stretch")
 
 
 def overview(dados: Dados) -> None:
@@ -292,13 +290,17 @@ def overview(dados: Dados) -> None:
     )
     st.caption(frase_sem_modalidade(indicadores, sem_modalidade_por_fonte))
 
-    coluna_area, coluna_modalidade, coluna_fonte = st.columns(3)
-    with coluna_area:
-        st.subheader("Por área")
-        _barras(distribuicoes["area"], "Área")
+    # Area em largura total: sao ate 17 nomes longos, que numa coluna estreita
+    # espremeriam as barras.
+    st.subheader("Por área")
+    _barras(distribuicoes["area"], "Área")
+    coluna_modalidade, coluna_fonte = st.columns(2)
     with coluna_modalidade:
         st.subheader("Por modalidade")
-        _barras(distribuicoes["modalidade"], "Modalidade")
+        st.altair_chart(graficos.composicao_modalidade(distribuicoes["modalidade"]),
+                        width="stretch")
+        st.caption("Composição das vagas ativas. \"Não informado\" (cinza) é falta do "
+                   "dado no portal, não uma modalidade.")
     with coluna_fonte:
         st.subheader("Por fonte")
         _barras(distribuicoes["fonte"], "Fonte")
@@ -352,24 +354,25 @@ def _graficos_historico(serie: list[PontoSerie]) -> None:
     })
 
     st.subheader("Vagas abertas (únicas)")
-    st.line_chart(tabela, x="Dia", y="Vagas abertas")
+    st.altair_chart(graficos.linha_estoque(tabela, "Vagas abertas"), width="stretch")
+    st.caption("Cada ponto é um dia de coleta.")
 
     st.subheader("Vagas abertas por área (únicas)")
-    por_area = pd.DataFrame(
-        [{"Dia": dia, "Área": area, "Vagas": p.abertas_por_area.get(area, 0)}
-         for dia, p in zip(dias, serie)
-         for area in sorted({a for q in serie for a in q.abertas_por_area})]
-    )
-    st.line_chart(por_area, x="Dia", y="Vagas", color="Área")
+    st.altair_chart(graficos.multiplos_por_area(serie), width="content")
+    st.caption("Um painel por área, da maior para a menor no último dia. Cada painel "
+               "tem a própria escala vertical: compare a tendência, não a altura entre "
+               "painéis (o tamanho de cada área está na Overview).")
 
     coluna_novas, coluna_snapshots = st.columns(2)
     with coluna_novas:
         st.subheader("Vagas novas (únicas)")
-        st.line_chart(tabela, x="Dia", y="Vagas novas")
-        st.caption("Vagas vistas pela primeira vez no dia.")
+        st.altair_chart(graficos.colunas_por_dia(tabela, "Vagas novas"), width="stretch")
+        st.caption("Vagas vistas pela primeira vez no dia. No primeiro dia do histórico "
+                   "todas são novas, e a coluna dele encolhe as outras: ajuste o período "
+                   "para vê-las.")
     with coluna_snapshots:
         st.subheader("Snapshots gravados")
-        st.line_chart(tabela, x="Dia", y="Snapshots")
+        st.altair_chart(graficos.colunas_por_dia(tabela, "Snapshots"), width="stretch")
         st.caption("Mudanças de estado observadas no dia. Não são vagas.")
 
 
@@ -471,18 +474,7 @@ def tecnologias(dados: Dados) -> None:
 
 
 def _barras_percentuais(ranking: RankingTecnologias) -> None:
-    """Barras de % sobre a base, com eixo fixo de 0 a 100% para comparar painéis."""
-    tabela = pd.DataFrame({
-        "Tecnologia": [c.rotulo for c in ranking.itens],
-        "% das vagas": [round(100 * c.vagas / ranking.base, 1) for c in ranking.itens],
-        "Vagas": [c.vagas for c in ranking.itens],
-    })
-    grafico = alt.Chart(tabela).mark_bar().encode(
-        x=alt.X("% das vagas:Q", scale=alt.Scale(domain=[0, 100])),
-        y=alt.Y("Tecnologia:N", sort="-x", title=None),
-        tooltip=["Tecnologia", "% das vagas", "Vagas"],
-    ).properties(height=28 * len(tabela) + 40)
-    st.altair_chart(grafico, width="stretch")
+    st.altair_chart(graficos.barras_percentuais(ranking), width="stretch")
 
 
 def _tecnologias_por_area(por_area: list[TecnologiasDaArea]) -> None:

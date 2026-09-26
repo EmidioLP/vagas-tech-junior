@@ -6,7 +6,8 @@
 #
 # Para desenvolver localmente use `requirements.txt`, que tem tudo.
 
-# 1.51: `st.bar_chart` com `horizontal` e `sort`, usados nos graficos do dashboard.
+# 1.51: versao testada. Os graficos usam Altair (dependencia do proprio Streamlit)
+# via `st.altair_chart(..., width=...)`; ver dashboard/graficos.py.
 streamlit>=1.51,<2
 SQLAlchemy>=2.0,<3
 

@@ -137,8 +137,12 @@ dashboard/config.py     engine somente leitura a partir da DATABASE_URL
   Python, porque `date()` sobre `timestamptz` depende do fuso da sessão do banco.
 - **Links seguros.** Só URLs `http`/`https` absolutas viram link
   (`consultas.url_segura`). `javascript:`, `data:` e endereços relativos não.
-- **Gráficos.** `st.bar_chart` e `st.line_chart`, que já vêm com o Streamlit
-  (≥ 1.51, por causa de `horizontal` e `sort`).
+- **Gráficos.** Altair (vem com o Streamlit), montados em `dashboard/graficos.py`
+  como funções puras que devolvem o gráfico; as páginas só chamam
+  `st.altair_chart`. Cada forma segue a pergunta: barras ordenadas para ranking,
+  barra 100% empilhada para modalidade, linha com pontos para vagas abertas,
+  colunas para contagens por dia e small multiples para as áreas no tempo. O
+  porquê de cada uma, com bibliografia, está em [`docs/graficos.md`](../docs/graficos.md).
 - **Dependências mínimas.** A camada de dados não importa FastAPI, requests, bs4
   nem yaml. Um teste garante isso.
 

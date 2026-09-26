@@ -147,7 +147,9 @@ a normalização padrão do projeto, `C#` viraria `c` e casaria com qualquer let
 
 ## Gráficos
 
-Duas decisões de forma, ambas visíveis em `scraper/charts.py`:
+Cada gráfico tem a forma da pergunta que responde; o método, a bibliografia e a
+decisão de cada gráfico do dashboard e dos PNGs estão em [`graficos.md`](graficos.md).
+Três decisões visíveis em `scraper/charts.py`:
 
 - **Uma cor só, não um degradê por valor.** Áreas de tecnologia são categorias
   *nominais* (não têm ordem natural). Pintar a barra maior mais escura gastaria
@@ -155,6 +157,8 @@ Duas decisões de forma, ambas visíveis em `scraper/charts.py`:
 - **Small multiples para as tecnologias** — um painel por área, em vez de 8 cores
   disputando a mesma figura. A pergunta é "quais techs nesta área?", e cada
   painel responde isso sozinho.
+- **Modalidade em barra 100% empilhada**, não em ranking: é parte-todo com
+  poucas partes. "Não informado" fica em cinza, por último, porque é falta do dado.
 
 O raio do canto arredondado é calculado em **pixels** e convertido para unidades
 de dado de cada painel. O caminho óbvio no matplotlib (raio fixo em unidades de

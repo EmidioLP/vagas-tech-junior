@@ -12,6 +12,10 @@ Decisoes de forma (e por que):
   painel responde isso sozinho.
 - Valor rotulado na ponta de cada barra, entao nao ha grade nem eixo x: rotulo
   direto vem antes de gridline.
+- **Modalidade e parte-todo, nao ranking**: uma barra 100% empilhada, com
+  "Não informado" em cinza (falta de dado, nao modalidade).
+
+O estudo com o metodo e a bibliografia de cada escolha esta em `docs/graficos.md`.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 
 from .export import build_ranking, build_workplace_ranking  # noqa: E402
-from .models import Job  # noqa: E402
+from .models import HIBRIDO, NAO_INFORMADO, PRESENCIAL, REMOTO, Job  # noqa: E402
 from .skills import jobs_with_skills_by_area, skills_by_area  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -38,7 +42,17 @@ INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
 INK_MUTED = "#898781"
 
-FONT_STACK = ["Segoe UI", "DejaVu Sans", "sans-serif"]
+# Modalidade: rampa ordinal de um azul (a mesma de `dashboard/graficos.py`) e
+# cinza para "Não informado".
+WORKPLACE_COLORS = {
+    REMOTO: "#184f95",
+    HIBRIDO: "#3987e5",
+    PRESENCIAL: "#86b6ef",
+    NAO_INFORMADO: INK_MUTED,
+}
+MIN_SEGMENT_LABEL = 0.06  # segmento menor nao ganha % dentro (o valor fica na legenda)
+
+FONT_STACK =["Segoe UI", "DejaVu Sans", "sans-serif"]
 BAR_THICKNESS = 0.46  # fracao da faixa: marca fina, com ar entre as barras
 MAX_BAR_PX = 46  # teto absoluto da espessura: a barra nunca preenche a faixa
 CORNER_PX = 9  # raio do canto arredondado, em pixels da imagem final
@@ -171,30 +185,51 @@ def chart_areas(jobs: list[Job], output_path: Path, subtitle: str = "") -> Path:
 
 
 def chart_workplace(jobs: list[Job], output_path: Path, subtitle: str = "") -> Path:
-    """Grafico 3 -- distribuicao por modalidade (remoto / hibrido / presencial)."""
+    """Grafico 3 -- composicao por modalidade: uma barra 100% empilhada.
+
+    E parte-todo com poucas partes, entao uma barra so: Remoto, Hibrido e
+    Presencial em tons de um azul (a ordem da modalidade vira ordem de
+    claridade) e "Não informado" em cinza, por ultimo, porque e falta do dado e
+    nao uma modalidade.
+    """
     _style()
     ranking = build_workplace_ranking(jobs)
     if not ranking:
         raise ValueError("Sem vagas para plotar.")
 
-    rows = list(reversed(ranking))
-    labels = [r["modalidade"] for r in rows]
-    values = [r["vagas"] for r in rows]
-    percents = [r["percentual"] for r in rows]
+    # build_workplace_ranking poe modalidades desconhecidas depois de "Não
+    # informado"; aqui o cinza fecha a barra.
+    rows = ([r for r in ranking if r["modalidade"] != NAO_INFORMADO]
+            + [r for r in ranking if r["modalidade"] == NAO_INFORMADO])
+    total = sum(r["vagas"] for r in rows)
 
-    fig, ax = plt.subplots(figsize=(9.0, 0.52 * len(rows) + 1.5), dpi=200)
-
-    for i, (value, pct) in enumerate(zip(values, percents)):
-        ax.text(
-            value + max(values) * 0.015, i, f"{value}  ({pct}%)",
-            va="center", ha="left", fontsize=10, color=INK_SECONDARY,
+    fig, ax = plt.subplots(figsize=(9.0, 2.3), dpi=200)
+    left = 0.0
+    for r in rows:
+        share = r["vagas"] / total
+        color = WORKPLACE_COLORS.get(r["modalidade"], INK_SECONDARY)  # fora do dominio
+        ax.barh(
+            0, share, left=left, height=0.5, color=color,
+            edgecolor=SURFACE, linewidth=2,  # vao entre os segmentos
+            label=f"{r['modalidade']}  {r['vagas']} ({r['percentual']}%)",
         )
+        if share >= MIN_SEGMENT_LABEL:
+            ax.text(
+                left + share / 2, 0, f"{share:.0%}", ha="center", va="center",
+                fontsize=11, fontweight="600",
+                color=INK_PRIMARY if r["modalidade"] == PRESENCIAL else "white",
+            )
+        left += share
 
-    ax.set_yticks(range(len(labels)))
-    ax.set_yticklabels(labels, fontsize=11, color=INK_PRIMARY)
-    ax.set_xlim(0, max(values) * 1.22)
-    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.4, 0.4)
     _bare_axes(ax)
+    ax.set_yticks([])
+    ax.legend(
+        loc="upper left", bbox_to_anchor=(0, -0.02), ncol=len(rows), frameon=False,
+        fontsize=9.5, handlelength=1.0, handleheight=1.0, columnspacing=1.6,
+        labelcolor=INK_SECONDARY,
+    )
 
     ax.set_title(
         "Vagas júnior de tecnologia por modalidade de trabalho",
@@ -208,7 +243,6 @@ def chart_workplace(jobs: list[Job], output_path: Path, subtitle: str = "") -> P
         )
 
     fig.tight_layout()
-    _add_rounded_bars(ax, values)
     fig.savefig(output_path, bbox_inches="tight", pad_inches=0.32)
     plt.close(fig)
     return output_path

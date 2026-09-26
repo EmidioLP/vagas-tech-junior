@@ -251,7 +251,7 @@ timestamp no nome:
   senioridade e portal, tecnologias mais pedidas, top empresas e amostra de
   vagas por área.
 - `grafico_areas_<timestamp>.png` — distribuição das vagas por área.
-- `grafico_modalidade_<timestamp>.png` — distribuição por remoto / híbrido / presencial.
+- `grafico_modalidade_<timestamp>.png` — composição por remoto / híbrido / presencial / não informado.
 - `grafico_skills_<timestamp>.png` — tecnologias mais pedidas por área.
 
 Os gráficos saem em PNG (200 dpi). Use `--no-charts` para pular essa etapa.
