@@ -100,6 +100,13 @@ Duas regras transversais, das mesmas fontes:
   independente, então um `labelExpr` apaga o rótulo das marcas não inteiras.
 - Vagas novas: no primeiro dia do histórico todas as vagas são novas, e essa
   coluna encolhe as demais. A legenda sugere ajustar o período.
+- **Altura por passo, nunca altura total.** Com `width="stretch"`, o Streamlit
+  encaixa eixos e legenda *dentro* da altura declarada. A primeira versão da barra
+  de modalidade tinha `height=48` e, no dashboard publicado, a área da barra ficou
+  com ~0 px: só os rótulos de % apareciam, sem segmentos nem legenda, nos dois
+  temas. Por isso as barras usam uma banda de `y` com `alt.Step(...)` (px por
+  categoria), e um teste exige isso. O renderizador avulso (`vl-convert`) soma eixo
+  e legenda por fora e não reproduz o problema.
 
 ## Bibliografia
 
@@ -136,4 +143,6 @@ Duas regras transversais, das mesmas fontes:
 2. Construtor novo em `dashboard/graficos.py` (função pura que devolve o gráfico)
    e teste em `tests/dashboard/test_graficos.py`, que inspeciona `to_dict()`.
 3. Cor nova de categoria: valide nos dois temas antes de fixar.
-4. Renderize e olhe: sobreposição de rótulos e eixos não aparecem nos testes.
+4. Renderize **no próprio Streamlit** e olhe, nos temas claro e escuro
+   (`streamlit run ... --theme.base dark|light`): sobreposição de rótulos, eixos e o
+   dimensionamento do Streamlit não aparecem nos testes nem num renderizador avulso.

@@ -58,7 +58,9 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
 
     segmentos = spec["layer"][0]
     assert _marca(segmentos) == "bar"
-    assert "y" not in segmentos["encoding"]  # uma barra so
+    # uma barra so, numa banda de y com altura por passo (ver o teste abaixo)
+    assert segmentos["encoding"]["y"]["field"] == "barra"
+    assert {linha["barra"] for linha in _dados(spec)} == {"modalidade"}
     cor = segmentos["encoding"]["color"]["scale"]
     assert cor["domain"] == ["Remoto", "Híbrido", "Presencial", "Não informado"]
     assert cor["range"][-1] == graficos.CORES_MODALIDADE["Não informado"]
@@ -67,6 +69,18 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
     assert linhas[0]["inicio"] == 0 and linhas[-1]["fim"] == pytest.approx(1)
     # 5% nao cabe no segmento: o valor fica so no tooltip
     assert [linha["rotulo"] for linha in linhas] == ["25%", "", "20%", "50%"]
+
+
+@pytest.mark.parametrize("construtor", [
+    lambda: graficos.composicao_modalidade([Contagem("Remoto", 1), Contagem("Não informado", 1)]),
+    lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
+    lambda: graficos.barras_percentuais(
+        RankingTecnologias(base=1, vagas_ativas=1, itens=(Contagem("SQL", 1),))),
+])
+def test_barras_tem_altura_por_passo_e_nao_altura_total(construtor):
+    """Com width="stretch" o Streamlit poe eixo e legenda dentro da altura total:
+    com `height=48` a barra da modalidade sumia (so os rotulos apareciam)."""
+    assert isinstance(construtor().to_dict()["height"], dict)  # {"step": N}
 
 
 def test_modalidade_desconhecida_entra_antes_do_nao_informado():
