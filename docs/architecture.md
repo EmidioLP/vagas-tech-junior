@@ -168,6 +168,7 @@ vagas-tech-junior/
 | [`decisoes/`](decisoes/README.md) | ADRs: por que cada peça existe e o que mudaria a decisão |
 | [`fontes.md`](fontes.md) | Como cada portal é acessado, particularidades e portais bloqueados |
 | [`classificacao.md`](classificacao.md) | Portão de relevância, área, modalidade, tecnologias e gráficos |
+| [`graficos.md`](graficos.md) | Estudo: que forma de gráfico serve a cada pergunta, com método e bibliografia |
 | [`data-model.md`](data-model.md) | Tabelas, invariantes, persistência e `collection_runs` |
 | [`data-quality.md`](data-quality.md) | Regras de qualidade, limites e efeito no status |
 | [`automation.md`](automation.md) | CI, coleta agendada, secrets e diagnóstico |
