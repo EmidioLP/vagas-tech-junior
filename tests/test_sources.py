@@ -9,28 +9,25 @@ from scraper.sources.programathor import FILTROS_NIVEL_ENTRADA, ProgramathorSour
 from scraper.sources.trampos import TramposSource
 from scraper.sources.vagas_com import VagasComSource, slugify_term
 
-# Recorte real da resposta de
-# GET https://employability-portal.gupy.io/api/v1/jobs?jobName=desenvolvedor+junior
+# Recorte real da resposta da Gupy para `jobName=desenvolvedor junior`, capturado
+# no endpoint antigo. As chaves foram conferidas com as de
+# GET https://portal.gupy.io/api/job-search/jobs em 02/10/2026: sairam `companyId`,
+# `careerPageId`, `isRemoteWork`, `country` e `skills`.
 GUPY_JOB = {
     "id": 11617525,
-    "companyId": 551,
     "name": "Desenvolvedor de Sistema Junior",
     "description": "<p>Buscamos um(a) Desenvolvedor(a) Full Stack J&uacute;nior "
                    "para atuar com Java no back-end.</p>",
-    "careerPageId": 166261,
     "careerPageName": "Minsait",
     "careerPageUrl": "https://minsait.gupy.io/",
     "type": "vacancy_type_effective",
     "publishedDate": "2026-07-31T14:00:13.962Z",
     "applicationDeadline": "2026-08-14",
-    "isRemoteWork": False,
     "city": "São Paulo",
     "state": "São Paulo",
-    "country": "Brasil",
     "jobUrl": "https://minsait.gupy.io/job/abc123",
     "workplaceType": "hybrid",
     "disabilities": False,
-    "skills": [],
 }
 
 # Recorte real de https://www.vagas.com.br/vagas-de-desenvolvedor-junior
@@ -89,8 +86,16 @@ def test_gupy_parse_ignora_registro_incompleto():
     assert _source(GupySource)._parse({"id": 1}, "x") is None
 
 
+def test_gupy_sem_cidade_fica_sem_local():
+    """Vaga remota na resposta de hoje: `city` e `state` vazios, sem `country`."""
+    raw = dict(GUPY_JOB, city="", state="", workplaceType="remote")
+    job = _source(GupySource)._parse(raw, "x")
+    assert (job.location, job.workplace_type) == ("", "Remoto")
+
+
 def test_gupy_usa_country_quando_nao_ha_cidade():
-    raw = dict(GUPY_JOB, city="", state="")
+    # A resposta deixou de trazer `country` em 01/10/2026; se voltar, e usado.
+    raw = dict(GUPY_JOB, city="", state="", country="Brasil")
     assert _source(GupySource)._parse(raw, "x").location == "Brasil"
 
 

@@ -72,7 +72,7 @@ classificação em [`classificacao.md`](classificacao.md).
   vagas abertas dessa fonte é inflada por anúncio perene. O **Abler** tem o mesmo
   viés: o sitemap mantém vagas de até dois anos "Em andamento"
   ([detalhe](fontes.md#sobre-o-abler)).
-- **O Recrutei só é lido nas categorias `tecnologia` e `dados`**, e é um
+- **O Recrutei só é lido na categoria `tecnologia`** (`dados` foi fundida nela pelo portal em 30/09/2026), e é um
   agregador de consultorias de R&S, não do mercado inteiro. Vaga de TI que a
   consultoria classificou em outra categoria não entra, e vaga de empresa
   anônima é descartada porque a página dela não existe

@@ -27,9 +27,17 @@ Categorias medidas em 24/09/2026 (vagas; com nivel de entrada no titulo):
 Todas as de entrada de `ti`, `suporte`, `seguranca` e `erp` ja estavam em
 `tecnologia`. Fora dela, `produto` e `design` so trouxeram marketing,
 arquitetura e direcao de arte; `dados` trouxe um estagio de dados que nao
-aparece em `tecnologia`. Dai `CATEGORIAS` -- a taxonomia do portal e barulhenta
-("Vendedor Interno Junior" aparece em tecnologia), e quem decide e o portao
-tech do pipeline.
+aparece em `tecnologia`. Dai `CATEGORIAS`, que ate 29/09/2026 era `tecnologia`
+mais `dados` -- a taxonomia do portal e barulhenta ("Vendedor Interno Junior"
+aparece em tecnologia), e quem decide e o portao tech do pipeline.
+
+O redesign de 30/09/2026 refez essa arvore: `dados`, `ti` e `produto` deixaram de
+ser categoria e redirecionam (HTTP 200 depois do redirect, mesmos cards) para
+`/vagas/tecnologia`, que ganhou subcategorias (`data_engineering`,
+`data_science`, `business_intelligence`...). Ler `dados` passou a ser ler
+`tecnologia` duas vezes -- 361 e 361 vagas, 361 unicas, em 02/10/2026 --, entao
+ficou so `tecnologia`. O acervo dela e menor que a soma de antes (361 contra 539
+unicas em 29/09); as outras 21 categorias de topo nao foram medidas de novo.
 
 **A descricao e buscada vaga a vaga, porque o card nao tem nenhuma.** O card
 mostra titulo, empresa, local, salario, data e selos -- e so. Isso derruba o
@@ -66,6 +74,22 @@ a viu nas listagens dele). O card vem com "Empresa anonima" e link
 o User-Agent do projeto ou de navegador, com ou sem `?has_bot=1`. Sem pagina
 nao ha descricao, e o link gravado levaria o leitor do dashboard a um 404. A
 contagem sai no log.
+
+**O portal redesenhou a listagem em 30/09/2026**, e o coletor passou tres coletas
+devolvendo zero vaga com HTTP 200 (`fonte_zerada`). As classes antigas
+(`list-grid-item`, `a.job-title`, `grid-list-desc`, `mdi-bank`, `mdi-map-marker`,
+`span.badge`) sumiram todas. O card de hoje, medido em 02/10/2026:
+
+    article.d2-jobrow
+      h3.d2-jobrow__title > a      titulo e link (o `?has_bot=1` continua)
+      p.d2-jobrow__meta            "Empresa · Cidade, UF", ou so "Empresa"
+      span.d2-badge                "Vaga nova", regime, "Para PCD" e a modalidade
+
+O que NAO mudou: 12 cards por pagina, `?page=99` com zero card, o caminho
+`/vaga/<empresa>/<id>-<slug>`, o `/vaga/anonimo/<uuid>` e o JSON-LD da pagina da
+vaga. O local perdeu o pais ("Sao Paulo, SP, Brasil" virou "Sao Paulo, SP"); o
+coletor o devolve, porque `location` entra no `content_hash` e sem isso a coleta
+seguinte gravaria um snapshot por vaga para uma mudanca que e so do layout.
 """
 
 from __future__ import annotations
@@ -83,8 +107,8 @@ from .base import JobSource
 logger = logging.getLogger(__name__)
 
 PORTAL_URL = "https://empregos.recrutei.com.br"
-# Ver o docstring do modulo para a medicao que escolheu estas duas.
-CATEGORIAS = ("tecnologia", "dados")
+# Ver o docstring do modulo para a medicao, e por que `dados` saiu.
+CATEGORIAS = ("tecnologia",)
 
 # 12 cards por pagina, medido em todas as categorias.
 PAGE_SIZE = 12
@@ -102,6 +126,10 @@ MODALIDADES = {
 # hifen do ultimo segmento. A vaga de empresa anonima vem como
 # `/vaga/anonimo/<uuid>` e nao casa -- de proposito, ver o docstring do modulo.
 _ID_NO_CAMINHO = re.compile(r"/vaga/[^/]+/(\d+)-")
+# "Cidade, UF": o card de antes do redesign trazia ", Brasil" no fim.
+_TERMINA_EM_UF = re.compile(r", [A-Z]{2}$")
+# Empresa e local dividem um `<p>` so, separados por este ponto.
+_SEPARADOR_META = " · "
 _WS_RE = re.compile(r"\s+")
 
 
@@ -129,8 +157,8 @@ class RecruteiSource(JobSource):
         for categoria in CATEGORIAS:
             listadas.extend(self._categoria(categoria))
 
-        # Uma vaga de dados aparece em `tecnologia` e em `dados`; sem isto a
-        # pagina dela seria aberta duas vezes.
+        # A mesma vaga pode aparecer em mais de uma categoria (acontecia com
+        # `tecnologia` e `dados`); sem isto a pagina dela seria aberta duas vezes.
         unicas = self._sem_repetidas(listadas)
         # Mesma funcao do pipeline: se a regra mudar la, muda aqui junto.
         candidatas = filter_entry_level(unicas)
@@ -182,7 +210,7 @@ class RecruteiSource(JobSource):
             cards = self._cards(resposta.text)
             novos = 0
             for card in cards:
-                link = card.select_one("a.job-title")
+                link = self._link(card)
                 href = ((link.get("href") or "") if link else "").split("?")[0]
                 if href in vistos:
                     continue
@@ -201,14 +229,19 @@ class RecruteiSource(JobSource):
 
     @staticmethod
     def _cards(html: str) -> list:
-        return BeautifulSoup(html, "html.parser").select("div.list-grid-item")
+        return BeautifulSoup(html, "html.parser").select("article.d2-jobrow")
+
+    @staticmethod
+    def _link(card):
+        """O link do titulo; o do botao "Candidatar-se" aponta para o mesmo lugar."""
+        return card.select_one("h3.d2-jobrow__title a")
 
     def _parse_page(self, html: str) -> list[Job]:
         return [job for job in (self._parse(c) for c in self._cards(html))
                 if job is not None]
 
     def _parse(self, card) -> Job | None:
-        link = card.select_one("a.job-title")
+        link = self._link(card)
         titulo = _texto(link)
         href = (link.get("href") or "") if link else ""
         # A query e so rastreio (`?has_bot=1`, `?utm_source=...`); o id esta no
@@ -220,25 +253,28 @@ class RecruteiSource(JobSource):
         achado = _ID_NO_CAMINHO.search(endereco)
         if not titulo or not achado:
             return None
+        empresa, local = self._empresa_e_local(card)
 
         return Job(
             source=self.name,
             external_id=achado.group(1),
             title=titulo,
-            company=self._campo(card, "mdi-bank"),
+            company=empresa,
             url=endereco,
-            location=self._campo(card, "mdi-map-marker"),
+            location=local,
             workplace_type=self._modalidade(card),
             # A data do card e relativa ("ha 1 mes"); a exata vem do detalhe.
         )
 
     @staticmethod
-    def _campo(card, icone: str) -> str:
-        """Empresa e local sao `<p>` irmaos, distinguidos pelo icone."""
-        for paragrafo in card.select("div.grid-list-desc p"):
-            if paragrafo.select_one(f"i.{icone}"):
-                return _texto(paragrafo)
-        return ""
+    def _empresa_e_local(card) -> tuple[str, str]:
+        """Um `<p>` so, "Empresa · Cidade, UF"; sem local, vem so a empresa."""
+        empresa, _, local = _texto(card.select_one("p.d2-jobrow__meta")).partition(
+            _SEPARADOR_META)
+        local = local.strip()
+        if _TERMINA_EM_UF.search(local):
+            local += ", Brasil"  # a forma gravada ate 29/09; ver o docstring do modulo
+        return empresa.strip(), local
 
     @staticmethod
     def _modalidade(card) -> str:
@@ -246,9 +282,10 @@ class RecruteiSource(JobSource):
 
         Medido no irmao, nas 134 remotas: cada card traz um selo de regime
         ("CLT", "Pessoa Juridica", "Cooperado", "CLT ou PJ", "Estagio") antes
-        do selo de modalidade, e 5 deles vieram so com a modalidade.
+        do selo de modalidade, e 5 deles vieram so com a modalidade. Desde o
+        redesign ha tambem "Vaga nova" e "Para PCD".
         """
-        for selo in card.select("span.badge"):
+        for selo in card.select("span.d2-badge"):
             modalidade = MODALIDADES.get(normalize(_texto(selo)))
             if modalidade:
                 return modalidade

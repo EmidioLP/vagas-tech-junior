@@ -2,7 +2,7 @@
 
 Endpoint usado: o mesmo JSON que o front do Portal Gupy chama no browser.
 
-    GET https://employability-portal.gupy.io/api/v1/jobs?jobName=<termo>&limit=<n>&offset=<n>
+    GET https://portal.gupy.io/api/job-search/jobs?jobName=<termo>&limit=<n>&offset=<n>
 
 Descoberto inspecionando a aba Network de https://portal.gupy.io/job-search/term=...
 Nao e a API oficial `api.gupy.io` (essa exige token de empresa); este endpoint e
@@ -13,6 +13,15 @@ Detalhes praticos descobertos testando o endpoint ao vivo:
   - `pagination.total` NAO e confiavel: vem limitado ao tamanho da pagina
     (com limit=100 ele responde total=100 mesmo havendo centenas de vagas).
     Por isso paginamos ate receber uma pagina vazia, e nao ate bater o `total`.
+
+O endereco mudou em 01/10/2026. Ate ali o front chamava
+`https://employability-portal.gupy.io/api/v1/jobs`, host que passou a responder
+404 em tudo, ate na raiz. O portal agora chama um caminho do proprio dominio, e o
+JS dele mostra a troca: a query e montada para `/api/v1/jobs` e reescrita para
+`/api/job-search/jobs`. Conferido em 02/10/2026: mesmo envelope (`data` +
+`pagination`), mesmo teto de `limit`, mesmos `id`. A resposta perdeu `country` e
+`isRemoteWork`, que o `_parse` ja lia com `.get`: vaga remota sem cidade ficava
+com local "Brasil" e agora fica sem local.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ from .base import JobSource
 
 logger = logging.getLogger(__name__)
 
-API_URL = "https://employability-portal.gupy.io/api/v1/jobs"
+API_URL = "https://portal.gupy.io/api/job-search/jobs"
 MAX_LIMIT = 100
 
 
