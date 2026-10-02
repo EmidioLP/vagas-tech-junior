@@ -8,7 +8,7 @@ a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 
 | Portal | Como é acessado | Status |
 |--------|-----------------|--------|
-| **Gupy** (`portal.gupy.io`) | Endpoint JSON público que o front do portal usa: `GET https://employability-portal.gupy.io/api/v1/jobs?jobName=<termo>&limit=<n>&offset=<n>` | Funcionando, sem autenticação |
+| **Gupy** (`portal.gupy.io`) | Endpoint JSON público que o front do portal usa: `GET https://portal.gupy.io/api/job-search/jobs?jobName=<termo>&limit=<n>&offset=<n>` | Funcionando, sem autenticação |
 | **Vagas.com.br** | HTML da busca (`/vagas-de-<termo>?pagina=<n>`), renderizado no servidor | Funcionando, sem Selenium |
 | **ProgramaThor** | HTML da listagem (`/jobs?expertise=<nível>&page=<n>`), renderizado no servidor | **Fora da coleta automática** (HTTP 403 para IPs de nuvem); funciona localmente com `--sources programathor` |
 | **Trampos.co** | API JSON pública que a SPA consome: `GET https://trampos.co/api/v2/opportunities?tr=<termo>&page=<n>` | Funcionando, volume pequeno |
@@ -16,7 +16,7 @@ a ProgramaThor continua registrada, mas fica fora dela. Visão geral do fluxo em
 | **Quero Vagas Tech** | API JSON pública que o front consome: `GET https://querovagastech.com.br/api/jobs?page=<n>&pageSize=100` | Funcionando, sem autenticação |
 | **GeekHunter** | Sitemap + página HTML de cada vaga, com dados estruturados JobPosting | Funcionando, volume pequeno |
 | **Solides** (`vagas.solides.com.br`) | API JSON pública que o front consome: `GET https://apigw.solides.com.br/jobs/v3/portal-vacancies?title=<termo>&page=<n>&take=<n>` | Funcionando, sem autenticação |
-| **Recrutei** (`empregos.recrutei.com.br`) | HTML das listagens por categoria (`/vagas/tecnologia`, `/vagas/dados`) + JSON-LD da página de cada vaga de entrada | Funcionando, sem busca por termo (o `robots.txt` proíbe) |
+| **Recrutei** (`empregos.recrutei.com.br`) | HTML da listagem por categoria (`/vagas/tecnologia`) + JSON-LD da página de cada vaga de entrada | Funcionando, sem busca por termo (o `robots.txt` proíbe) |
 | **Abler** (`candidatos.abler.com.br`) | Sitemap + página Nuxt de cada vaga (estado em `window.__NUXT__`) | Funcionando, ~120 MB por coleta |
 | **Catho** | — | **Bloqueado** (ver abaixo) |
 | **Indeed BR** | — | **Bloqueado** (ver abaixo) |
@@ -34,6 +34,16 @@ Dois detalhes descobertos testando o endpoint ao vivo, e que o código trata:
 - `pagination.total` **não é confiável**: vem limitado ao tamanho da página
   (com `limit=100` ele responde `total=100` mesmo havendo centenas de vagas).
   Por isso a paginação vai até receber uma página vazia, e não até bater o `total`.
+
+**O endereço mudou em 01/10/2026.** Até ali o front chamava
+`https://employability-portal.gupy.io/api/v1/jobs`; esse host passou a responder
+404 em tudo, e a fonte ficou `failed` em duas coletas. O portal agora chama um
+caminho do próprio domínio, `/api/job-search/jobs`, com o mesmo envelope, o mesmo
+teto de `limit` e os mesmos `id` (conferido em 02/10/2026), então nenhuma vaga
+muda de identidade. A resposta perdeu `country` e `isRemoteWork`: uma vaga remota
+sem cidade, que antes ficava com local "Brasil", agora fica sem local — e ganha
+um snapshot novo na primeira coleta depois da troca, porque `location` entra no
+`content_hash`. O `robots.txt` de `portal.gupy.io` não bloqueia nada.
 
 ## Sobre o Vagas.com.br
 
@@ -315,8 +325,29 @@ dos 13 termos. As categorias foram escolhidas por medição, em 24/09/2026:
 Todas as vagas de entrada de `ti`, `suporte`, `seguranca` e `erp` já estavam em
 `tecnologia`. Das outras, `produto` e `design` só acrescentavam marketing,
 arquitetura e direção de arte, e `dados` acrescentava um estágio de dados. A coleta
-usa `tecnologia` e `dados`. A taxonomia do portal é ruidosa ("Vendedor Interno
+usava `tecnologia` e `dados`. A taxonomia do portal é ruidosa ("Vendedor Interno
 Júnior" aparece em tecnologia), e quem filtra é o portão de relevância.
+
+**O portal redesenhou a listagem em 30/09/2026**, e a fonte passou três coletas
+devolvendo zero vaga com HTTP 200 (alerta `fonte_zerada`). Mudaram duas coisas:
+
+- **O HTML do card.** As classes antigas sumiram todas. O card agora é
+  `article.d2-jobrow`, com o título em `h3.d2-jobrow__title a`, empresa e local
+  num único `p.d2-jobrow__meta` ("Empresa · Cidade, UF", ou só "Empresa") e os
+  selos em `span.d2-badge`. O local perdeu o país ("São Paulo, SP, Brasil" virou
+  "São Paulo, SP"); o coletor devolve o ", Brasil" quando o local termina em UF,
+  porque `location` entra no `content_hash` e sem isso cada vaga ganharia um
+  snapshot por uma mudança que é só de layout.
+- **A árvore de categorias.** `dados`, `ti` e `produto` deixaram de existir e
+  redirecionam para `/vagas/tecnologia`, que ganhou subcategorias
+  (`data_engineering`, `data_science`, `business_intelligence`...). Ler `dados`
+  virou ler `tecnologia` duas vezes (361 e 361 vagas, 361 únicas, em 02/10/2026),
+  então a coleta usa só `tecnologia`. O acervo dela é menor que a soma de antes:
+  361 vagas listadas e 31 de entrada, contra 539 e 48 em 29/09. As outras 21
+  categorias de topo não foram medidas de novo.
+
+Não mudaram: 12 cards por página, a página além do fim com zero card, o caminho
+`/vaga/<empresa>/<id>-<slug>`, o card anônimo e o JSON-LD da página da vaga.
 
 **A descrição vem da página de cada vaga**, porque o card não traz nenhuma. A página
 tem um `JobPosting` em JSON-LD com descrição e data exata (o card só diz "há 1
