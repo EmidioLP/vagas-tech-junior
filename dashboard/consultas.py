@@ -147,6 +147,15 @@ class Contagem:
 
 
 @dataclass(frozen=True)
+class ContagemCruzada:
+    """Vagas de um `rotulo` dentro de um `grupo` (ex.: modalidade dentro da fonte)."""
+
+    grupo: str
+    rotulo: str
+    vagas: int
+
+
+@dataclass(frozen=True)
 class PontoSerie:
     """Um dia de coleta.
 
@@ -371,6 +380,19 @@ def distribuicao(engine: Engine, filtros: Filtros, dimensao: str) -> list[Contag
     ).group_by(coluna).order_by(quantidade.desc(), coluna)
     with _leitura(engine) as db:
         return [Contagem(rotulo, total) for rotulo, total in db.execute(stmt)]
+
+
+def modalidade_por_fonte(engine: Engine, filtros: Filtros) -> list[ContagemCruzada]:
+    """Vagas unicas ativas por fonte e modalidade (estado atual)."""
+    vagas = vagas_atuais()
+    quantidade = func.count().label("vagas")
+    stmt = _filtrar(
+        select(vagas.c.fonte, vagas.c.modalidade, quantidade).where(vagas.c.ativa.is_(True)),
+        vagas, filtros,
+    ).group_by(vagas.c.fonte, vagas.c.modalidade).order_by(vagas.c.fonte, vagas.c.modalidade)
+    with _leitura(engine) as db:
+        return [ContagemCruzada(fonte, modalidade, total)
+                for fonte, modalidade, total in db.execute(stmt)]
 
 
 def _passa(filtros: Filtros, area: str, modalidade: str) -> bool:

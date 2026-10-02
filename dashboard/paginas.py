@@ -7,7 +7,7 @@ Cada pagina recebe um `Dados`, com as consultas ja embrulhadas em cache pelo
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
@@ -18,10 +18,10 @@ from dashboard.consultas import (
     BASE_MINIMA_POR_AREA,
     BASE_MINIMA_TECNOLOGIAS,
     Contagem,
+    ContagemCruzada,
     DadosIndisponiveis,
     Filtros,
     Indicadores,
-    NAO_INFORMADO,
     OpcoesFiltro,
     PaginaVagas,
     PontoSerie,
@@ -83,6 +83,7 @@ class Dados:
     vagas: Callable[[Filtros, bool, int], PaginaVagas]
     tecnologias: Callable[[Filtros], RankingTecnologias]
     tecnologias_por_area: Callable[[Filtros], list[TecnologiasDaArea]]
+    modalidade_por_fonte: Callable[[Filtros], list[ContagemCruzada]]
 
 
 def formatar_data(dia: date) -> str:
@@ -104,13 +105,13 @@ def formatar_percentual(valor: float | None) -> str:
     return f"{valor:.1f}%".replace(".", ",")
 
 
-def frase_sem_modalidade(indicadores: Indicadores, por_fonte: list[Contagem]) -> str:
-    """Quantas vagas nao informam modalidade, de que fontes, e o % remoto das demais."""
+def frase_sem_modalidade(indicadores: Indicadores) -> str:
+    """Quantas vagas nao informam modalidade e o % remoto das demais.
+
+    De que fontes vem o "Não informado" fica no grafico de modalidade por fonte.
+    """
     frase = (f"{formatar_inteiro(indicadores.sem_modalidade)} das "
-             f"{formatar_inteiro(indicadores.vagas_ativas)} vagas ativas não informam modalidade")
-    if indicadores.sem_modalidade and por_fonte:
-        frase += ": " + ", ".join(f"{formatar_inteiro(c.vagas)} de {c.rotulo}" for c in por_fonte)
-    frase += "."
+             f"{formatar_inteiro(indicadores.vagas_ativas)} vagas ativas não informam modalidade.")
     if indicadores.sem_modalidade and indicadores.percentual_remoto_informado is not None:
         frase += (" Entre as que informam, "
                   f"{formatar_percentual(indicadores.percentual_remoto_informado)} são remotas.")
@@ -256,10 +257,7 @@ def overview(dados: Dados) -> None:
         indicadores = dados.indicadores(filtros)
         if indicadores.vagas_ativas:
             distribuicoes = {d: dados.distribuicao(filtros, d) for d in ("area", "modalidade", "fonte")}
-        sem_modalidade_por_fonte = []
-        if indicadores.sem_modalidade:
-            sem_modalidade_por_fonte = dados.distribuicao(
-                replace(filtros, modalidades=(NAO_INFORMADO,)), "fonte")
+            modalidade_por_fonte = dados.modalidade_por_fonte(filtros)
     except DadosIndisponiveis as exc:
         _aviso_indisponivel(exc)
         return
@@ -288,7 +286,7 @@ def overview(dados: Dados) -> None:
         "Fontes", formatar_inteiro(indicadores.fontes),
         help="Portais com pelo menos uma vaga ativa.",
     )
-    st.caption(frase_sem_modalidade(indicadores, sem_modalidade_por_fonte))
+    st.caption(frase_sem_modalidade(indicadores))
 
     # Area em largura total: sao ate 17 nomes longos, que numa coluna estreita
     # espremeriam as barras.
@@ -304,6 +302,13 @@ def overview(dados: Dados) -> None:
     with coluna_fonte:
         st.subheader("Por fonte")
         _barras(distribuicoes["fonte"], "Fonte")
+    # Com uma fonte so, a barra repetiria a composicao de cima.
+    if len({c.grupo for c in modalidade_por_fonte}) > 1:
+        st.subheader("Modalidade por fonte")
+        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte), width="stretch")
+        st.caption("Cada barra soma 100% das vagas ativas da fonte (n ao lado do nome), "
+                   "da que mais deixa de informar modalidade para a que menos. Cinza é "
+                   "falta do dado no portal.")
     st.caption("Contagens de vagas únicas ativas, não de snapshots.")
 
 
