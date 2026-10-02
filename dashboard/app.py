@@ -69,6 +69,11 @@ def _tecnologias_por_area(filtros: consultas.Filtros) -> list[consultas.Tecnolog
     return consultas.tecnologias_por_area(_engine(), filtros)
 
 
+@st.cache_data(ttl=config.TTL_SEGUNDOS, show_spinner=False)
+def _modalidade_por_fonte(filtros: consultas.Filtros) -> list[consultas.ContagemCruzada]:
+    return consultas.modalidade_por_fonte(_engine(), filtros)
+
+
 def _protegida(consulta):
     """Sem banco configurado, a pagina mostra o mesmo aviso de banco inacessivel."""
 
@@ -91,6 +96,7 @@ DADOS = paginas.Dados(
     vagas=_protegida(_vagas),
     tecnologias=_protegida(_tecnologias),
     tecnologias_por_area=_protegida(_tecnologias_por_area),
+    modalidade_por_fonte=_protegida(_modalidade_por_fonte),
 )
 
 

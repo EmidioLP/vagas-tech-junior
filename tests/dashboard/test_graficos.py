@@ -16,7 +16,7 @@ pytest.importorskip("sqlalchemy")
 import pandas as pd  # noqa: E402
 
 from dashboard import graficos  # noqa: E402
-from dashboard.consultas import Contagem, PontoSerie, RankingTecnologias  # noqa: E402
+from dashboard.consultas import Contagem, ContagemCruzada, PontoSerie, RankingTecnologias  # noqa: E402
 
 SERIE = [
     PontoSerie(date(2026, 9, 20), 10, 10, 10, {"Backend": 2, "Data": 8}),
@@ -74,6 +74,7 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
 @pytest.mark.parametrize("construtor", [
     lambda: graficos.composicao_modalidade([Contagem("Remoto", 1), Contagem("Não informado", 1)]),
     lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
+    lambda: graficos.modalidade_por_fonte([ContagemCruzada("gupy", "Remoto", 1)]),
     lambda: graficos.barras_percentuais(
         RankingTecnologias(base=1, vagas_ativas=1, itens=(Contagem("SQL", 1),))),
 ])
@@ -88,6 +89,34 @@ def test_modalidade_desconhecida_entra_antes_do_nao_informado():
         [Contagem("Não informado", 1), Contagem("Outra", 1), Contagem("Remoto", 1)]).to_dict()
 
     assert [linha["Modalidade"] for linha in _dados(spec)] == ["Remoto", "Outra", "Não informado"]
+
+
+MODALIDADE_POR_FONTE = [
+    ContagemCruzada("gupy", "Remoto", 30), ContagemCruzada("gupy", "Presencial", 10),
+    ContagemCruzada("linkedin", "Não informado", 90), ContagemCruzada("linkedin", "Remoto", 10),
+    ContagemCruzada("vagas", "Não informado", 5), ContagemCruzada("vagas", "Híbrido", 15),
+]
+
+
+def test_modalidade_por_fonte_e_uma_barra_100_por_fonte_ordenada_pelo_nao_informado():
+    spec = graficos.modalidade_por_fonte(MODALIDADE_POR_FONTE).to_dict()
+
+    segmentos = spec["layer"][0]
+    assert _marca(segmentos) == "bar"
+    ordem = ["linkedin (n=100)", "vagas (n=20)", "gupy (n=40)"]  # 90%, 25%, 0%
+    assert segmentos["encoding"]["y"]["sort"] == ordem
+    linhas = _dados(spec)
+    assert list(dict.fromkeys(linha["barra"] for linha in linhas)) == ordem
+    # cada fonte fecha 100%, com o Não informado por ultimo
+    for barra in ordem:
+        da_fonte = [linha for linha in linhas if linha["barra"] == barra]
+        assert da_fonte[0]["inicio"] == 0 and da_fonte[-1]["fim"] == pytest.approx(1)
+    assert [linha["Modalidade"] for linha in linhas if linha["Fonte"] == "linkedin"] == [
+        "Remoto", "Não informado"]
+    # as mesmas cores da composicao
+    cor = segmentos["encoding"]["color"]["scale"]
+    assert dict(zip(cor["domain"], cor["range"])) == {
+        m: graficos.CORES_MODALIDADE[m] for m in cor["domain"]}
 
 
 def test_vagas_abertas_e_linha_com_pontos():
@@ -143,6 +172,7 @@ CONSTRUTORES = {
     "ranking": lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
     "modalidade": lambda: graficos.composicao_modalidade(
         [Contagem("Remoto", 1), Contagem("Não informado", 1)]),
+    "modalidade_por_fonte": lambda: graficos.modalidade_por_fonte(MODALIDADE_POR_FONTE),
     "linha": lambda: graficos.linha_estoque(_tabela(), "Vagas abertas"),
     "colunas": lambda: graficos.colunas_por_dia(_tabela(), "Vagas novas"),
     "por_area": lambda: graficos.multiplos_por_area(SERIE),

@@ -8,6 +8,8 @@ com o metodo e a bibliografia esta em `docs/graficos.md`; em resumo:
 - **parte-todo com poucas partes** (modalidade): uma barra 100% empilhada, tons de
   um azul na ordem Remoto -> Hibrido -> Presencial e "Não informado" em cinza,
   porque e ausencia de dado e nao uma modalidade;
+- **parte-todo por grupo** (modalidade por fonte): uma barra 100% por fonte, com
+  as mesmas cores, ordenada pela fracao de "Não informado";
 - **estoque ao longo do tempo** (vagas abertas): linha com ponto em cada dia de coleta;
 - **contagem por dia** (vagas novas, snapshots): colunas, um evento discreto por dia;
 - **muitas series no tempo** (abertas por area): small multiples, nao 17 cores.
@@ -21,7 +23,7 @@ from __future__ import annotations
 import altair as alt
 import pandas as pd
 
-from dashboard.consultas import Contagem, PontoSerie, RankingTecnologias
+from dashboard.consultas import Contagem, ContagemCruzada, PontoSerie, RankingTecnologias
 from scraper.models import NAO_INFORMADO, WORKPLACE_ORDER
 
 # Serie unica: o mesmo azul dos PNGs (`scraper/charts.py`).
@@ -51,6 +53,7 @@ VAO_SEGMENTO = 0.004  # fracao da barra, ~2px numa coluna do dashboard
 ALTURA_BARRA = 24  # px por categoria nas barras horizontais
 ALTURA_BARRA_TECNOLOGIA = 28
 ALTURA_BARRA_MODALIDADE = 36  # px da banda da barra empilhada
+ALTURA_BARRA_FONTE = 30  # px por fonte na modalidade por fonte
 FORMATO_DIA = "%d/%m"
 
 
@@ -78,21 +81,25 @@ def ranking(contagens: list[Contagem], rotulo: str, valor: str = "Vagas") -> alt
     return (barras + textos).properties(height=alt.Step(ALTURA_BARRA))
 
 
-def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
-    """Uma barra 100% empilhada: Remoto, Híbrido, Presencial e, por ultimo, Não informado."""
+def _ordem_modalidades(presentes) -> list[str]:
+    """Remoto, Híbrido, Presencial, as fora do dominio e, por ultimo, Não informado."""
     ordem = [m for m in WORKPLACE_ORDER if m != NAO_INFORMADO]
-    ordem += sorted(c.rotulo for c in contagens if c.rotulo not in WORKPLACE_ORDER)
+    ordem += sorted(m for m in presentes if m not in WORKPLACE_ORDER)
     ordem.append(NAO_INFORMADO)
-    vagas = {c.rotulo: c.vagas for c in contagens}
-    total = sum(vagas.values())
+    return ordem
 
+
+def _segmentos(vagas: dict[str, int], barra: str) -> list[dict]:
+    """Segmentos de uma barra 100%: inicio, fim e rotulo de cada modalidade presente."""
+    total = sum(vagas.values())
     linhas, inicio = [], 0.0
-    for modalidade in ordem:
+    for modalidade in _ordem_modalidades(vagas):
         quantidade = vagas.get(modalidade, 0)
         if not quantidade:
             continue
         fracao = quantidade / total
         linhas.append({
+            "barra": barra,
             "Modalidade": modalidade,
             "Vagas": quantidade,
             "Percentual": _percentual(quantidade, total),
@@ -104,10 +111,15 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
             "cor_texto": TEXTO_NO_SEGMENTO.get(modalidade, "#ffffff"),
         })
         inicio += fracao
-    linhas[-1]["fim"] = 1.0  # o ultimo segmento fecha a barra
-    tabela = pd.DataFrame(linhas).assign(barra="modalidade")
+    if linhas:
+        linhas[-1]["fim"] = 1.0  # o ultimo segmento fecha a barra
+    return linhas
 
-    presentes = list(tabela["Modalidade"])
+
+def _barras_100(tabela: pd.DataFrame, y: alt.Y, tooltip: list, altura: int) -> alt.LayerChart:
+    """Barras 100% empilhadas por modalidade, uma por valor de `y`, com % no segmento."""
+    presentes = [m for m in _ordem_modalidades(set(tabela["Modalidade"]))
+                 if m in set(tabela["Modalidade"])]
     cores = alt.Scale(domain=presentes,
                       range=[CORES_MODALIDADE.get(m, COR_MODALIDADE_DESCONHECIDA)
                              for m in presentes])
@@ -117,10 +129,7 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
     # os rotulos apareciam (visto no Streamlit; o vl-convert nao reproduz).
     # O tooltip fica no base para valer tambem no rotulo: sem ele, o Streamlit
     # mostra ao passar o mouse todos os campos internos da marca (meio, cor_texto...).
-    base = alt.Chart(tabela).encode(
-        y=alt.Y("barra:N", title=None, axis=None),
-        tooltip=["Modalidade", "Vagas", "Percentual"],
-    )
+    base = alt.Chart(tabela).encode(y=y, tooltip=tooltip)
     segmentos = base.mark_bar().encode(
         x=alt.X("inicio:Q", title=None, scale=alt.Scale(domain=[0, 1]),
                 axis=alt.Axis(format="%", tickCount=5)),
@@ -133,7 +142,48 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
         text="rotulo:N",
         color=alt.Color("cor_texto:N", scale=None),
     )
-    return (segmentos + textos).properties(height=alt.Step(ALTURA_BARRA_MODALIDADE))
+    return (segmentos + textos).properties(height=alt.Step(altura))
+
+
+def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
+    """Uma barra 100% empilhada: Remoto, Híbrido, Presencial e, por ultimo, Não informado."""
+    tabela = pd.DataFrame(_segmentos({c.rotulo: c.vagas for c in contagens}, "modalidade"))
+    return _barras_100(
+        tabela,
+        y=alt.Y("barra:N", title=None, axis=None),
+        tooltip=["Modalidade", "Vagas", "Percentual"],
+        altura=ALTURA_BARRA_MODALIDADE,
+    )
+
+
+def modalidade_por_fonte(contagens: list[ContagemCruzada]) -> alt.LayerChart:
+    """Uma barra 100% por fonte, da que mais deixa de informar modalidade para a que menos.
+
+    A pergunta e "de onde vem o Não informado", entao a ordem e a fracao dele, e
+    nao o tamanho da fonte (que esta no ranking "Por fonte"). O total de cada
+    fonte vai no rotulo do eixo, ja que a barra 100% o esconde.
+    """
+    por_fonte: dict[str, dict[str, int]] = {}
+    for c in contagens:
+        por_fonte.setdefault(c.grupo, {})[c.rotulo] = c.vagas
+
+    def _chave(fonte: str) -> tuple[float, int, str]:
+        vagas = por_fonte[fonte]
+        total = sum(vagas.values())
+        return (-vagas.get(NAO_INFORMADO, 0) / total, -total, fonte)
+
+    linhas = []
+    for fonte in sorted(por_fonte, key=_chave):
+        rotulo = f"{fonte} (n={sum(por_fonte[fonte].values())})"
+        linhas += [dict(linha, Fonte=fonte) for linha in _segmentos(por_fonte[fonte], rotulo)]
+    tabela = pd.DataFrame(linhas)
+    ordem = list(dict.fromkeys(tabela["barra"]))
+    return _barras_100(
+        tabela,
+        y=alt.Y("barra:N", title=None, sort=ordem, axis=alt.Axis(labelLimit=220)),
+        tooltip=["Fonte", "Modalidade", "Vagas", "Percentual"],
+        altura=ALTURA_BARRA_FONTE,
+    )
 
 
 def _eixo_dia() -> alt.X:

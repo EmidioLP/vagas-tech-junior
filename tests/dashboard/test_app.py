@@ -20,7 +20,7 @@ pytest.importorskip("sqlalchemy")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
 from dashboard import config, consultas, paginas  # noqa: E402
-from dashboard.consultas import Contagem, PontoSerie  # noqa: E402
+from dashboard.consultas import Contagem, ContagemCruzada, PontoSerie  # noqa: E402
 from scraper.config import PROJECT_ROOT, ConfiguracaoError  # noqa: E402
 
 from cenario_historico import D1, D2, D3  # noqa: E402
@@ -41,6 +41,9 @@ SEM_COLETA = consultas.OpcoesFiltro((), (), (), None, None)
 INDICADORES = consultas.Indicadores(vagas_ativas=1234, empresas=456, remotas=617,
                                     sem_modalidade=100, fontes=6)
 DISTRIBUICAO = [Contagem("Backend", 800), Contagem("Data", 434)]
+MODALIDADE_POR_FONTE = [ContagemCruzada("linkedin", "Não informado", 90),
+                        ContagemCruzada("vagas", "Não informado", 10),
+                        ContagemCruzada("vagas", "Remoto", 617)]
 SERIE = [
     PontoSerie(D1, 10, 10, 10, {"Backend": 6, "Data": 4}),
     PontoSerie(D2, 12, 3, 5, {"Backend": 7, "Data": 5}),
@@ -82,6 +85,7 @@ def _dados(**trocas) -> paginas.Dados:
         vagas=lambda filtros, somente_ativas, pagina: consultas.PaginaVagas((), 0, pagina, 50),
         tecnologias=lambda filtros: RANKING,
         tecnologias_por_area=lambda filtros: POR_AREA,
+        modalidade_por_fonte=lambda filtros: MODALIDADE_POR_FONTE,
     )
     valores.update(trocas)
     return paginas.Dados(**valores)
@@ -107,6 +111,7 @@ def _rodar_app(monkeypatch, resumo=COM_DADOS, erro=None) -> AppTest:
     monkeypatch.setattr(consultas, "opcoes_filtro", lambda _engine: OPCOES)
     monkeypatch.setattr(consultas, "indicadores_atuais", lambda _engine, _f: INDICADORES)
     monkeypatch.setattr(consultas, "distribuicao", lambda _engine, _f, _d: DISTRIBUICAO)
+    monkeypatch.setattr(consultas, "modalidade_por_fonte", lambda _engine, _f: MODALIDADE_POR_FONTE)
     return AppTest.from_file(APP, default_timeout=30).run()
 
 
@@ -210,38 +215,41 @@ def test_overview_filtro_sem_vagas_mostra_estado_vazio():
     assert "Nenhuma vaga ativa com esses filtros" in _textos(app)
 
 
-def test_overview_diz_de_que_fontes_vem_o_nao_informado():
+def test_overview_mostra_modalidade_por_fonte_com_os_mesmos_filtros():
     pedidos = []
 
-    def distribuicao(filtros, dimensao):
-        pedidos.append((filtros.modalidades, dimensao))
-        if filtros.modalidades == ("Não informado",):
-            return [Contagem("linkedin", 90), Contagem("vagas", 10)]
-        return DISTRIBUICAO
+    def modalidade_por_fonte(filtros):
+        pedidos.append(filtros)
+        return MODALIDADE_POR_FONTE
 
-    app = _rodar_pagina("overview", _dados(distribuicao=distribuicao))
+    app = _rodar_pagina("overview", _dados(modalidade_por_fonte=modalidade_por_fonte))
 
     assert not app.exception
+    textos = _textos(app)
     # 617 remotas das 1.134 que informam modalidade.
-    assert ("100 das 1.234 vagas ativas não informam modalidade: 90 de linkedin, "
-            "10 de vagas. Entre as que informam, 54,4% são remotas.") in _textos(app)
-    assert (("Não informado",), "fonte") in pedidos
+    assert ("100 das 1.234 vagas ativas não informam modalidade. "
+            "Entre as que informam, 54,4% são remotas.") in textos
+    assert "Modalidade por fonte" in textos
+    assert len(pedidos) == 1 and pedidos[0].modalidades == ()
+
+
+def test_overview_com_uma_fonte_nao_repete_a_composicao():
+    uma_fonte = [ContagemCruzada("gupy", "Remoto", 5), ContagemCruzada("gupy", "Híbrido", 5)]
+    app = _rodar_pagina("overview", _dados(modalidade_por_fonte=lambda filtros: uma_fonte))
+
+    assert not app.exception
+    assert "Modalidade por fonte" not in _textos(app)
 
 
 def test_overview_sem_vaga_sem_modalidade_nao_detalha():
     todas_informam = consultas.Indicadores(vagas_ativas=10, empresas=3, remotas=4,
                                            sem_modalidade=0, fontes=2)
-    pedidos = []
-    app = _rodar_pagina("overview", _dados(
-        indicadores=lambda filtros: todas_informam,
-        distribuicao=lambda filtros, dimensao: pedidos.append(filtros.modalidades) or DISTRIBUICAO,
-    ))
+    app = _rodar_pagina("overview", _dados(indicadores=lambda filtros: todas_informam))
 
     assert not app.exception
     textos = _textos(app)
     assert "0 das 10 vagas ativas não informam modalidade." in textos
     assert "Entre as que informam" not in textos
-    assert ("Não informado",) not in pedidos
 
 
 # --- Histórico ---------------------------------------------------------------------
@@ -380,7 +388,8 @@ def test_tecnologias_base_pequena_nao_mostra_ranking():
 @pytest.mark.parametrize("nome", ["overview", "historico", "vagas", "tecnologias"])
 def test_pagina_com_banco_indisponivel_mostra_aviso(nome):
     dados = _dados(resumo=_falha, opcoes=_falha, indicadores=_falha, distribuicao=_falha,
-                   serie=_falha, vagas=_falha, tecnologias=_falha, tecnologias_por_area=_falha)
+                   serie=_falha, vagas=_falha, tecnologias=_falha, tecnologias_por_area=_falha,
+                   modalidade_por_fonte=_falha)
     app = _rodar_pagina(nome, dados)
 
     assert not app.exception
@@ -401,6 +410,7 @@ def test_pagina_com_consultas_reais_no_banco_de_teste(nome, banco_com_historico,
         vagas=lambda f, a, p: consultas.listar_vagas(engine, f, a, p),
         tecnologias=lambda f: consultas.top_tecnologias(engine, f),
         tecnologias_por_area=lambda f: consultas.tecnologias_por_area(engine, f),
+        modalidade_por_fonte=lambda f: consultas.modalidade_por_fonte(engine, f),
     )
     try:
         app = _rodar_pagina(nome, dados)

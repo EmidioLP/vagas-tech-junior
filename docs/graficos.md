@@ -18,8 +18,9 @@ Para cada gráfico, quatro perguntas, nesta ordem. A cor vem por último.
    uma ordem que não existe.
 2. **Que tarefa o leitor faz?** As relações de Few (2012): ranking, parte-todo,
    série temporal, comparação nominal, distribuição, desvio, correlação. O mesmo
-   catálogo aparece no *Visual Vocabulary* do Financial Times (2016) e, como
-   ação e alvo, em Munzner (2014).
+   catálogo aparece no *Visual Vocabulary* do Financial Times (2016), como
+   ação e alvo em Munzner (2014) e, como busca por função, no *Data Visualisation
+   Catalogue* (Ribecca), conferido gráfico a gráfico mais abaixo.
 3. **Qual o canal mais preciso para a variável principal?** A hierarquia de
    Cleveland & McGill (1984), replicada por Heer & Bostock (2010): posição numa
    escala comum > comprimento > ângulo e área > cor. É a *efetividade* de
@@ -47,6 +48,7 @@ Duas regras transversais, das mesmas fontes:
 | Overview · por área | 17 nominais; ranking | barra horizontal numa coluna de 1/3 | barra horizontal ordenada, largura total, "N (P%)" na ponta | comprimento é o canal mais preciso; 17 nomes longos espremiam as barras |
 | Overview · por modalidade | 3 ordinais + ausência; **parte-todo** | barra horizontal (ranking) | **uma barra 100% empilhada**: Remoto, Híbrido, Presencial em três tons de um azul; "Não informado" em cinza, no fim; % dentro do segmento | a pergunta é "que parte do todo", não "qual é maior"; a ordem da modalidade vira ordem de claridade (Bertin); a ausência não compete com as modalidades |
 | Overview · por fonte | 9 nominais; ranking | barra horizontal | igual, com "N (P%)" na ponta | já era a forma certa |
+| Overview · modalidade por fonte | fonte × modalidade; **parte-todo por grupo** ("de onde vem o Não informado") | frase abaixo dos KPIs ("90 de linkedin, 10 de vagas") | **uma barra 100% empilhada por fonte**, mesmas cores da modalidade, ordenada pela fração de "Não informado", total da fonte no rótulo (`n=`) | a frase dava contagens soltas, sem a proporção de cada fonte; a barra 100% põe todas as fontes na mesma escala de 0 a 100%; só aparece com 2+ fontes |
 | Histórico · vagas abertas | temporal × estoque; tendência | linha | linha **com um ponto por dia de coleta** | é estoque, contínuo; o ponto mostra onde há medida, já que dias sem coleta não aparecem e a linha os atravessa |
 | Histórico · abertas por área | 17 séries temporais | 17 linhas coloridas no mesmo eixo | **small multiples**: um painel por área, da maior para a menor no último dia, escala vertical própria | 17 cores passam do limite distinguível; com escala comum, as áreas pequenas viram uma reta no chão; o tamanho de cada área já está na Overview, aqui a tarefa é a forma da tendência (a legenda avisa) |
 | Histórico · vagas novas | contagem por dia | linha | **colunas** | evento discreto por dia (Zacks & Tversky); a linha sugeria continuidade entre dias |
@@ -73,6 +75,36 @@ Duas regras transversais, das mesmas fontes:
 - **Mapa de calor área × tecnologia.** Compacto, mas cor é o canal menos preciso
   e as áreas têm bases muito diferentes (algumas só indicativas).
 - **Degradê por valor nas barras.** Repetiria na cor o que o comprimento já diz.
+- **Marimekko para fonte × modalidade.** Largura = volume da fonte daria as duas
+  coisas num gráfico, mas o próprio catálogo aponta que os segmentos não têm base
+  comum, e as fontes pequenas virariam frestas ilegíveis. O volume já está no
+  ranking "Por fonte"; aqui vai só no rótulo `n=`.
+- **Parallel Sets (fonte → modalidade).** Mostra o mesmo cruzamento como fluxo,
+  mas é pouco familiar e, segundo o catálogo, não dá valores precisos sem anotação.
+- **Treemap e Sunburst.** Pedem hierarquia, e área, fonte e modalidade não formam uma.
+- **Dot Matrix e Pictograma.** Contam unidades, com precisão menor que a barra.
+
+## Conferência com o Data Viz Catalogue
+
+Em 02/10/2026 cada gráfico foi conferido com o *Data Visualisation Catalogue*
+(<https://datavizcatalogue.com/>), que organiza as formas pela função que cumprem.
+Para cada um: a função do catálogo, o que a ficha da forma escolhida diz e o
+veredito. As frases entre aspas são das fichas, traduzidas.
+
+| Gráfico | Função no catálogo | O que a ficha diz | Veredito |
+|---|---|---|---|
+| Overview · por área | Comparisons | *Bar Chart*: barras horizontais "acomodam rótulos longos"; eixo começa no zero; muitas barras pedem espaço | mantém; a largura total dá o espaço que 17 nomes pedem |
+| Overview · por fonte | Comparisons | *Bar Chart* | mantém |
+| Overview · por modalidade | Part-to-a-whole, Proportions | *Stacked Bar Graph* 100%; a legibilidade cai "com muitos segmentos" e os segmentos "não ficam numa base comum" | mantém: são 4 segmentos, com o % escrito em cada um. *Pie* e *Donut* estão na mesma função, mas já foram descartados acima |
+| Overview · modalidade por fonte | Part-to-a-whole, Comparisons | *Stacked Bar Graph*: mostra "como uma categoria maior se divide em subcategorias" | **novo** |
+| Histórico · vagas abertas | Data over time | *Line Graph*: valores "num intervalo contínuo"; supõe intervalos regulares | mantém; o ponto em cada dia de coleta mostra onde há medida quando o intervalo não é regular |
+| Histórico · abertas por área | Data over time | *Line Graph*: "evite mais de 3–4 linhas por gráfico"; com muitas séries, gráficos menores separados | mantém os small multiples, que são a recomendação da ficha |
+| Histórico · novas e snapshots | Comparisons | *Bar Chart*: comparação discreta entre categorias (aqui, dias) | mantém as colunas |
+| Tecnologias · todas e por área | Comparisons, Proportions | *Bar Chart*. O *Heatmap* aparece em Relationships, mas "é difícil distinguir tons e extrair valores" | mantém as barras de 0 a 100%; o mapa de calor segue descartado |
+
+O catálogo não mudou nenhuma escolha anterior. Ele apontou uma pergunta que só
+existia em texto, de que fonte vem o "Não informado", e ela virou o gráfico
+*Modalidade por fonte*.
 
 ## Cor
 
@@ -128,6 +160,8 @@ Duas regras transversais, das mesmas fontes:
 - Mackinlay, J. "Automating the Design of Graphical Presentations of Relational
   Information". *ACM Transactions on Graphics*, 5(2), p. 110–141, 1986.
 - Munzner, T. *Visualization Analysis and Design*. Boca Raton: CRC Press, 2014.
+- Ribecca, S. *The Data Visualisation Catalogue*. Disponível em
+  <https://datavizcatalogue.com/>. Acesso em 02/10/2026.
 - Tufte, E. R. *The Visual Display of Quantitative Information*. 2. ed.
   Cheshire: Graphics Press, 2001.
 - Ware, C. *Information Visualization: Perception for Design*. 3. ed. Waltham:

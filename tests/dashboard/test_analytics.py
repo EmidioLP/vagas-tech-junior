@@ -59,6 +59,22 @@ def test_sem_modalidade_por_fonte(leitor):
     assert consultas.distribuicao(leitor, filtros, "fonte") == [consultas.Contagem("vagas", 1)]
 
 
+def test_modalidade_por_fonte_cruza_as_duas_distribuicoes(leitor):
+    cruzada = consultas.modalidade_por_fonte(leitor, SEM_FILTRO)
+
+    assert cruzada == [
+        consultas.ContagemCruzada("gupy", "Híbrido", 1),
+        consultas.ContagemCruzada("gupy", "Remoto", 1),
+        consultas.ContagemCruzada("vagas", "Não informado", 1),
+    ]
+    # B (linkedin) esta encerrada e nao entra
+    por_fonte = {c.rotulo: c.vagas for c in consultas.distribuicao(leitor, SEM_FILTRO, "fonte")}
+    for fonte, total in por_fonte.items():
+        assert sum(c.vagas for c in cruzada if c.grupo == fonte) == total
+    assert consultas.modalidade_por_fonte(leitor, Filtros(fontes=("vagas",))) == [
+        consultas.ContagemCruzada("vagas", "Não informado", 1)]
+
+
 def test_empresas_ignoram_maiusculas_e_espacos(leitor):
     # "Acme" (A) e " ACME" (D) sao a mesma empresa; "Beta" (C) e outra.
     assert consultas.indicadores_atuais(leitor, SEM_FILTRO).empresas == 2
