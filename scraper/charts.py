@@ -42,18 +42,18 @@ INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
 # Texto secundario (subtitulo, nota): >= 4,5:1 sobre o fundo, como o rotulo do
 # dashboard claro.
-INK_MUTED = "#5f5d58"
+INK_MUTED = "#605e5a"
 
 # Modalidade: a paleta clara do dashboard (`dashboard/graficos.PALETAS["claro"]`,
 # validada em tests/dashboard/test_graficos.py), copiada porque `scraper` nao
 # importa `dashboard`. Rampa ordinal de um azul e cinza para "Não informado".
 WORKPLACE_COLORS = {
-    REMOTO: "#0d3b73",
-    HIBRIDO: "#18539c",
-    PRESENCIAL: "#2f74c8",
-    NAO_INFORMADO: "#8f8d86",
+    REMOTO: "#0f305a",
+    HIBRIDO: "#184985",
+    PRESENCIAL: "#2161ae",
+    NAO_INFORMADO: "#787671",
 }
-UNKNOWN_WORKPLACE_COLOR = "#4d4c48"  # modalidade fora do dominio
+UNKNOWN_WORKPLACE_COLOR = "#4c4b47"  # modalidade fora do dominio
 MIN_SEGMENT_LABEL = 0.06  # segmento menor nao ganha % dentro (o valor fica na legenda)
 
 FONT_STACK =["Segoe UI", "DejaVu Sans", "sans-serif"]
@@ -221,8 +221,7 @@ def chart_workplace(jobs: list[Job], output_path: Path, subtitle: str = "") -> P
             ax.text(
                 left + share / 2, 0, f"{share:.0%}", ha="center", va="center",
                 fontsize=11, fontweight="600",
-                # so o cinza e claro o bastante para pedir texto escuro
-                color=INK_PRIMARY if r["modalidade"] == NAO_INFORMADO else "white",
+                color="white",  # todo segmento tem >= 4,5:1 contra o branco
             )
         left += share
 

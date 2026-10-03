@@ -126,9 +126,32 @@ fundos reais, ela falhava:
 
 Para que uma paleta só servisse aos dois fundos, toda cor teria de ficar entre
 L* 41 e 62. É estreito demais para três tons e um cinza. Por isso há **uma
-paleta por tema** (`dashboard/graficos.py:PALETAS`). As páginas leem
-`st.context.theme.type` e passam o tema a cada gráfico. Se o tema não vier (antes
-de o navegador informar, ou nos testes), vale a paleta clara.
+paleta por tema** (`dashboard/graficos.py:PALETAS`).
+
+### Quem troca a paleta é o navegador
+
+A primeira versão (PR #31) escolhia a paleta em Python, lendo
+`st.context.theme.type`, e **não funcionou**: ao trocar o tema no menu ⋮ →
+Settings, o Streamlit não roda o script de novo, então o gráfico continuava com a
+paleta antiga. Além disso, o próprio Streamlit avisa que o valor pode vir errado
+na primeira execução da sessão (issue
+[#11920](https://github.com/streamlit/streamlit/issues/11920), aberta).
+
+Agora o gráfico não tem cor fixa. Cada marca codifica uma **chave**
+(`CHAVES_DE_COR`: Remoto, Híbrido, Presencial, Não informado, Fora do domínio, o
+texto dentro do segmento e o rótulo de valor) numa escala com `domain`, mas sem
+`range`. O Streamlit preenche o range, no navegador, com a lista
+`chartCategoricalColors` do tema em vigor, definida em `[theme.light]` e
+`[theme.dark]` de `.streamlit/config.toml` (recurso do Streamlit 1.51, o mínimo
+do projeto). A troca de tema redesenha o gráfico com a outra lista, sem rodar o
+script. Isso foi conferido por captura de tela, trocando o tema com a página
+aberta. Um teste exige que o `config.toml` tenha as cores de `PALETAS` na ordem
+das chaves, e outro, que nenhum gráfico de categoria ou de texto use cor fixa.
+
+O azul da série única é igual nos dois temas e continua fixo na marca.
+
+O `config.toml` só é lido quando o app roda da raiz do repositório
+(`streamlit run dashboard/app.py`), que é como o Community Cloud o executa.
 
 Regras, todas travadas por `test_paleta_valida_no_fundo_do_tema`:
 
@@ -147,8 +170,10 @@ Regras, todas travadas por `test_paleta_valida_no_fundo_do_tema`:
   pareceria uma quarta modalidade.
 - **Modalidade fora do domínio** (a checagem de qualidade já alerta) é um
   segundo cinza, a ≥ 8 L* do primeiro.
-- **O % dentro do segmento** é branco ou quase preto, o que contrastar mais com
-  o segmento (`tinta_sobre`). Uma cor nova não pede regra à mão.
+- **O % dentro do segmento é escrito na cor do fundo** (branco no claro, `#0e1117`
+  no escuro): é uma só cor por tema, e por isso cabe numa posição da lista. Em
+  troca, **todo segmento precisa de ≥ 4,5:1 contra o fundo**, o que é mais
+  exigente que os 3:1 de marca e escureceu o cinza do tema claro.
 - **Vários cinzas para o que não é dado**, como o guia sugere. O rótulo de
   valor é um cinza próprio, mais forte que a grade, que o tema do Streamlit
   desenha.
@@ -156,16 +181,17 @@ Regras, todas travadas por `test_paleta_valida_no_fundo_do_tema`:
 | Uso | Claro (`#ffffff`) | L* | contraste | Escuro (`#0e1117`) | L* | contraste |
 |---|---|---|---|---|---|---|
 | Série única | `#2a78d6` | 50 | 4,4 | `#2a78d6` | 50 | 4,3 |
-| Remoto | `#0d3b73` | 25 | 11,1 | `#c3dcfa` | 87 | 13,4 |
-| Híbrido | `#18539c` | 36 | 7,6 | `#86b6ef` | 73 | 9,0 |
-| Presencial | `#2f74c8` | 49 | 4,7 | `#4d8fe0` | 59 | 5,7 |
-| Não informado | `#8f8d86` | 59 | 3,3 | `#77756f` | 49 | 4,1 |
-| Fora do domínio | `#4d4c48` | 32 | 8,6 | `#a3a19b` | 66 | 7,3 |
-| Rótulo de valor | `#5f5d58` | 40 | 6,6 | `#a8a6a0` | 68 | 7,8 |
+| Remoto | `#0f305a` | 20 | 13,2 | `#c8dcf4` | 87 | 13,5 |
+| Híbrido | `#184985` | 31 | 9,0 | `#91b9ea` | 74 | 9,3 |
+| Presencial | `#2161ae` | 41 | 6,1 | `#5d99e0` | 62 | 6,4 |
+| Não informado | `#787671` | 50 | 4,5 | `#807e78` | 53 | 4,7 |
+| Fora do domínio | `#4c4b47` | 32 | 8,7 | `#a7a6a0` | 68 | 7,7 |
+| Rótulo de valor | `#605e5a` | 40 | 6,5 | `#a8a6a0` | 68 | 7,8 |
 
 O azul da série única passa nos dois fundos e continua o mesmo nos PNGs. Os PNGs
-(`scraper/charts.py`, fundo `#fcfcfb`) usam a paleta clara, copiada, porque
-`scraper` não importa `dashboard`.
+(`scraper/charts.py`, fundo `#fcfcfb`) usam a paleta clara, copiada porque
+`scraper` não importa `dashboard`. `test_pngs_usam_a_paleta_clara` confere a
+cópia.
 
 - **Vão entre segmentos:** no dashboard é um espaço de verdade (cada segmento é
   encurtado), não um contorno branco, que viraria uma linha branca no tema escuro.
@@ -235,9 +261,11 @@ Do guia, ficaram de fora:
 1. Responda às quatro perguntas do método e registre a linha na tabela acima.
 2. Construtor novo em `dashboard/graficos.py` (função pura que devolve o gráfico)
    e teste em `tests/dashboard/test_graficos.py`, que inspeciona `to_dict()`.
-3. Cor nova: ponha-a nas duas paletas de `PALETAS` e rode
-   `test_paleta_valida_no_fundo_do_tema`, que confere contraste e claridade
-   contra o fundo de cada tema.
+3. Cor nova: crie a chave em `CHAVES_DE_COR` (no fim, para não mudar a posição
+   das outras), ponha a cor nas duas paletas de `PALETAS` e a mesma lista em
+   `.streamlit/config.toml`. Os testes conferem contraste, claridade e a cópia.
+   Nunca passe cor fixa para uma marca de categoria ou de texto: ela não troca
+   com o tema.
 4. Toda camada declara `tooltip`, só com campos legíveis. Camada sem tooltip (um
    rótulo de texto, por exemplo) ganha o padrão do Streamlit, que mostra todos os
    campos internos da marca; um teste cobre isso.

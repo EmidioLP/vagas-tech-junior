@@ -1,0 +1,18 @@
+# Cores dos graficos do dashboard por tema (docs/graficos.md, secao "Cor").
+#
+# Os graficos de `dashboard/graficos.py` codificam a cor por chave, sem cor fixa,
+# e o Streamlit preenche com esta lista no navegador, conforme o tema do leitor.
+# Por isso a troca de tema no menu redesenha os graficos com a outra paleta.
+# Rode o app da raiz do repositorio (o Community Cloud ja faz isso), senao este
+# arquivo nao e lido.
+#
+# A ordem segue `graficos.CHAVES_DE_COR`, e os valores sao os de
+# `graficos.PALETAS`; `tests/dashboard/test_graficos.py` confere as duas coisas:
+#   Remoto, Híbrido, Presencial, Não informado, Fora do domínio,
+#   texto dentro do segmento (a cor do fundo), rótulo de valor
+
+[theme.light]
+chartCategoricalColors = ["#0f305a", "#184985", "#2161ae", "#787671", "#4c4b47", "#ffffff", "#605e5a"]
+
+[theme.dark]
+chartCategoricalColors = ["#c8dcf4", "#91b9ea", "#5d99e0", "#807e78", "#a7a6a0", "#0e1117", "#a8a6a0"]

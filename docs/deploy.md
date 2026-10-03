@@ -29,6 +29,9 @@ conta (Neon e Streamlit) são manuais e estão descritos abaixo.
 - `scraper.config.obter_database_url` lê `DATABASE_URL` do ambiente antes de
   `.env.local` e `.env`, que não existem no servidor. Por isso o código não usa
   `st.secrets` e roda igual localmente e na nuvem.
+- `.streamlit/config.toml`, versionado e sem segredo, traz as cores dos
+  gráficos por tema (`docs/graficos.md`, seção "Cor"). O Community Cloud o lê da
+  raiz do repositório, sem configuração no painel.
 - **Nenhum segredo no git.**
   - `.env*` e `.streamlit/secrets.toml` estão no `.gitignore`.
   - A URL só existe no painel do Streamlit e no Neon.

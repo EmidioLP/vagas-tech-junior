@@ -7,6 +7,7 @@ codificacao e ordem. Nao renderiza nada.
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -61,11 +62,11 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
     # uma barra so, numa banda de y com altura por passo (ver o teste abaixo)
     assert segmentos["encoding"]["y"]["field"] == "barra"
     assert {linha["barra"] for linha in _dados(spec)} == {"modalidade"}
-    cor = segmentos["encoding"]["color"]["scale"]
-    assert cor["domain"] == ["Remoto", "Híbrido", "Presencial", "Não informado"]
-    assert cor["range"][-1] == graficos.PALETAS["claro"].modalidade["Não informado"]
+    cor = segmentos["encoding"]["color"]
+    legenda = ["Remoto", "Híbrido", "Presencial", "Não informado"]
+    assert cor["legend"]["values"] == legenda
     linhas = _dados(spec)
-    assert [linha["Modalidade"] for linha in linhas] == cor["domain"]
+    assert [linha["Modalidade"] for linha in linhas] == legenda
     assert linhas[0]["inicio"] == 0 and linhas[-1]["fim"] == pytest.approx(1)
     # 5% nao cabe no segmento: o valor fica so no tooltip
     assert [linha["rotulo"] for linha in linhas] == ["25%", "", "20%", "50%"]
@@ -88,7 +89,10 @@ def test_modalidade_desconhecida_entra_antes_do_nao_informado():
     spec = graficos.composicao_modalidade(
         [Contagem("Não informado", 1), Contagem("Outra", 1), Contagem("Remoto", 1)]).to_dict()
 
-    assert [linha["Modalidade"] for linha in _dados(spec)] == ["Remoto", "Outra", "Não informado"]
+    linhas = _dados(spec)
+    assert [linha["Modalidade"] for linha in linhas] == ["Remoto", "Outra", "Não informado"]
+    # a cor e a do "Fora do domínio"; o nome real fica no tooltip
+    assert [linha["cor"] for linha in linhas] == ["Remoto", "Fora do domínio", "Não informado"]
 
 
 MODALIDADE_POR_FONTE = [
@@ -113,10 +117,50 @@ def test_modalidade_por_fonte_e_uma_barra_100_por_fonte_ordenada_pelo_nao_inform
         assert da_fonte[0]["inicio"] == 0 and da_fonte[-1]["fim"] == pytest.approx(1)
     assert [linha["Modalidade"] for linha in linhas if linha["Fonte"] == "linkedin"] == [
         "Remoto", "Não informado"]
-    # as mesmas cores da composicao
-    cor = segmentos["encoding"]["color"]["scale"]
-    assert dict(zip(cor["domain"], cor["range"])) == {
-        m: graficos.PALETAS["claro"].modalidade[m] for m in cor["domain"]}
+    assert segmentos["encoding"]["color"]["legend"]["values"] == [
+        "Remoto", "Híbrido", "Presencial", "Não informado"]
+
+
+def _escalas_de_cor(spec: dict) -> list[dict]:
+    return [camada["encoding"]["color"] for camada in _camadas(spec)
+            if "color" in camada.get("encoding", {})]
+
+
+@pytest.mark.parametrize("nome", ["ranking", "modalidade", "modalidade_por_fonte", "percentuais"])
+def test_cor_vem_do_tema_do_streamlit_e_nao_de_uma_cor_fixa(nome):
+    """A cor e uma chave numa escala sem `range`: o Streamlit poe, no navegador, a
+    `chartCategoricalColors` do tema em vigor. Com cor fixa (ou range fixo), trocar
+    o tema no menu nao mudava nada: o script nao roda de novo nessa troca."""
+    spec = CONSTRUTORES[nome]().to_dict()
+
+    escalas = _escalas_de_cor(spec)
+    assert escalas
+    for cor in escalas:
+        assert cor["scale"] == {"domain": list(graficos.CHAVES_DE_COR)}
+    for camada in _camadas(spec):
+        marca = camada["mark"]
+        if isinstance(marca, dict) and marca["type"] == "text":
+            assert "color" not in marca
+
+
+def test_config_toml_tem_as_paletas_na_ordem_das_chaves():
+    tomllib = pytest.importorskip("tomllib")
+    config = tomllib.loads(
+        (Path(__file__).parents[2] / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
+
+    for tema, secao in (("claro", "light"), ("escuro", "dark")):
+        assert config["theme"][secao]["chartCategoricalColors"] == (
+            graficos.PALETAS[tema].categoricas())
+
+
+def test_pngs_usam_a_paleta_clara():
+    pytest.importorskip("matplotlib")
+    from scraper import charts
+
+    claro = graficos.PALETAS["claro"]
+    assert charts.WORKPLACE_COLORS == claro.modalidade
+    assert charts.UNKNOWN_WORKPLACE_COLOR == claro.fora_do_dominio
+    assert charts.SERIES_1 == graficos.AZUL
 
 
 def _claridade(cor: str) -> float:
@@ -133,12 +177,16 @@ def test_paleta_valida_no_fundo_do_tema(tema):
     """As regras de cor de docs/graficos.md (Datawrapper e WCAG 2.1, 1.4.3 e 1.4.11)."""
     cores, fundo = graficos.PALETAS[tema], graficos.FUNDOS[tema]
     rampa = [cores.modalidade[m] for m in RAMPA]
-    cinzas = [cores.modalidade["Não informado"], cores.modalidade_desconhecida]
+    cinzas = [cores.modalidade["Não informado"], cores.fora_do_dominio]
 
-    # marca com >= 3:1 contra o fundo, rotulo (texto) com >= 4,5:1
-    for cor in [cores.serie, *rampa, *cinzas]:
-        assert graficos.contraste(cor, fundo) >= 3, cor
+    # marca com >= 3:1 contra o fundo; rotulo (texto) com >= 4,5:1
+    assert graficos.contraste(graficos.AZUL, fundo) >= 3
     assert graficos.contraste(cores.rotulo, fundo) >= 4.5
+    # o % dentro do segmento e escrito na cor do fundo, entao cada segmento
+    # precisa de >= 4,5:1 contra o fundo (o que ja cobre os 3:1 de marca)
+    assert cores.texto_no_segmento == fundo
+    for cor in [*rampa, *cinzas]:
+        assert graficos.contraste(cor, fundo) >= 4.5, cor
     # a rampa vai do maior para o menor contraste com o fundo, com passo visivel
     contrastes = [graficos.contraste(cor, fundo) for cor in rampa]
     assert contrastes == sorted(contrastes, reverse=True)
@@ -149,21 +197,6 @@ def test_paleta_valida_no_fundo_do_tema(tema):
     for cor in rampa:
         assert abs(_claridade(nao_informado) - _claridade(cor)) >= 8, cor
     assert abs(_claridade(nao_informado) - _claridade(desconhecida)) >= 8
-    # o % escrito dentro de cada segmento se le
-    for cor in [*rampa, *cinzas]:
-        assert graficos.contraste(graficos.tinta_sobre(cor), cor) >= 4.5, cor
-
-
-def test_tema_escolhe_a_paleta_e_sem_tema_fica_a_clara():
-    contagens = [Contagem("Remoto", 1), Contagem("Não informado", 1)]
-
-    def _cores(tema):
-        return graficos.composicao_modalidade(contagens, tema=tema).to_dict()[
-            "layer"][0]["encoding"]["color"]["scale"]["range"]
-
-    escuro = graficos.PALETAS["escuro"].modalidade
-    assert _cores("escuro") == [escuro["Remoto"], escuro["Não informado"]]
-    assert _cores(None) == _cores("claro") == _cores("outro") != _cores("escuro")
 
 
 def test_vagas_abertas_e_linha_com_pontos():
@@ -214,7 +247,7 @@ def test_tecnologias_em_percentual_com_eixo_de_0_a_100():
     assert [linha["Rótulo"] for linha in _dados(spec)] == ["50% (20)", "25% (10)"]
 
 
-CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor_texto", "rotulo", "Rótulo"}
+CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor", "tinta", "rotulo", "Rótulo"}
 CONSTRUTORES = {
     "ranking": lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
     "modalidade": lambda: graficos.composicao_modalidade(

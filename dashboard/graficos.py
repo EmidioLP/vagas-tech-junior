@@ -15,8 +15,7 @@ com o metodo e a bibliografia esta em `docs/graficos.md`; em resumo:
 - **muitas series no tempo** (abertas por area): small multiples, nao 17 cores.
 
 Sem acesso ao banco e sem Streamlit: as paginas chamam `st.altair_chart` com o
-retorno, passando o tema do leitor ("claro" ou "escuro", que escolhe a `Paleta`),
-e os testes inspecionam `chart.to_dict()`.
+retorno, e os testes inspecionam `chart.to_dict()`.
 """
 
 from __future__ import annotations
@@ -33,63 +32,78 @@ from scraper.models import NAO_INFORMADO, WORKPLACE_ORDER
 # leitor ve o fundo claro ou o escuro do Streamlit, e o fundo limita a claridade
 # que cada cor pode ter (Datawrapper, "colors for data vis style guides"). Uma
 # paleta so para os dois fundos ficaria presa entre L* 41 e 62, estreito demais
-# para tres tons e um cinza; dai uma paleta por tema. Regras, travadas em
-# `tests/dashboard/test_graficos.py`: marca com >= 3:1 contra o fundo, texto com
-# >= 4,5:1, vizinhos da rampa a >= 10 L* e cinzas a >= 8 L* de cada tom, para
-# continuarem distintos em tons de cinza e para daltonicos.
+# para tres tons e um cinza; dai uma paleta por tema.
+#
+# Quem troca a paleta e o NAVEGADOR, nao o Python: os graficos codificam a cor por
+# uma chave (`CHAVES_DE_COR`) numa escala sem `range`, e o Streamlit preenche o
+# range com `chartCategoricalColors` de `[theme.light]` ou `[theme.dark]`
+# (`.streamlit/config.toml`), na ordem das chaves. Assim a troca de tema no menu
+# redesenha o grafico com a outra paleta. `st.context.theme` nao serve: ao trocar
+# o tema o script nao roda de novo, e na primeira execucao o valor pode vir
+# errado (streamlit/streamlit#11920).
+#
+# Regras, travadas em `tests/dashboard/test_graficos.py`: marca e texto com
+# >= 4,5:1 contra o fundo (o % dentro do segmento e escrito na cor do fundo),
+# vizinhos da rampa a >= 10 L* e cinzas a >= 8 L* de cada tom, para continuarem
+# distintos em tons de cinza e para daltonicos.
 FUNDOS = {"claro": "#ffffff", "escuro": "#0e1117"}
-TINTAS_TEXTO = ("#ffffff", "#0b0b0b")
+
+# Serie unica: o mesmo azul dos PNGs (`scraper/charts.py`); 4,4:1 no claro e
+# 4,3:1 no escuro, entao fica fixo, fora da paleta por tema.
+AZUL = "#2a78d6"
+
+# Modalidade fora do dominio (a checagem de qualidade ja alerta): um cinza so
+# para todas, para nao se confundir com "Não informado".
+FORA_DO_DOMINIO = "Fora do domínio"
+TEXTO_NO_SEGMENTO = "_texto_no_segmento"
+ROTULO = "_rotulo"
+# A ordem e a posicao de cada cor em `chartCategoricalColors`.
+CHAVES_DE_COR = (*WORKPLACE_ORDER, FORA_DO_DOMINIO, TEXTO_NO_SEGMENTO, ROTULO)
 
 
 @dataclass(frozen=True)
 class Paleta:
-    serie: str  # serie unica
-    rotulo: str  # valor escrito na ponta da barra (e texto: >= 4,5:1)
     # Rampa ordinal de um azul, do maior para o menor contraste com o fundo:
     # Remoto > Híbrido > Presencial. "Não informado" fica no cinza, fora da rampa,
     # porque e ausencia de dado e nao uma modalidade.
     modalidade: dict[str, str]
-    # Modalidade fora do dominio (a checagem de qualidade ja alerta): outro cinza,
-    # para nao se confundir com "Não informado".
-    modalidade_desconhecida: str
+    fora_do_dominio: str
+    texto_no_segmento: str  # o % dentro do segmento: a cor do fundo
+    rotulo: str  # valor escrito na ponta da barra
 
-    def cor_modalidade(self, modalidade: str) -> str:
-        return self.modalidade.get(modalidade, self.modalidade_desconhecida)
+    def categoricas(self) -> list[str]:
+        """As cores na ordem de `CHAVES_DE_COR`, como vao para o config.toml."""
+        por_chave = {**self.modalidade, FORA_DO_DOMINIO: self.fora_do_dominio,
+                     TEXTO_NO_SEGMENTO: self.texto_no_segmento, ROTULO: self.rotulo}
+        return [por_chave[chave] for chave in CHAVES_DE_COR]
 
 
 PALETAS = {
-    # A serie unica e o mesmo azul dos PNGs (`scraper/charts.py`): 4,4:1 no claro
-    # e 4,3:1 no escuro, entao nao precisa de versao por tema.
     "claro": Paleta(
-        serie="#2a78d6",
-        rotulo="#5f5d58",
         modalidade={
-            WORKPLACE_ORDER[0]: "#0d3b73",  # Remoto
-            WORKPLACE_ORDER[1]: "#18539c",  # Híbrido
-            WORKPLACE_ORDER[2]: "#2f74c8",  # Presencial
-            NAO_INFORMADO: "#8f8d86",
+            WORKPLACE_ORDER[0]: "#0f305a",  # Remoto
+            WORKPLACE_ORDER[1]: "#184985",  # Híbrido
+            WORKPLACE_ORDER[2]: "#2161ae",  # Presencial
+            NAO_INFORMADO: "#787671",
         },
-        modalidade_desconhecida="#4d4c48",
+        fora_do_dominio="#4c4b47",
+        texto_no_segmento=FUNDOS["claro"],
+        rotulo="#605e5a",
     ),
     # No escuro a rampa se inverte: o Remoto continua o tom de maior contraste,
     # agora o mais claro. O azul escuro do tema claro sumiria no fundo (2,3:1).
     "escuro": Paleta(
-        serie="#2a78d6",
-        rotulo="#a8a6a0",
         modalidade={
-            WORKPLACE_ORDER[0]: "#c3dcfa",  # Remoto
-            WORKPLACE_ORDER[1]: "#86b6ef",  # Híbrido
-            WORKPLACE_ORDER[2]: "#4d8fe0",  # Presencial
-            NAO_INFORMADO: "#77756f",
+            WORKPLACE_ORDER[0]: "#c8dcf4",  # Remoto
+            WORKPLACE_ORDER[1]: "#91b9ea",  # Híbrido
+            WORKPLACE_ORDER[2]: "#5d99e0",  # Presencial
+            NAO_INFORMADO: "#807e78",
         },
-        modalidade_desconhecida="#a3a19b",
+        fora_do_dominio="#a7a6a0",
+        texto_no_segmento=FUNDOS["escuro"],
+        rotulo="#a8a6a0",
     ),
 }
-
-
-def paleta(tema: str | None) -> Paleta:
-    """A paleta do tema; sem tema conhecido, a clara (o padrao do Streamlit)."""
-    return PALETAS.get(tema or "", PALETAS["claro"])
 
 
 def _luminancia(cor: str) -> float:
@@ -105,9 +119,9 @@ def contraste(cor_a: str, cor_b: str) -> float:
     return (clara + 0.05) / (escura + 0.05)
 
 
-def tinta_sobre(cor: str) -> str:
-    """Branco ou quase preto, o que contrastar mais com a cor do segmento."""
-    return max(TINTAS_TEXTO, key=lambda tinta: contraste(tinta, cor))
+def _cor(campo: str, legenda: alt.Legend | None = None) -> alt.Color:
+    """Cor por chave, sem `range`: o Streamlit poe as cores do tema em vigor."""
+    return alt.Color(f"{campo}:N", scale=alt.Scale(domain=list(CHAVES_DE_COR)), legend=legenda)
 
 
 # Segmento menor que isso nao ganha rotulo (nao cabe); o valor fica no tooltip.
@@ -128,15 +142,14 @@ def _percentual(parte: float, total: float) -> str:
     return f"{100 * parte / total:.0f}%" if total else "—"
 
 
-def ranking(contagens: list[Contagem], rotulo: str, valor: str = "Vagas",
-            tema: str | None = None) -> alt.LayerChart:
+def ranking(contagens: list[Contagem], rotulo: str, valor: str = "Vagas") -> alt.LayerChart:
     """Barras horizontais ordenadas, com "N (P%)" na ponta de cada barra."""
-    cores = paleta(tema)
     total = sum(c.vagas for c in contagens)
     tabela = pd.DataFrame({
         rotulo: [c.rotulo for c in contagens],
         valor: [c.vagas for c in contagens],
         "Rótulo": [f"{c.vagas} ({_percentual(c.vagas, total)})" for c in contagens],
+        "tinta": ROTULO,
     })
     base = alt.Chart(tabela).encode(
         y=alt.Y(f"{rotulo}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=220)),
@@ -145,8 +158,8 @@ def ranking(contagens: list[Contagem], rotulo: str, valor: str = "Vagas",
                 scale=alt.Scale(domain=[0, max(tabela[valor].max(), 1) * 1.25])),
         tooltip=[rotulo, valor],
     )
-    barras = base.mark_bar(color=cores.serie, cornerRadiusEnd=4)
-    textos = base.mark_text(align="left", dx=4, color=cores.rotulo).encode(text="Rótulo:N")
+    barras = base.mark_bar(color=AZUL, cornerRadiusEnd=4)
+    textos = base.mark_text(align="left", dx=4).encode(text="Rótulo:N", color=_cor("tinta"))
     return (barras + textos).properties(height=alt.Step(ALTURA_BARRA))
 
 
@@ -158,7 +171,7 @@ def _ordem_modalidades(presentes) -> list[str]:
     return ordem
 
 
-def _segmentos(vagas: dict[str, int], barra: str, cores: Paleta) -> list[dict]:
+def _segmentos(vagas: dict[str, int], barra: str) -> list[dict]:
     """Segmentos de uma barra 100%: inicio, fim e rotulo de cada modalidade presente."""
     total = sum(vagas.values())
     linhas, inicio = [], 0.0
@@ -177,7 +190,8 @@ def _segmentos(vagas: dict[str, int], barra: str, cores: Paleta) -> list[dict]:
             "fim": inicio + fracao - VAO_SEGMENTO,
             "meio": inicio + fracao / 2,
             "rotulo": _percentual(quantidade, total) if fracao >= FRACAO_MINIMA_ROTULO else "",
-            "cor_texto": tinta_sobre(cores.cor_modalidade(modalidade)),
+            "cor": modalidade if modalidade in WORKPLACE_ORDER else FORA_DO_DOMINIO,
+            "tinta": TEXTO_NO_SEGMENTO,
         })
         inicio += fracao
     if linhas:
@@ -185,56 +199,50 @@ def _segmentos(vagas: dict[str, int], barra: str, cores: Paleta) -> list[dict]:
     return linhas
 
 
-def _barras_100(tabela: pd.DataFrame, y: alt.Y, tooltip: list, altura: int,
-                cores: Paleta) -> alt.LayerChart:
+def _barras_100(tabela: pd.DataFrame, y: alt.Y, tooltip: list, altura: int) -> alt.LayerChart:
     """Barras 100% empilhadas por modalidade, uma por valor de `y`, com % no segmento."""
-    presentes = [m for m in _ordem_modalidades(set(tabela["Modalidade"]))
-                 if m in set(tabela["Modalidade"])]
-    escala = alt.Scale(domain=presentes, range=[cores.cor_modalidade(m) for m in presentes])
+    # A legenda mostra so as cores presentes; a escala tem todas as chaves, para
+    # cada uma cair na sua posicao de `chartCategoricalColors`.
+    presentes = [chave for chave in CHAVES_DE_COR if chave in set(tabela["cor"])]
     # A barra ocupa uma banda de `y` com altura por passo, e nao uma altura total
     # fixa: com `width="stretch"` o Streamlit encaixa eixo e legenda DENTRO da
     # altura declarada, e com `height=48` a area da barra ficava com ~0 px -- so
     # os rotulos apareciam (visto no Streamlit; o vl-convert nao reproduz).
     # O tooltip fica no base para valer tambem no rotulo: sem ele, o Streamlit
-    # mostra ao passar o mouse todos os campos internos da marca (meio, cor_texto...).
+    # mostra ao passar o mouse todos os campos internos da marca (meio, tinta...).
     base = alt.Chart(tabela).encode(y=y, tooltip=tooltip)
     segmentos = base.mark_bar().encode(
         x=alt.X("inicio:Q", title=None, scale=alt.Scale(domain=[0, 1]),
                 axis=alt.Axis(format="%", tickCount=5)),
         x2="fim:Q",
-        color=alt.Color("Modalidade:N", scale=escala, sort=presentes,
-                        legend=alt.Legend(orient="bottom", title=None)),
+        color=_cor("cor", alt.Legend(orient="bottom", title=None, values=presentes)),
     )
     textos = base.mark_text(fontWeight="bold").encode(
         x="meio:Q",
         text="rotulo:N",
-        color=alt.Color("cor_texto:N", scale=None),
+        color=_cor("tinta"),
     )
     return (segmentos + textos).properties(height=alt.Step(altura))
 
 
-def composicao_modalidade(contagens: list[Contagem], tema: str | None = None) -> alt.LayerChart:
+def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
     """Uma barra 100% empilhada: Remoto, Híbrido, Presencial e, por ultimo, Não informado."""
-    cores = paleta(tema)
-    tabela = pd.DataFrame(_segmentos({c.rotulo: c.vagas for c in contagens}, "modalidade", cores))
+    tabela = pd.DataFrame(_segmentos({c.rotulo: c.vagas for c in contagens}, "modalidade"))
     return _barras_100(
         tabela,
         y=alt.Y("barra:N", title=None, axis=None),
         tooltip=["Modalidade", "Vagas", "Percentual"],
         altura=ALTURA_BARRA_MODALIDADE,
-        cores=cores,
     )
 
 
-def modalidade_por_fonte(contagens: list[ContagemCruzada],
-                         tema: str | None = None) -> alt.LayerChart:
+def modalidade_por_fonte(contagens: list[ContagemCruzada]) -> alt.LayerChart:
     """Uma barra 100% por fonte, da que mais deixa de informar modalidade para a que menos.
 
     A pergunta e "de onde vem o Não informado", entao a ordem e a fracao dele, e
     nao o tamanho da fonte (que esta no ranking "Por fonte"). O total de cada
     fonte vai no rotulo do eixo, ja que a barra 100% o esconde.
     """
-    cores = paleta(tema)
     por_fonte: dict[str, dict[str, int]] = {}
     for c in contagens:
         por_fonte.setdefault(c.grupo, {})[c.rotulo] = c.vagas
@@ -247,7 +255,7 @@ def modalidade_por_fonte(contagens: list[ContagemCruzada],
     linhas = []
     for fonte in sorted(por_fonte, key=_chave):
         rotulo = f"{fonte} (n={sum(por_fonte[fonte].values())})"
-        linhas += [dict(linha, Fonte=fonte) for linha in _segmentos(por_fonte[fonte], rotulo, cores)]
+        linhas += [dict(linha, Fonte=fonte) for linha in _segmentos(por_fonte[fonte], rotulo)]
     tabela = pd.DataFrame(linhas)
     ordem = list(dict.fromkeys(tabela["barra"]))
     return _barras_100(
@@ -255,7 +263,6 @@ def modalidade_por_fonte(contagens: list[ContagemCruzada],
         y=alt.Y("barra:N", title=None, sort=ordem, axis=alt.Axis(labelLimit=220)),
         tooltip=["Fonte", "Modalidade", "Vagas", "Percentual"],
         altura=ALTURA_BARRA_FONTE,
-        cores=cores,
     )
 
 
@@ -275,11 +282,10 @@ def _eixo_contagem(campo: str, **axis) -> alt.Y:
         format="d", tickMinStep=1, labelExpr="datum.value % 1 ? '' : datum.label", **axis))
 
 
-def linha_estoque(tabela: pd.DataFrame, y: str, tema: str | None = None) -> alt.Chart:
+def linha_estoque(tabela: pd.DataFrame, y: str) -> alt.Chart:
     """Estoque no tempo: linha, com um ponto em cada dia que teve coleta."""
-    azul = paleta(tema).serie
     return alt.Chart(tabela).mark_line(
-        color=azul, strokeWidth=2, point=alt.OverlayMarkDef(color=azul, size=50),
+        color=AZUL, strokeWidth=2, point=alt.OverlayMarkDef(color=AZUL, size=50),
     ).encode(
         x=_eixo_dia(),
         y=_eixo_contagem(y),
@@ -287,10 +293,10 @@ def linha_estoque(tabela: pd.DataFrame, y: str, tema: str | None = None) -> alt.
     )
 
 
-def colunas_por_dia(tabela: pd.DataFrame, y: str, tema: str | None = None) -> alt.Chart:
+def colunas_por_dia(tabela: pd.DataFrame, y: str) -> alt.Chart:
     """Contagem de eventos no dia: colunas, uma por dia de coleta."""
     return alt.Chart(tabela).mark_bar(
-        color=paleta(tema).serie, cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
+        color=AZUL, cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
     ).encode(
         x=alt.X("yearmonthdate(Dia):O", title=None,
                 axis=alt.Axis(format=FORMATO_DIA, labelAngle=0)),
@@ -309,8 +315,7 @@ def tabela_por_area(serie: list[PontoSerie]) -> pd.DataFrame:
     )
 
 
-def multiplos_por_area(serie: list[PontoSerie], colunas: int = 3,
-                       tema: str | None = None) -> alt.FacetChart:
+def multiplos_por_area(serie: list[PontoSerie], colunas: int = 3) -> alt.FacetChart:
     """Small multiples: um painel por area, na ordem das vagas abertas no ultimo dia.
 
     O eixo vertical e proprio de cada painel: a pergunta aqui e a forma da tendencia
@@ -320,9 +325,8 @@ def multiplos_por_area(serie: list[PontoSerie], colunas: int = 3,
     tabela = tabela_por_area(serie)
     ultimo: dict[str, int] = serie[-1].abertas_por_area if serie else {}
     ordem = sorted(tabela["Área"].unique(), key=lambda a: (-ultimo.get(a, 0), a))
-    azul = paleta(tema).serie
     return alt.Chart(tabela).mark_line(
-        color=azul, strokeWidth=2, point=alt.OverlayMarkDef(color=azul, size=24),
+        color=AZUL, strokeWidth=2, point=alt.OverlayMarkDef(color=AZUL, size=24),
     ).encode(
         x=_eixo_dia(),
         y=_eixo_contagem("Vagas"),
@@ -334,10 +338,8 @@ def multiplos_por_area(serie: list[PontoSerie], colunas: int = 3,
     ).resolve_scale(y="independent")
 
 
-def barras_percentuais(ranking_tecnologias: RankingTecnologias,
-                       tema: str | None = None) -> alt.LayerChart:
+def barras_percentuais(ranking_tecnologias: RankingTecnologias) -> alt.LayerChart:
     """Barras de % sobre a base, com eixo fixo de 0 a 100% para comparar paineis."""
-    cores = paleta(tema)
     base_vagas = ranking_tecnologias.base
     tabela = pd.DataFrame({
         "Tecnologia": [c.rotulo for c in ranking_tecnologias.itens],
@@ -345,12 +347,13 @@ def barras_percentuais(ranking_tecnologias: RankingTecnologias,
         "Vagas": [c.vagas for c in ranking_tecnologias.itens],
     })
     tabela["Rótulo"] = [f"{p:.0f}% ({v})" for p, v in zip(tabela["% das vagas"], tabela["Vagas"])]
+    tabela["tinta"] = ROTULO
     base = alt.Chart(tabela).encode(
         x=alt.X("% das vagas:Q", scale=alt.Scale(domain=[0, 100])),
         y=alt.Y("Tecnologia:N", sort="-x", title=None),
         tooltip=["Tecnologia", "% das vagas", "Vagas"],
     )
-    barras = base.mark_bar(color=cores.serie, cornerRadiusEnd=4)
-    textos = base.mark_text(align="left", dx=4, color=cores.rotulo).encode(text="Rótulo:N")
+    barras = base.mark_bar(color=AZUL, cornerRadiusEnd=4)
+    textos = base.mark_text(align="left", dx=4).encode(text="Rótulo:N", color=_cor("tinta"))
     return (barras + textos).properties(height=alt.Step(ALTURA_BARRA_TECNOLOGIA))
 
