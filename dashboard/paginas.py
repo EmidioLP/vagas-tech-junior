@@ -29,6 +29,7 @@ from dashboard.consultas import (
     ResumoGeral,
     TecnologiasDaArea,
 )
+from scraper.models import NAO_INFORMADO
 
 # Horario de Brasilia fixo: o Brasil nao tem horario de verao desde 2019, e
 # `zoneinfo` no Windows exigiria o pacote tzdata.
@@ -305,13 +306,42 @@ def overview(dados: Dados) -> None:
     # Com uma fonte so, a barra repetiria a composicao de cima.
     if len({c.grupo for c in modalidade_por_fonte}) > 1:
         st.subheader("Modalidade por fonte")
-        # Paineis de largura fixa (split bars): nao precisa da tela inteira.
-        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte), width="content")
-        st.caption("% das vagas ativas de cada fonte em cada modalidade (n ao lado do "
-                   "nome), da fonte que mais deixa de informar modalidade para a que "
-                   "menos. Cada linha soma 100%; \"Não informado\" (cinza) é falta do "
-                   "dado no portal.")
+        _tabela_modalidade_por_fonte(modalidade_por_fonte)
     st.caption("Contagens de vagas únicas ativas, não de snapshots.")
+
+
+def _tabela_modalidade_por_fonte(contagens: list[ContagemCruzada]) -> None:
+    """Tabela com barras (docs/graficos.md): uma linha por fonte, barra + % por celula.
+
+    As cores sao nomes do tema do Streamlit ("gray", "blue"), e nao hex: trocam
+    sozinhas com o tema, como as do `config.toml`.
+    """
+    tabela = graficos.tabela_modalidade_por_fonte(contagens)
+    modalidades = [coluna for coluna in tabela.columns if coluna not in ("Fonte", "Vagas")]
+
+    # Larguras minimas em px: com width="stretch" a tabela reparte a sobra entre as
+    # colunas na tela larga, e cabe inteira a partir de ~560 px. Abaixo disso
+    # (celular) rola de lado, com a fonte fixa a esquerda.
+    def _barra(cor: str) -> st.column_config.ProgressColumn:
+        return st.column_config.ProgressColumn(
+            format="%.0f%%", min_value=0, max_value=100, color=cor, width=100)
+
+    st.dataframe(
+        tabela,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Fonte": st.column_config.TextColumn(width=115, pinned=True),
+            "Vagas": st.column_config.NumberColumn("n", help="Vagas ativas da fonte.",
+                                                   width=50),
+            # cinza: ausencia de dado, como no resto do dashboard
+            **{m: _barra("gray" if m == NAO_INFORMADO else "blue") for m in modalidades},
+        },
+    )
+    st.caption("% das vagas ativas de cada fonte em cada modalidade; cada linha soma "
+               "100%. Da fonte que mais deixa de informar modalidade para a que menos; "
+               "clique num cabeçalho para reordenar. \"Não informado\" (cinza) é falta "
+               "do dado no portal.")
 
 
 def historico(dados: Dados) -> None:
