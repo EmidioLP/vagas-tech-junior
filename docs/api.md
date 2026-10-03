@@ -75,34 +75,18 @@ importada de um CSV. Ao passar a ler o histórico:
 
 ## Docker (API + PostgreSQL)
 
-Sobe a API e um PostgreSQL juntos, sem instalar nada além do Docker:
+Sobe a API e um PostgreSQL juntos (e o dashboard), sem instalar nada além do Docker:
 
 ```bash
 docker compose up --build
 ```
 
-Pronto — **http://localhost:8000/docs**. O primeiro build leva ~1 min; depois
-sobe em segundos.
+Pronto — **http://localhost:8000/docs**. Antes da API subir, o serviço `preparo`
+aplica as migrations (`alembic upgrade head`) e carrega `seed/vagas.csv` no
+histórico, como se fosse a coleta de 15/09/2026. Não precisa de rede.
 
-O que acontece no `up`: o Postgres sobe, a API espera ele ficar **realmente**
-pronto (healthcheck com `pg_isready`, não apenas o container existir), aplica as
-migrations (`alembic upgrade head`), carrega `seed/vagas.csv` no histórico e só
-então inicia o uvicorn. Não precisa de rede: o seed entra como se fosse a coleta
-de 15/09/2026.
-
-```bash
-docker compose down
-```
-
-Para apagar também os dados do banco, use `docker compose down -v`.
-
-O banco fica num volume, então parar e subir de novo preserva os dados — e como
-a carga é idempotente, subir de novo não duplica nada. Dá para inspecionar o
-Postgres de fora, na porta 5432:
-
-```bash
-docker compose exec db psql -U vagas -d vagas -c "SELECT source, COUNT(*) FROM jobs WHERE is_active GROUP BY source ORDER BY 2 DESC;"
-```
+O passo a passo, o dashboard, a coleta e os testes em container estão em
+[docker.md](docker.md).
 
 ## Banco
 

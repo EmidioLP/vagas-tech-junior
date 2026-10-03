@@ -88,9 +88,10 @@ passos de coleta, filtros e exportação.
 | API (`api/`) | FastAPI somente leitura no Render; `/health` é liveness e `/health/dados` é frescor. | [`api.md`](api.md) |
 | Dashboard (`dashboard/`) | Streamlit somente leitura no Community Cloud, com um papel Postgres só de leitura. | [`../dashboard/README.md`](../dashboard/README.md), [`deploy.md`](deploy.md) |
 
-Fora do fluxo publicado, `docker compose up --build` sobe a API com um PostgreSQL
-local, aplica as migrations e carrega `seed/vagas.csv` (coleta de 15/09/2026) por
-`scripts/carregar_seed.py`, sem rede e sem segredos ([`api.md`](api.md#docker-api--postgresql)).
+Fora do fluxo publicado, `docker compose up --build` sobe a API e o dashboard com um
+PostgreSQL local, aplica as migrations e carrega `seed/vagas.csv` (coleta de 15/09/2026)
+por `scripts/carregar_seed.py`, sem rede e sem segredos. A coleta e os testes também
+rodam em container, sob demanda ([`docker.md`](docker.md)).
 
 ## O que não existe, de propósito
 
@@ -113,7 +114,7 @@ vagas-tech-junior/
 ├── main.py                  # CLI: monta Settings e chama pipeline.run()
 ├── requirements*.txt        # completo, só API (Render/Docker), só dashboard
 ├── alembic.ini, migrations/ # schema versionado (URL vem de scraper/config.py)
-├── Dockerfile, docker-compose.yml   # API + PostgreSQL local com o seed
+├── Dockerfile, docker-compose.yml   # API, dashboard, coleta e testes locais, com o seed
 ├── render.yaml              # deploy da API
 ├── neon.ts                  # configuração declarativa do Neon, sem segredo
 ├── .github/workflows/       # ci.yml e collect.yml
@@ -173,7 +174,8 @@ vagas-tech-junior/
 | [`data-quality.md`](data-quality.md) | Regras de qualidade, limites e efeito no status |
 | [`automation.md`](automation.md) | CI, coleta agendada, secrets e diagnóstico |
 | [`observability.md`](observability.md) | Frescor, correlação e playbook de incidentes |
-| [`api.md`](api.md) | Endpoints, Docker, configuração do banco e deploy da API |
+| [`api.md`](api.md) | Endpoints, configuração do banco e deploy da API |
+| [`docker.md`](docker.md) | Docker local: API, dashboard, coleta e testes em container |
 | [`deploy.md`](deploy.md) | Deploy do dashboard e papel só de leitura |
 | [`neon-setup.md`](neon-setup.md) | Branches Neon, URL e migrations na `dados-main` |
 | [`migrations.md`](migrations.md) | Fluxo do Alembic |

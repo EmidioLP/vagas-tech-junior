@@ -125,7 +125,8 @@ camadas de medalhão): **[docs/decisoes/](docs/decisoes/README.md)**.
 |---|---|
 | [Fontes de dados](docs/fontes.md) | como cada portal é acessado, particularidades descobertas ao vivo, Catho e Indeed bloqueados |
 | [Classificação](docs/classificacao.md) | portão "é vaga de tech?", área, modalidade, tecnologias, gráficos e como editar as regras |
-| [API, banco e deploy](docs/api.md) | endpoints, Docker, `DATABASE_URL`, datas e deploy da API no Render |
+| [API, banco e deploy](docs/api.md) | endpoints, `DATABASE_URL`, datas e deploy da API no Render |
+| [Docker](docs/docker.md) | API, dashboard, coleta e testes em container, só para uso local |
 | [Dashboard](dashboard/README.md) | páginas, definições e filtros; deploy em [docs/deploy.md](docs/deploy.md) |
 | [Modelo de dados](docs/data-model.md) | `jobs`, `job_snapshots`, `collection_runs` e a persistência idempotente |
 | [Automação](docs/automation.md) · [Qualidade](docs/data-quality.md) · [Observabilidade](docs/observability.md) | coleta agendada, checagens de qualidade, frescor e playbook |
@@ -160,10 +161,11 @@ python main.py --no-db --csv --sources gupy --max-pages 1
 Sem `--sources` e `--max-pages`, a coleta usa as 7 fontes padrão e 13 termos de
 busca, e leva bem mais tempo.
 
-**Alternativa só com Docker, sem coletar:** `docker compose up --build` sobe a API com
-um PostgreSQL local, aplica as migrations e carrega `seed/vagas.csv` (a coleta de
-15/09/2026). A API fica em **http://localhost:8000/docs**. Detalhes em
-[docs/api.md](docs/api.md#docker-api--postgresql).
+**Alternativa só com Docker, sem coletar:** `docker compose up --build` sobe a API e o
+dashboard com um PostgreSQL local, aplica as migrations e carrega `seed/vagas.csv` (a
+coleta de 15/09/2026). A API fica em **http://localhost:8000/docs** e o dashboard em
+**http://localhost:8501**. Detalhes, e como rodar a coleta e os testes em container, em
+[docs/docker.md](docs/docker.md).
 
 Testes, também sem rede:
 

@@ -116,6 +116,16 @@ def test_recusa_banco_com_coletas_reais(tmp_path, banco_historico):
     assert _contar(banco_historico, JobRecord) == 0
     # Pela linha de comando: saida 2, sem traceback.
     assert main(["--csv", str(csv_path), "--db", str(banco_historico)]) == 2
+    # Com a flag do Compose a recusa nao e erro, e continua sem gravar.
+    assert main(["--csv", str(csv_path), "--db", str(banco_historico),
+                 "--ignorar-banco-com-coletas"]) == 0
+    assert _contar(banco_historico, JobRecord) == 0
+
+
+def test_flag_do_compose_nao_esconde_banco_sem_migrations(tmp_path):
+    csv_path = _escrever_csv(tmp_path, [_linha()])
+    assert main(["--csv", str(csv_path), "--db", str(tmp_path / "vazio.db"),
+                 "--ignorar-banco-com-coletas"]) == 2
 
 
 def test_recusa_banco_sem_migrations(tmp_path):

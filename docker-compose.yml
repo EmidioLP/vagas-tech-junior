@@ -1,11 +1,28 @@
-# API + PostgreSQL.
+# O projeto inteiro na maquina, sem segredos. Guia: docs/docker.md
 #
 #     docker compose up --build
-#     -> http://localhost:8000/docs
+#     -> API        http://localhost:8000/docs
+#     -> dashboard  http://localhost:8501
 #
-# No boot, a API aplica as migrations e carrega seed/vagas.csv no historico
-# (jobs + job_snapshots), como se fosse a coleta de 15/09/2026. A carga e
-# idempotente, entao subir de novo nao duplica nada. Nao precisa de rede.
+# Antes da API e do dashboard, o servico `preparo` aplica as migrations e carrega
+# seed/vagas.csv no historico (jobs + job_snapshots), como se fosse a coleta de
+# 15/09/2026. A carga e idempotente, entao subir de novo nao duplica nada. Nao
+# precisa de rede.
+#
+# Sob demanda (ficam fora do `up` pelo profile):
+#
+#     docker compose run --rm coleta --sources gupy --max-pages 1
+#     docker compose run --rm testes
+
+# Unica coisa que muda em relacao a rodar local: para onde o banco aponta.
+x-banco: &banco
+  DATABASE_URL: postgresql://vagas:vagas@db:5432/vagas
+
+x-depois-do-preparo: &depois-do-preparo
+  db:
+    condition: service_healthy
+  preparo:
+    condition: service_completed_successfully
 
 services:
   db:
@@ -20,37 +37,92 @@ services:
       # Exposto para dar para inspecionar o banco de fora (psql, DBeaver).
       - "5432:5432"
     healthcheck:
-      # A API so sobe depois que o Postgres aceita conexao de verdade. Sem
-      # isso, `depends_on` liberaria a API assim que o container existisse,
-      # e a importacao falharia no primeiro `docker compose up`.
+      # O preparo so roda depois que o Postgres aceita conexao de verdade. Sem
+      # isso, `depends_on` liberaria assim que o container existisse, e as
+      # migrations falhariam no primeiro `docker compose up`.
       test: ["CMD-SHELL", "pg_isready -U vagas -d vagas"]
       interval: 3s
       timeout: 5s
       retries: 15
 
-  api:
-    build: .
-    environment:
-      # Unica coisa que muda em relacao a rodar local: para onde o banco aponta.
-      DATABASE_URL: postgresql://vagas:vagas@db:5432/vagas
+  # Roda uma vez e termina: schema em dia e seed carregado. Fica separado da API
+  # porque o dashboard e a coleta dependem do mesmo passo.
+  preparo:
+    build:
+      context: .
+      target: api
+    environment: *banco
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     # A data da coleta do seed e fixa no script (`DATA_DO_SEED`): datas
     # relativas ("Ontem") nao mudam a cada `up`. Atualize junto com o CSV.
+    # Depois de uma coleta real neste banco (servico `coleta`), o seed nao e
+    # mais carregado: viraria snapshots falsos no passado do historico.
     command: >-
       sh -c "alembic upgrade head &&
-      python scripts/carregar_seed.py &&
-      uvicorn api.app:app --host 0.0.0.0 --port 8000"
+      python scripts/carregar_seed.py --ignorar-banco-com-coletas"
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: api
+    environment: *banco
+    depends_on: *depois-do-preparo
+    ports:
+      - "8000:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      # Migrations + carga de ~600 vagas antes do uvicorn subir.
-      start_period: 60s
+      start_period: 10s
+
+  # Somente leitura: o engine do dashboard abre toda transacao como READ ONLY
+  # (dashboard/config.py), mesmo com o usuario dono do banco local.
+  dashboard:
+    build:
+      context: .
+      target: dashboard
+    environment: *banco
+    depends_on: *depois-do-preparo
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Coleta de verdade: faz requisicoes aos portais a partir do IP desta maquina.
+  # Vale a mesma etiqueta de docs/fontes.md (delay, poucas paginas para testar).
+  # Os argumentos sao os de `python main.py`; grava no Postgres do compose.
+  coleta:
+    profiles: ["ferramentas"]
+    build:
+      context: .
+      target: completa
+    environment: *banco
+    depends_on: *depois-do-preparo
+    entrypoint: ["python", "main.py"]
+    volumes:
+      # `--csv` e `--resumo coleta/resumo.md` caem nas pastas da maquina.
+      - ./output:/app/output
+      - ./coleta:/app/coleta
+
+  # A suite inteira, como no CI (Python 3.11). Sem rede e sem banco: os testes
+  # usam respostas capturadas e SQLite temporario. Argumentos extras vao para o
+  # pytest: `docker compose run --rm testes tests/test_classifier.py`.
+  testes:
+    profiles: ["ferramentas"]
+    build:
+      context: .
+      target: completa
+    network_mode: none
+    entrypoint: ["python", "-m", "pytest", "-p", "no:cacheprovider"]
+    command: ["-q"]
 
 volumes:
   postgres_data:

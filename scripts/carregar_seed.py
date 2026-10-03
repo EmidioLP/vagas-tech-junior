@@ -11,7 +11,9 @@ em `--coletado-em`. Rodar de novo e seguro: nao cria vagas nem snapshots.
 
 **Nunca num banco com coletas reais.** Se `collection_runs` tiver alguma linha, o
 script recusa: o CSV viraria snapshots falsos no passado do historico (a
-`dados-main`, por exemplo).
+`dados-main`, por exemplo). Com `--ignorar-banco-com-coletas` a recusa deixa de
+ser erro (saida 0), mas continua sem gravar nada: e o que o Compose usa, para o
+`up` seguir funcionando depois de uma coleta no banco local.
 """
 
 from __future__ import annotations
@@ -51,6 +53,10 @@ CAMPOS_TEXTO = (
 
 class CargaRecusada(RuntimeError):
     """Banco sem schema ou com coletas reais."""
+
+
+class BancoComColetas(CargaRecusada):
+    """`collection_runs` tem linhas: o seed nunca entra num banco assim."""
 
 
 def _data_iso(valor: str) -> date:
@@ -94,7 +100,7 @@ def _verificar_destino(engine) -> None:
     with Session(engine) as db:
         coletas = db.scalar(select(func.count()).select_from(CollectionRun)) or 0
     if coletas:
-        raise CargaRecusada(
+        raise BancoComColetas(
             f"O banco já tem {coletas} execução(ões) em collection_runs. A carga do "
             "seed é só para bancos locais sem coletas reais."
         )
@@ -127,6 +133,11 @@ def main(argv: list[str] | None = None) -> int:
         "--coletado-em", type=_data_iso, default=DATA_DO_SEED, metavar="AAAA-MM-DD",
         help=f"Dia da coleta que gerou o CSV (padrão: {DATA_DO_SEED:%Y-%m-%d}, o do seed).",
     )
+    parser.add_argument(
+        "--ignorar-banco-com-coletas", action="store_true",
+        help="Se o banco já tem coletas, não carrega nada e termina sem erro "
+             "(é o que o Docker Compose usa a cada `up`).",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(message)s",
@@ -134,6 +145,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         resumo = carregar(args.csv, args.db, args.coletado_em)
+    except BancoComColetas as exc:
+        if not args.ignorar_banco_com_coletas:
+            print(f"Carga recusada: {exc}", file=sys.stderr)
+            return 2
+        print(f"Seed não carregado: {exc}")
+        return 0
     except (CargaRecusada, ConfiguracaoError) as exc:
         print(f"Carga recusada: {exc}", file=sys.stderr)
         return 2

@@ -1,26 +1,37 @@
-# Nada aqui e necessario para servir a API, e tudo aumenta o contexto de build.
+# O que nunca entra no contexto de build. A imagem `completa` copia o repositorio
+# inteiro (`COPY . .`), entao esta lista e o que separa a imagem dos segredos e
+# dos dados locais. `tests/test_docker.py` confere as linhas de segredo.
+
+# Segredos e contexto local
+.env
+.env.*
+!.env.example
+.neon
+.streamlit/secrets.toml
+.claude/
+CLAUDE.md
+
+# Historico do git e caches
 .git/
-.gitignore
 .pytest_cache/
 __pycache__/
 **/__pycache__/
 *.py[cod]
 
-# Dados gerados: no compose, o banco e populado a partir de seed/vagas.csv.
+# Dados gerados: no compose, o banco e populado a partir de seed/vagas.csv, e a
+# coleta grava em pastas montadas da maquina.
 data/
 output/
+coleta/
 *.db
 *.sqlite3
 
-# Ambientes locais
+# Ambientes locais e pacotes do CLI do Neon
 venv/
 .venv/
 env/
+node_modules/
 
-# Nao entram na imagem da API
-tests/
-docs/
-main.py
-render.yaml
-requirements.txt
-README.md
+# Editores
+.vscode/
+.idea/
