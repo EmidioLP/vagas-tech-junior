@@ -68,8 +68,30 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
     linhas = _dados(spec)
     assert [linha["Modalidade"] for linha in linhas] == legenda
     assert linhas[0]["inicio"] == 0 and linhas[-1]["fim"] == pytest.approx(1)
-    # 5% nao cabe no segmento: o valor fica so no tooltip
-    assert [linha["rotulo"] for linha in linhas] == ["25%", "", "20%", "50%"]
+    # todo segmento leva o %; se cabe ou nao, quem decide e o navegador (abaixo)
+    assert [linha["rotulo"] for linha in linhas] == ["25%", "5%", "20%", "50%"]
+
+
+@pytest.mark.parametrize("nome", ["modalidade", "modalidade_por_fonte"])
+def test_rotulo_do_segmento_so_aparece_quando_cabe_em_pixels(nome):
+    """Uma fracao fixa (era 6%) escondia "4%" numa barra de 1800 px e deixava "7%"
+    transbordar numa coluna de 300 px. A conta usa a largura real (`width`)."""
+    spec = CONSTRUTORES[nome]().to_dict()
+
+    textos = spec["layer"][1]
+    assert _marca(textos) == "text"
+    opacidade = textos["encoding"]["opacity"]
+    assert "width" in opacidade["condition"]["test"]
+    assert "datum.largura_rotulo" in opacidade["condition"]["test"]
+    assert (opacidade["condition"]["value"], opacidade["value"]) == (1, 0)
+
+
+def test_largura_do_rotulo_cresce_com_o_texto():
+    spec = graficos.composicao_modalidade(
+        [Contagem("Remoto", 1), Contagem("Não informado", 99)]).to_dict()
+
+    larguras = {linha["rotulo"]: linha["largura_rotulo"] for linha in _dados(spec)}
+    assert larguras["1%"] < larguras["99%"]
 
 
 @pytest.mark.parametrize("construtor", [
@@ -247,7 +269,8 @@ def test_tecnologias_em_percentual_com_eixo_de_0_a_100():
     assert [linha["Rótulo"] for linha in _dados(spec)] == ["50% (20)", "25% (10)"]
 
 
-CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor", "tinta", "rotulo", "Rótulo"}
+CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor", "tinta", "rotulo", "largura_rotulo",
+                   "Rótulo"}
 CONSTRUTORES = {
     "ranking": lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
     "modalidade": lambda: graficos.composicao_modalidade(
