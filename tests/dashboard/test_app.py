@@ -231,6 +231,10 @@ def test_overview_mostra_modalidade_por_fonte_com_os_mesmos_filtros():
             "Entre as que informam, 54,4% são remotas.") in textos
     assert "Modalidade por fonte" in textos
     assert len(pedidos) == 1 and pedidos[0].modalidades == ()
+    # tabela com barras: uma linha por fonte, o % de cada modalidade numa coluna
+    tabela = app.dataframe[0].value
+    assert list(tabela.columns[:3]) == ["Fonte", "Vagas", "Não informado"]
+    assert sorted(tabela["Fonte"]) == sorted({c.grupo for c in MODALIDADE_POR_FONTE})
 
 
 def test_overview_com_uma_fonte_nao_repete_a_composicao():
