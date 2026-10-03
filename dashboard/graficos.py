@@ -124,8 +124,12 @@ def _cor(campo: str, legenda: alt.Legend | None = None) -> alt.Color:
     return alt.Color(f"{campo}:N", scale=alt.Scale(domain=list(CHAVES_DE_COR)), legend=legenda)
 
 
-# Segmento menor que isso nao ganha rotulo (nao cabe); o valor fica no tooltip.
-FRACAO_MINIMA_ROTULO = 0.06
+# O % so aparece no segmento quando cabe, e isso se decide em PIXELS, no navegador
+# (`_barras_100`): uma fracao fixa (era 6%) escondia numeros que cabiam na tela
+# larga e deixava transbordar os que nao cabiam na coluna estreita. Largura
+# estimada do texto em negrito: px por caractere mais a folga das bordas.
+PX_POR_CARACTERE_ROTULO = 7
+FOLGA_ROTULO_PX = 8
 VAO_SEGMENTO = 0.004  # fracao da barra, ~2px numa coluna do dashboard
 
 # Alturas por passo (px por categoria), nunca altura total: com `width="stretch"` o
@@ -180,16 +184,18 @@ def _segmentos(vagas: dict[str, int], barra: str) -> list[dict]:
         if not quantidade:
             continue
         fracao = quantidade / total
+        rotulo = _percentual(quantidade, total)
         linhas.append({
             "barra": barra,
             "Modalidade": modalidade,
             "Vagas": quantidade,
-            "Percentual": _percentual(quantidade, total),
+            "Percentual": rotulo,
             "inicio": inicio,
             # vao entre segmentos pelo proprio fundo, nos temas claro e escuro
             "fim": inicio + fracao - VAO_SEGMENTO,
             "meio": inicio + fracao / 2,
-            "rotulo": _percentual(quantidade, total) if fracao >= FRACAO_MINIMA_ROTULO else "",
+            "rotulo": rotulo,
+            "largura_rotulo": len(rotulo) * PX_POR_CARACTERE_ROTULO + FOLGA_ROTULO_PX,
             "cor": modalidade if modalidade in WORKPLACE_ORDER else FORA_DO_DOMINIO,
             "tinta": TEXTO_NO_SEGMENTO,
         })
@@ -217,10 +223,15 @@ def _barras_100(tabela: pd.DataFrame, y: alt.Y, tooltip: list, altura: int) -> a
         x2="fim:Q",
         color=_cor("cor", alt.Legend(orient="bottom", title=None, values=presentes)),
     )
+    # `width` e a largura real do grafico em px (o Streamlit a ajusta com
+    # `width="stretch"`), entao a conta refaz a cada redimensionamento. O texto que
+    # nao cabe fica invisivel, mas a marca continua la: o tooltip segue valendo.
+    cabe = "(datum.fim - datum.inicio) * width >= datum.largura_rotulo"
     textos = base.mark_text(fontWeight="bold").encode(
         x="meio:Q",
         text="rotulo:N",
         color=_cor("tinta"),
+        opacity=alt.condition(cabe, alt.value(1), alt.value(0)),
     )
     return (segmentos + textos).properties(height=alt.Step(altura))
 

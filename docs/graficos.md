@@ -46,7 +46,7 @@ Duas regras transversais, das mesmas fontes:
 | Gráfico | Dado e tarefa | Antes | Agora | Por quê |
 |---|---|---|---|---|
 | Overview · por área | 17 nominais; ranking | barra horizontal numa coluna de 1/3 | barra horizontal ordenada, largura total, "N (P%)" na ponta | comprimento é o canal mais preciso; 17 nomes longos espremiam as barras |
-| Overview · por modalidade | 3 ordinais + ausência; **parte-todo** | barra horizontal (ranking) | **uma barra 100% empilhada**: Remoto, Híbrido, Presencial em três tons de um azul; "Não informado" em cinza, no fim; % dentro do segmento | a pergunta é "que parte do todo", não "qual é maior"; a ordem da modalidade vira ordem de claridade (Bertin); a ausência não compete com as modalidades |
+| Overview · por modalidade | 3 ordinais + ausência; **parte-todo** | barra horizontal (ranking) | **uma barra 100% empilhada**: Remoto, Híbrido, Presencial em três tons de um azul; "Não informado" em cinza, no fim; % dentro do segmento quando cabe | a pergunta é "que parte do todo", não "qual é maior"; a ordem da modalidade vira ordem de claridade (Bertin); a ausência não compete com as modalidades |
 | Overview · por fonte | 9 nominais; ranking | barra horizontal | igual, com "N (P%)" na ponta | já era a forma certa |
 | Overview · modalidade por fonte | fonte × modalidade; **parte-todo por grupo** ("de onde vem o Não informado") | frase abaixo dos KPIs ("90 de linkedin, 10 de vagas") | **uma barra 100% empilhada por fonte**, mesmas cores da modalidade, ordenada pela fração de "Não informado", total da fonte no rótulo (`n=`) | a frase dava contagens soltas, sem a proporção de cada fonte; a barra 100% põe todas as fontes na mesma escala de 0 a 100%; só aparece com 2+ fontes |
 | Histórico · vagas abertas | temporal × estoque; tendência | linha | linha **com um ponto por dia de coleta** | é estoque, contínuo; o ponto mostra onde há medida, já que dias sem coleta não aparecem e a linha os atravessa |
@@ -208,6 +208,20 @@ Do guia, ficaram de fora:
 
 - Eixo de tempo com marca só em dias inteiros e rótulo omitido quando não cabe;
   sem grade vertical.
+- **% no segmento só quando cabe, medido em pixels.** Até 02/10/2026 o segmento
+  só ganhava rótulo com 6% ou mais da barra, e a regra errava nos dois
+  sentidos:
+  - numa barra de ~1800 px, "4%" tinha ~73 px e mesmo assim ficava sem número
+    (captura do usuário na "Modalidade por fonte": vagas, linkedin e recrutei);
+  - numa coluna estreita, um segmento de 7% com ~20 px deixava o texto
+    transbordar.
+
+  Agora todo segmento leva o %. A camada de texto fica visível só se
+  `(fim - inicio) * width` (`width` é a largura real do gráfico, refeita a cada
+  redimensionamento) for maior ou igual à largura estimada do texto
+  (`largura_rotulo`: 7 px por caractere + 8 de folga). O texto que não cabe fica
+  transparente, mas o tooltip continua mostrando o valor. Conferido por captura
+  de tela em 1400 e 400 px, nos dois temas.
 - Contagens sem rótulo fracionário: nos painéis de 1 ou 2 vagas o Vega-Lite
   punha marcas em 0,5. `tickMinStep` não vale nos small multiples com escala
   independente, então um `labelExpr` apaga o rótulo das marcas não inteiras.
