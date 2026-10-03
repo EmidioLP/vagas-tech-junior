@@ -72,11 +72,10 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
     assert [linha["rotulo"] for linha in linhas] == ["25%", "5%", "20%", "50%"]
 
 
-@pytest.mark.parametrize("nome", ["modalidade", "modalidade_por_fonte"])
-def test_rotulo_do_segmento_so_aparece_quando_cabe_em_pixels(nome):
+def test_rotulo_do_segmento_so_aparece_quando_cabe_em_pixels():
     """Uma fracao fixa (era 6%) escondia "4%" numa barra de 1800 px e deixava "7%"
     transbordar numa coluna de 300 px. A conta usa a largura real (`width`)."""
-    spec = CONSTRUTORES[nome]().to_dict()
+    spec = CONSTRUTORES["modalidade"]().to_dict()
 
     textos = spec["layer"][1]
     assert _marca(textos) == "text"
@@ -94,6 +93,13 @@ def test_largura_do_rotulo_cresce_com_o_texto():
     assert larguras["1%"] < larguras["99%"]
 
 
+def test_legenda_da_modalidade_quebra_em_duas_colunas_quando_estreita():
+    """Em linha so, a legenda cortava o "Não informado" na coluna estreita."""
+    legenda = CONSTRUTORES["modalidade"]().to_dict()["layer"][0]["encoding"]["color"]["legend"]
+
+    assert "width" in legenda["columns"]["expr"]
+
+
 @pytest.mark.parametrize("construtor", [
     lambda: graficos.composicao_modalidade([Contagem("Remoto", 1), Contagem("Não informado", 1)]),
     lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
@@ -104,7 +110,8 @@ def test_largura_do_rotulo_cresce_com_o_texto():
 def test_barras_tem_altura_por_passo_e_nao_altura_total(construtor):
     """Com width="stretch" o Streamlit poe eixo e legenda dentro da altura total:
     com `height=48` a barra da modalidade sumia (so os rotulos apareciam)."""
-    assert isinstance(construtor().to_dict()["height"], dict)  # {"step": N}
+    spec = construtor().to_dict()
+    assert isinstance(spec.get("spec", spec)["height"], dict)  # {"step": N}; faceta: no painel
 
 
 def test_modalidade_desconhecida_entra_antes_do_nao_informado():
@@ -124,23 +131,34 @@ MODALIDADE_POR_FONTE = [
 ]
 
 
-def test_modalidade_por_fonte_e_uma_barra_100_por_fonte_ordenada_pelo_nao_informado():
+def test_modalidade_por_fonte_e_split_bars_ordenadas_pelo_nao_informado():
+    """Um painel por modalidade (Não informado primeiro, colado aos nomes), uma barra
+    por fonte com o % escrito fora da ponta: na barra 100% empilhada, um 1% nao
+    tinha espaco para o numero (docs/graficos.md)."""
     spec = graficos.modalidade_por_fonte(MODALIDADE_POR_FONTE).to_dict()
 
-    segmentos = spec["layer"][0]
-    assert _marca(segmentos) == "bar"
+    paineis = ["Não informado", "Remoto", "Híbrido", "Presencial"]
+    assert spec["facet"]["field"] == "Modalidade"
+    assert spec["facet"]["sort"] == paineis
+    assert spec["columns"] == 2  # grade 2x2: cabe no celular
+    assert spec["resolve"]["scale"]["x"] == "shared"
+    barras, textos = spec["spec"]["layer"]
+    assert (_marca(barras), _marca(textos)) == ("bar", "text")
     ordem = ["linkedin (n=100)", "vagas (n=20)", "gupy (n=40)"]  # 90%, 25%, 0%
-    assert segmentos["encoding"]["y"]["sort"] == ordem
+    assert barras["encoding"]["y"]["sort"] == ordem
+    # o rotulo fica fora da barra e nunca some (nada de opacidade condicional)
+    assert textos["encoding"]["text"]["field"] == "Percentual"
+    assert "opacity" not in textos["encoding"]
+    # todas as celulas fonte x modalidade, com 0 preenchido; cada fonte soma 100%
     linhas = _dados(spec)
-    assert list(dict.fromkeys(linha["barra"] for linha in linhas)) == ordem
-    # cada fonte fecha 100%, com o Não informado por ultimo
+    assert len(linhas) == len(ordem) * len(paineis)
     for barra in ordem:
         da_fonte = [linha for linha in linhas if linha["barra"] == barra]
-        assert da_fonte[0]["inicio"] == 0 and da_fonte[-1]["fim"] == pytest.approx(1)
-    assert [linha["Modalidade"] for linha in linhas if linha["Fonte"] == "linkedin"] == [
-        "Remoto", "Não informado"]
-    assert segmentos["encoding"]["color"]["legend"]["values"] == [
-        "Remoto", "Híbrido", "Presencial", "Não informado"]
+        assert sum(linha["fracao"] for linha in da_fonte) == pytest.approx(1)
+    gupy = {linha["Modalidade"]: linha["Percentual"] for linha in linhas
+            if linha["Fonte"] == "gupy"}
+    assert gupy == {"Não informado": "0%", "Remoto": "75%", "Híbrido": "0%",
+                    "Presencial": "25%"}
 
 
 def _escalas_de_cor(spec: dict) -> list[dict]:
@@ -270,7 +288,7 @@ def test_tecnologias_em_percentual_com_eixo_de_0_a_100():
 
 
 CAMPOS_INTERNOS = {"inicio", "fim", "meio", "barra", "cor", "tinta", "rotulo", "largura_rotulo",
-                   "Rótulo"}
+                   "fracao", "Rótulo"}
 CONSTRUTORES = {
     "ranking": lambda: graficos.ranking([Contagem("Backend", 1)], "Área"),
     "modalidade": lambda: graficos.composicao_modalidade(

@@ -138,7 +138,14 @@ VAO_SEGMENTO = 0.004  # fracao da barra, ~2px numa coluna do dashboard
 ALTURA_BARRA = 24  # px por categoria nas barras horizontais
 ALTURA_BARRA_TECNOLOGIA = 28
 ALTURA_BARRA_MODALIDADE = 36  # px da banda da barra empilhada
-ALTURA_BARRA_FONTE = 30  # px por fonte na modalidade por fonte
+ALTURA_BARRA_FONTE = 26  # px por fonte na modalidade por fonte
+# Split bars da modalidade por fonte: grade 2x2 de paineis de largura fixa, ~360
+# px com os nomes. Em linha (1x4) dava ~600 px e o Streamlit cortava os paineis da
+# direita no celular (o grafico com facetas tem largura propria, nao encolhe).
+# Eixo ate 130% para o rotulo do 93% caber no painel.
+COLUNAS_SPLIT_BARS = 2
+LARGURA_PAINEL_SPLIT = 96
+FOLGA_SPLIT_BARS = 1.3
 FORMATO_DIA = "%d/%m"
 
 
@@ -221,7 +228,10 @@ def _barras_100(tabela: pd.DataFrame, y: alt.Y, tooltip: list, altura: int) -> a
         x=alt.X("inicio:Q", title=None, scale=alt.Scale(domain=[0, 1]),
                 axis=alt.Axis(format="%", tickCount=5)),
         x2="fim:Q",
-        color=_cor("cor", alt.Legend(orient="bottom", title=None, values=presentes)),
+        # Em linha so, a legenda cortava o "Não informado" na coluna estreita:
+        # abaixo de ~400 px ela quebra em duas colunas.
+        color=_cor("cor", alt.Legend(orient="bottom", title=None, values=presentes,
+                                     columns={"expr": "width < 400 ? 2 : 4"})),
     )
     # `width` e a largura real do grafico em px (o Streamlit a ajusta com
     # `width="stretch"`), entao a conta refaz a cada redimensionamento. O texto que
@@ -247,12 +257,17 @@ def composicao_modalidade(contagens: list[Contagem]) -> alt.LayerChart:
     )
 
 
-def modalidade_por_fonte(contagens: list[ContagemCruzada]) -> alt.LayerChart:
-    """Uma barra 100% por fonte, da que mais deixa de informar modalidade para a que menos.
+def modalidade_por_fonte(contagens: list[ContagemCruzada]) -> alt.FacetChart:
+    """Split bars: um painel por modalidade, uma barra por fonte, com o % na ponta.
 
-    A pergunta e "de onde vem o Não informado", entao a ordem e a fracao dele, e
-    nao o tamanho da fonte (que esta no ranking "Por fonte"). O total de cada
-    fonte vai no rotulo do eixo, ja que a barra 100% o esconde.
+    A pergunta e "de onde vem o Não informado", entao as fontes vem da que mais
+    deixa de informar modalidade para a que menos, e nao pelo tamanho (que esta no
+    ranking "Por fonte"); o total de cada fonte vai no rotulo (`n=`).
+
+    Ate 02/10/2026 era uma barra 100% empilhada por fonte. Ela serve para o total
+    e UMA parte; para varias partes entre grupos o Datawrapper recomenda split bars
+    (docs/graficos.md). Na pilha, um "Não informado" de 1% tinha 3-5 px e nenhum
+    numero cabia; aqui o % fica fora da barra e sempre aparece, inclusive 0%.
     """
     por_fonte: dict[str, dict[str, int]] = {}
     for c in contagens:
@@ -263,18 +278,48 @@ def modalidade_por_fonte(contagens: list[ContagemCruzada]) -> alt.LayerChart:
         total = sum(vagas.values())
         return (-vagas.get(NAO_INFORMADO, 0) / total, -total, fonte)
 
+    presentes = {m for vagas in por_fonte.values() for m in vagas}
+    # "Não informado" no primeiro painel, colado aos nomes: e a pergunta do
+    # grafico e o criterio da ordem das fontes. Depois, Remoto -> Presencial.
+    modalidades = [NAO_INFORMADO] + [m for m in _ordem_modalidades(presentes)
+                                     if m != NAO_INFORMADO
+                                     and (m in presentes or m in WORKPLACE_ORDER)]
     linhas = []
     for fonte in sorted(por_fonte, key=_chave):
-        rotulo = f"{fonte} (n={sum(por_fonte[fonte].values())})"
-        linhas += [dict(linha, Fonte=fonte) for linha in _segmentos(por_fonte[fonte], rotulo)]
+        total = sum(por_fonte[fonte].values())
+        for modalidade in modalidades:  # todas as celulas, com 0 onde nao ha vaga
+            quantidade = por_fonte[fonte].get(modalidade, 0)
+            linhas.append({
+                "barra": f"{fonte} (n={total})",
+                "Fonte": fonte,
+                "Modalidade": modalidade,
+                "Vagas": quantidade,
+                "Percentual": _percentual(quantidade, total),
+                "fracao": quantidade / total,
+                "cor": modalidade if modalidade in WORKPLACE_ORDER else FORA_DO_DOMINIO,
+                "tinta": ROTULO,
+            })
     tabela = pd.DataFrame(linhas)
     ordem = list(dict.fromkeys(tabela["barra"]))
-    return _barras_100(
-        tabela,
+
+    base = alt.Chart().encode(
         y=alt.Y("barra:N", title=None, sort=ordem, axis=alt.Axis(labelLimit=220)),
+        # escala comum de 0 a 100% em todos os paineis, com folga a direita para o
+        # rotulo de 93% nao sair do painel; sem eixo, o numero esta escrito
+        x=alt.X("fracao:Q", title=None, axis=None,
+                scale=alt.Scale(domain=[0, FOLGA_SPLIT_BARS])),
         tooltip=["Fonte", "Modalidade", "Vagas", "Percentual"],
-        altura=ALTURA_BARRA_FONTE,
     )
+    barras = base.mark_bar(cornerRadiusEnd=3).encode(color=_cor("cor"))
+    textos = base.mark_text(align="left", dx=3).encode(text="Percentual:N", color=_cor("tinta"))
+    return alt.layer(barras, textos, data=tabela).properties(
+        width=LARGURA_PAINEL_SPLIT, height=alt.Step(ALTURA_BARRA_FONTE),
+    ).facet(
+        facet=alt.Facet("Modalidade:N", sort=modalidades, title=None,
+                        header=alt.Header(labelAnchor="start", labelFontWeight="bold")),
+        columns=COLUNAS_SPLIT_BARS,
+        spacing={"row": 14, "column": 12},
+    ).resolve_scale(x="shared")
 
 
 def _eixo_dia() -> alt.X:
