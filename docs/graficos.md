@@ -108,20 +108,75 @@ existia em texto, de que fonte vem o "Não informado", e ela virou o gráfico
 
 ## Cor
 
-- **Série única:** `#2a78d6`, o mesmo azul nos PNGs e no dashboard.
-- **Modalidade:** rampa ordinal de um azul, `#184f95` (Remoto), `#3987e5`
-  (Híbrido), `#86b6ef` (Presencial). Validada com um verificador de paleta
-  (monotonia de claridade, passo visível entre vizinhos, contraste mínimo de 2:1
-  do tom mais claro com o fundo) contra o fundo claro (`#fcfcfb`) e o escuro do
-  Streamlit (`#0e1117`). O tom de 650 falhava no escuro e foi trocado por `#184f95`.
-- **"Não informado":** cinza `#898781`, fora da rampa. Na coleta de 15/09/2026
-  era 44% das vagas (264 de 597), 244 delas do LinkedIn, que não informa
-  modalidade na listagem. Pintá-lo de azul o faria parecer uma quarta modalidade.
-- **Modalidade fora do domínio** (a checagem de qualidade já alerta): cinza
-  escuro `#52514e`, para não se confundir com "Não informado".
-- **Rótulos de valor:** cinza médio `#898781`, legível nos dois temas.
+Em 02/10/2026 as cores foram revistas pelo guia do Datawrapper sobre cores em
+guias de estilo (Muth, 2022). O ponto central do guia é que **o fundo limita a
+claridade que as cores podem ter**. O exemplo é o fundo rosa do Financial Times.
+O dashboard não fixa tema, então cada leitor vê um de dois fundos: o claro do
+Streamlit (`#ffffff`) ou o escuro (`#0e1117`). A paleta anterior tinha sido
+validada contra `#fcfcfb`, o fundo dos PNGs, com mínimo de 2:1. Medida contra os
+fundos reais, ela falhava:
+
+| Cor anterior | Uso | vs claro | vs escuro | Problema |
+|---|---|---|---|---|
+| `#184f95` | Remoto | 8,1 | **2,3** | some no escuro |
+| `#86b6ef` | Presencial | **2,1** | 9,0 | some no claro |
+| `#3987e5` × `#898781` | Híbrido × Não informado | — | — | **mesma claridade** (L* 56): iguais em tons de cinza e para quem não distingue o matiz |
+| `#898781` | rótulo de valor | **3,6** | 5,3 | texto abaixo de 4,5:1 no claro |
+| `#52514e` | modalidade fora do domínio | 7,9 | **2,4** | some no escuro |
+
+Para que uma paleta só servisse aos dois fundos, toda cor teria de ficar entre
+L* 41 e 62. É estreito demais para três tons e um cinza. Por isso há **uma
+paleta por tema** (`dashboard/graficos.py:PALETAS`). As páginas leem
+`st.context.theme.type` e passam o tema a cada gráfico. Se o tema não vier (antes
+de o navegador informar, ou nos testes), vale a paleta clara.
+
+Regras, todas travadas por `test_paleta_valida_no_fundo_do_tema`:
+
+- **Marca com ≥ 3:1 contra o fundo**, como pede a WCAG 2.1 (1.4.11) e o guia
+  recomenda. **Texto com ≥ 4,5:1** (WCAG 1.4.3).
+- **A rampa de modalidade vai do maior para o menor contraste com o fundo**:
+  Remoto > Híbrido > Presencial, com ao menos 10 L* entre vizinhos. A ordem da
+  modalidade vira ordem de claridade (Bertin). No escuro a rampa **se inverte**:
+  o Remoto continua o tom de maior contraste e passa a ser o mais claro.
+- **"Não informado" é um cinza fora da rampa**, a ≥ 8 L* de cada tom. No gráfico
+  por fonte ele pode encostar em qualquer modalidade, porque uma fonte sem
+  Presencial põe o cinza ao lado do Híbrido. O guia pede variar a claridade, e
+  não só o matiz, para que as cores sobrevivam aos tons de cinza e ao daltonismo.
+  Na coleta de 15/09/2026 o "Não informado" era 44% das vagas (264 de 597), 244
+  delas do LinkedIn, que não informa modalidade na listagem. Pintado de azul, ele
+  pareceria uma quarta modalidade.
+- **Modalidade fora do domínio** (a checagem de qualidade já alerta) é um
+  segundo cinza, a ≥ 8 L* do primeiro.
+- **O % dentro do segmento** é branco ou quase preto, o que contrastar mais com
+  o segmento (`tinta_sobre`). Uma cor nova não pede regra à mão.
+- **Vários cinzas para o que não é dado**, como o guia sugere. O rótulo de
+  valor é um cinza próprio, mais forte que a grade, que o tema do Streamlit
+  desenha.
+
+| Uso | Claro (`#ffffff`) | L* | contraste | Escuro (`#0e1117`) | L* | contraste |
+|---|---|---|---|---|---|---|
+| Série única | `#2a78d6` | 50 | 4,4 | `#2a78d6` | 50 | 4,3 |
+| Remoto | `#0d3b73` | 25 | 11,1 | `#c3dcfa` | 87 | 13,4 |
+| Híbrido | `#18539c` | 36 | 7,6 | `#86b6ef` | 73 | 9,0 |
+| Presencial | `#2f74c8` | 49 | 4,7 | `#4d8fe0` | 59 | 5,7 |
+| Não informado | `#8f8d86` | 59 | 3,3 | `#77756f` | 49 | 4,1 |
+| Fora do domínio | `#4d4c48` | 32 | 8,6 | `#a3a19b` | 66 | 7,3 |
+| Rótulo de valor | `#5f5d58` | 40 | 6,6 | `#a8a6a0` | 68 | 7,8 |
+
+O azul da série única passa nos dois fundos e continua o mesmo nos PNGs. Os PNGs
+(`scraper/charts.py`, fundo `#fcfcfb`) usam a paleta clara, copiada, porque
+`scraper` não importa `dashboard`.
+
 - **Vão entre segmentos:** no dashboard é um espaço de verdade (cada segmento é
   encurtado), não um contorno branco, que viraria uma linha branca no tema escuro.
+
+Do guia, ficaram de fora:
+
+- **Saturação diferente para área grande (barra) e marca pequena (linha).** O
+  azul único já passa nos dois fundos. Duas versões de cada cor complicariam
+  ferramenta e documentação, custo que o próprio guia aponta.
+- **Cor de marca para destaque.** O projeto não tem marca, e a ênfase vem da
+  ordem e do cinza.
 
 ## Detalhes de eixo
 
@@ -159,6 +214,10 @@ existia em texto, de que fonte vem o "Não informado", e ela virou o gráfico
 - Knaflic, C. N. *Storytelling with Data*. Hoboken: Wiley, 2015.
 - Mackinlay, J. "Automating the Design of Graphical Presentations of Relational
   Information". *ACM Transactions on Graphics*, 5(2), p. 110–141, 1986.
+- Muth, L. C. "A detailed guide to colors in data vis style guides". *Datawrapper
+  Blog*, 30/03/2022. Disponível em
+  <https://www.datawrapper.de/blog/colors-for-data-vis-style-guides>. Acesso em
+  02/10/2026.
 - Munzner, T. *Visualization Analysis and Design*. Boca Raton: CRC Press, 2014.
 - Ribecca, S. *The Data Visualisation Catalogue*. Disponível em
   <https://datavizcatalogue.com/>. Acesso em 02/10/2026.
@@ -176,7 +235,9 @@ existia em texto, de que fonte vem o "Não informado", e ela virou o gráfico
 1. Responda às quatro perguntas do método e registre a linha na tabela acima.
 2. Construtor novo em `dashboard/graficos.py` (função pura que devolve o gráfico)
    e teste em `tests/dashboard/test_graficos.py`, que inspeciona `to_dict()`.
-3. Cor nova de categoria: valide nos dois temas antes de fixar.
+3. Cor nova: ponha-a nas duas paletas de `PALETAS` e rode
+   `test_paleta_valida_no_fundo_do_tema`, que confere contraste e claridade
+   contra o fundo de cada tema.
 4. Toda camada declara `tooltip`, só com campos legíveis. Camada sem tooltip (um
    rótulo de texto, por exemplo) ganha o padrão do Streamlit, que mostra todos os
    campos internos da marca; um teste cobre isso.

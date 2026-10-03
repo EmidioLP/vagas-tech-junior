@@ -200,8 +200,21 @@ def filtros_barra_lateral(opcoes: OpcoesFiltro, com_periodo: bool) -> Filtros:
     return Filtros(fontes, areas, modalidades, inicio, fim)
 
 
+def _tema() -> str:
+    """O tema que o leitor ve, para os graficos usarem a paleta do fundo certo.
+
+    `st.context.theme.type` pode vir vazio (antes de o navegador informar o tema,
+    ou fora de um navegador, como nos testes): fica a paleta clara, a do padrao.
+    """
+    try:
+        tipo = st.context.theme.type
+    except Exception:  # noqa: BLE001 - sem contexto de navegador
+        tipo = None
+    return "escuro" if tipo == "dark" else "claro"
+
+
 def _barras(contagens: list[Contagem], rotulo: str) -> None:
-    st.altair_chart(graficos.ranking(contagens, rotulo), width="stretch")
+    st.altair_chart(graficos.ranking(contagens, rotulo, tema=_tema()), width="stretch")
 
 
 def overview(dados: Dados) -> None:
@@ -295,8 +308,9 @@ def overview(dados: Dados) -> None:
     coluna_modalidade, coluna_fonte = st.columns(2)
     with coluna_modalidade:
         st.subheader("Por modalidade")
-        st.altair_chart(graficos.composicao_modalidade(distribuicoes["modalidade"]),
-                        width="stretch")
+        st.altair_chart(
+            graficos.composicao_modalidade(distribuicoes["modalidade"], tema=_tema()),
+            width="stretch")
         st.caption("Composição das vagas ativas. \"Não informado\" (cinza) é falta do "
                    "dado no portal, não uma modalidade.")
     with coluna_fonte:
@@ -305,7 +319,8 @@ def overview(dados: Dados) -> None:
     # Com uma fonte so, a barra repetiria a composicao de cima.
     if len({c.grupo for c in modalidade_por_fonte}) > 1:
         st.subheader("Modalidade por fonte")
-        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte), width="stretch")
+        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte, tema=_tema()),
+                        width="stretch")
         st.caption("Cada barra soma 100% das vagas ativas da fonte (n ao lado do nome), "
                    "da que mais deixa de informar modalidade para a que menos. Cinza é "
                    "falta do dado no portal.")
@@ -357,13 +372,14 @@ def _graficos_historico(serie: list[PontoSerie]) -> None:
         "Vagas novas": [p.novas for p in serie],
         "Snapshots": [p.snapshots for p in serie],
     })
+    tema = _tema()
 
     st.subheader("Vagas abertas (únicas)")
-    st.altair_chart(graficos.linha_estoque(tabela, "Vagas abertas"), width="stretch")
+    st.altair_chart(graficos.linha_estoque(tabela, "Vagas abertas", tema=tema), width="stretch")
     st.caption("Cada ponto é um dia de coleta.")
 
     st.subheader("Vagas abertas por área (únicas)")
-    st.altair_chart(graficos.multiplos_por_area(serie), width="content")
+    st.altair_chart(graficos.multiplos_por_area(serie, tema=tema), width="content")
     st.caption("Um painel por área, da maior para a menor no último dia. Cada painel "
                "tem a própria escala vertical: compare a tendência, não a altura entre "
                "painéis (o tamanho de cada área está na Overview).")
@@ -371,13 +387,15 @@ def _graficos_historico(serie: list[PontoSerie]) -> None:
     coluna_novas, coluna_snapshots = st.columns(2)
     with coluna_novas:
         st.subheader("Vagas novas (únicas)")
-        st.altair_chart(graficos.colunas_por_dia(tabela, "Vagas novas"), width="stretch")
+        st.altair_chart(graficos.colunas_por_dia(tabela, "Vagas novas", tema=tema),
+                        width="stretch")
         st.caption("Vagas vistas pela primeira vez no dia. No primeiro dia do histórico "
                    "todas são novas, e a coluna dele encolhe as outras: ajuste o período "
                    "para vê-las.")
     with coluna_snapshots:
         st.subheader("Snapshots gravados")
-        st.altair_chart(graficos.colunas_por_dia(tabela, "Snapshots"), width="stretch")
+        st.altair_chart(graficos.colunas_por_dia(tabela, "Snapshots", tema=tema),
+                        width="stretch")
         st.caption("Mudanças de estado observadas no dia. Não são vagas.")
 
 
@@ -479,7 +497,7 @@ def tecnologias(dados: Dados) -> None:
 
 
 def _barras_percentuais(ranking: RankingTecnologias) -> None:
-    st.altair_chart(graficos.barras_percentuais(ranking), width="stretch")
+    st.altair_chart(graficos.barras_percentuais(ranking, tema=_tema()), width="stretch")
 
 
 def _tecnologias_por_area(por_area: list[TecnologiasDaArea]) -> None:

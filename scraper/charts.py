@@ -40,16 +40,20 @@ SURFACE = "#fcfcfb"
 SERIES_1 = "#2a78d6"
 INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
-INK_MUTED = "#898781"
+# Texto secundario (subtitulo, nota): >= 4,5:1 sobre o fundo, como o rotulo do
+# dashboard claro.
+INK_MUTED = "#5f5d58"
 
-# Modalidade: rampa ordinal de um azul (a mesma de `dashboard/graficos.py`) e
-# cinza para "Não informado".
+# Modalidade: a paleta clara do dashboard (`dashboard/graficos.PALETAS["claro"]`,
+# validada em tests/dashboard/test_graficos.py), copiada porque `scraper` nao
+# importa `dashboard`. Rampa ordinal de um azul e cinza para "Não informado".
 WORKPLACE_COLORS = {
-    REMOTO: "#184f95",
-    HIBRIDO: "#3987e5",
-    PRESENCIAL: "#86b6ef",
-    NAO_INFORMADO: INK_MUTED,
+    REMOTO: "#0d3b73",
+    HIBRIDO: "#18539c",
+    PRESENCIAL: "#2f74c8",
+    NAO_INFORMADO: "#8f8d86",
 }
+UNKNOWN_WORKPLACE_COLOR = "#4d4c48"  # modalidade fora do dominio
 MIN_SEGMENT_LABEL = 0.06  # segmento menor nao ganha % dentro (o valor fica na legenda)
 
 FONT_STACK =["Segoe UI", "DejaVu Sans", "sans-serif"]
@@ -207,7 +211,7 @@ def chart_workplace(jobs: list[Job], output_path: Path, subtitle: str = "") -> P
     left = 0.0
     for r in rows:
         share = r["vagas"] / total
-        color = WORKPLACE_COLORS.get(r["modalidade"], INK_SECONDARY)  # fora do dominio
+        color = WORKPLACE_COLORS.get(r["modalidade"], UNKNOWN_WORKPLACE_COLOR)
         ax.barh(
             0, share, left=left, height=0.5, color=color,
             edgecolor=SURFACE, linewidth=2,  # vao entre os segmentos
@@ -217,7 +221,8 @@ def chart_workplace(jobs: list[Job], output_path: Path, subtitle: str = "") -> P
             ax.text(
                 left + share / 2, 0, f"{share:.0%}", ha="center", va="center",
                 fontsize=11, fontweight="600",
-                color=INK_PRIMARY if r["modalidade"] == PRESENCIAL else "white",
+                # so o cinza e claro o bastante para pedir texto escuro
+                color=INK_PRIMARY if r["modalidade"] == NAO_INFORMADO else "white",
             )
         left += share
 

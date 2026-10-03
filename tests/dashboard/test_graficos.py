@@ -63,7 +63,7 @@ def test_modalidade_e_uma_barra_empilhada_com_nao_informado_em_cinza_por_ultimo(
     assert {linha["barra"] for linha in _dados(spec)} == {"modalidade"}
     cor = segmentos["encoding"]["color"]["scale"]
     assert cor["domain"] == ["Remoto", "Híbrido", "Presencial", "Não informado"]
-    assert cor["range"][-1] == graficos.CORES_MODALIDADE["Não informado"]
+    assert cor["range"][-1] == graficos.PALETAS["claro"].modalidade["Não informado"]
     linhas = _dados(spec)
     assert [linha["Modalidade"] for linha in linhas] == cor["domain"]
     assert linhas[0]["inicio"] == 0 and linhas[-1]["fim"] == pytest.approx(1)
@@ -116,7 +116,54 @@ def test_modalidade_por_fonte_e_uma_barra_100_por_fonte_ordenada_pelo_nao_inform
     # as mesmas cores da composicao
     cor = segmentos["encoding"]["color"]["scale"]
     assert dict(zip(cor["domain"], cor["range"])) == {
-        m: graficos.CORES_MODALIDADE[m] for m in cor["domain"]}
+        m: graficos.PALETAS["claro"].modalidade[m] for m in cor["domain"]}
+
+
+def _claridade(cor: str) -> float:
+    """L* (CIE 1976), de 0 a 100: a claridade que se ve em tons de cinza."""
+    y = graficos._luminancia(cor)
+    return 116 * y ** (1 / 3) - 16 if y > 216 / 24389 else y * 24389 / 27
+
+
+RAMPA = ["Remoto", "Híbrido", "Presencial"]
+
+
+@pytest.mark.parametrize("tema", sorted(graficos.PALETAS))
+def test_paleta_valida_no_fundo_do_tema(tema):
+    """As regras de cor de docs/graficos.md (Datawrapper e WCAG 2.1, 1.4.3 e 1.4.11)."""
+    cores, fundo = graficos.PALETAS[tema], graficos.FUNDOS[tema]
+    rampa = [cores.modalidade[m] for m in RAMPA]
+    cinzas = [cores.modalidade["Não informado"], cores.modalidade_desconhecida]
+
+    # marca com >= 3:1 contra o fundo, rotulo (texto) com >= 4,5:1
+    for cor in [cores.serie, *rampa, *cinzas]:
+        assert graficos.contraste(cor, fundo) >= 3, cor
+    assert graficos.contraste(cores.rotulo, fundo) >= 4.5
+    # a rampa vai do maior para o menor contraste com o fundo, com passo visivel
+    contrastes = [graficos.contraste(cor, fundo) for cor in rampa]
+    assert contrastes == sorted(contrastes, reverse=True)
+    for vizinho_a, vizinho_b in zip(rampa, rampa[1:]):
+        assert abs(_claridade(vizinho_a) - _claridade(vizinho_b)) >= 10
+    # os cinzas nao se confundem com nenhum tom (nem entre si) em tons de cinza
+    nao_informado, desconhecida = cinzas
+    for cor in rampa:
+        assert abs(_claridade(nao_informado) - _claridade(cor)) >= 8, cor
+    assert abs(_claridade(nao_informado) - _claridade(desconhecida)) >= 8
+    # o % escrito dentro de cada segmento se le
+    for cor in [*rampa, *cinzas]:
+        assert graficos.contraste(graficos.tinta_sobre(cor), cor) >= 4.5, cor
+
+
+def test_tema_escolhe_a_paleta_e_sem_tema_fica_a_clara():
+    contagens = [Contagem("Remoto", 1), Contagem("Não informado", 1)]
+
+    def _cores(tema):
+        return graficos.composicao_modalidade(contagens, tema=tema).to_dict()[
+            "layer"][0]["encoding"]["color"]["scale"]["range"]
+
+    escuro = graficos.PALETAS["escuro"].modalidade
+    assert _cores("escuro") == [escuro["Remoto"], escuro["Não informado"]]
+    assert _cores(None) == _cores("claro") == _cores("outro") != _cores("escuro")
 
 
 def test_vagas_abertas_e_linha_com_pontos():
