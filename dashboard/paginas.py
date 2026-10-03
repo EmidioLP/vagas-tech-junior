@@ -305,10 +305,12 @@ def overview(dados: Dados) -> None:
     # Com uma fonte so, a barra repetiria a composicao de cima.
     if len({c.grupo for c in modalidade_por_fonte}) > 1:
         st.subheader("Modalidade por fonte")
-        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte), width="stretch")
-        st.caption("Cada barra soma 100% das vagas ativas da fonte (n ao lado do nome), "
-                   "da que mais deixa de informar modalidade para a que menos. Cinza é "
-                   "falta do dado no portal.")
+        # Paineis de largura fixa (split bars): nao precisa da tela inteira.
+        st.altair_chart(graficos.modalidade_por_fonte(modalidade_por_fonte), width="content")
+        st.caption("% das vagas ativas de cada fonte em cada modalidade (n ao lado do "
+                   "nome), da fonte que mais deixa de informar modalidade para a que "
+                   "menos. Cada linha soma 100%; \"Não informado\" (cinza) é falta do "
+                   "dado no portal.")
     st.caption("Contagens de vagas únicas ativas, não de snapshots.")
 
 

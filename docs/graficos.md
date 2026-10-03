@@ -48,7 +48,7 @@ Duas regras transversais, das mesmas fontes:
 | Overview · por área | 17 nominais; ranking | barra horizontal numa coluna de 1/3 | barra horizontal ordenada, largura total, "N (P%)" na ponta | comprimento é o canal mais preciso; 17 nomes longos espremiam as barras |
 | Overview · por modalidade | 3 ordinais + ausência; **parte-todo** | barra horizontal (ranking) | **uma barra 100% empilhada**: Remoto, Híbrido, Presencial em três tons de um azul; "Não informado" em cinza, no fim; % dentro do segmento quando cabe | a pergunta é "que parte do todo", não "qual é maior"; a ordem da modalidade vira ordem de claridade (Bertin); a ausência não compete com as modalidades |
 | Overview · por fonte | 9 nominais; ranking | barra horizontal | igual, com "N (P%)" na ponta | já era a forma certa |
-| Overview · modalidade por fonte | fonte × modalidade; **parte-todo por grupo** ("de onde vem o Não informado") | frase abaixo dos KPIs ("90 de linkedin, 10 de vagas") | **uma barra 100% empilhada por fonte**, mesmas cores da modalidade, ordenada pela fração de "Não informado", total da fonte no rótulo (`n=`) | a frase dava contagens soltas, sem a proporção de cada fonte; a barra 100% põe todas as fontes na mesma escala de 0 a 100%; só aparece com 2+ fontes |
+| Overview · modalidade por fonte | fonte × modalidade; **parte-todo por grupo** ("de onde vem o Não informado") | frase abaixo dos KPIs ("90 de linkedin, 10 de vagas") | **split bars**: um painel por modalidade em grade 2×2, com "Não informado" no primeiro, colado aos nomes; uma barra por fonte com o % escrito depois da ponta; escala comum de 0 a 100%; fontes ordenadas pela fração de "Não informado"; total no rótulo (`n=`) | a frase dava contagens soltas, sem a proporção de cada fonte. A primeira versão (barra 100% empilhada por fonte) foi trocada em 02/10/2026, porque um "Não informado" de 1% tinha 3–5 px e nenhum número cabia (captura do usuário), e o Datawrapper indica split bars para comparar várias partes entre grupos. Só aparece com 2+ fontes |
 | Histórico · vagas abertas | temporal × estoque; tendência | linha | linha **com um ponto por dia de coleta** | é estoque, contínuo; o ponto mostra onde há medida, já que dias sem coleta não aparecem e a linha os atravessa |
 | Histórico · abertas por área | 17 séries temporais | 17 linhas coloridas no mesmo eixo | **small multiples**: um painel por área, da maior para a menor no último dia, escala vertical própria | 17 cores passam do limite distinguível; com escala comum, as áreas pequenas viram uma reta no chão; o tamanho de cada área já está na Overview, aqui a tarefa é a forma da tendência (a legenda avisa) |
 | Histórico · vagas novas | contagem por dia | linha | **colunas** | evento discreto por dia (Zacks & Tversky); a linha sugeria continuidade entre dias |
@@ -79,6 +79,16 @@ Duas regras transversais, das mesmas fontes:
   coisas num gráfico, mas o próprio catálogo aponta que os segmentos não têm base
   comum, e as fontes pequenas virariam frestas ilegíveis. O volume já está no
   ranking "Por fonte"; aqui vai só no rótulo `n=`.
+- **Barra 100% empilhada por fonte.** Foi a primeira forma da modalidade por
+  fonte. O Datawrapper ("What to consider when creating stacked column charts")
+  a recomenda para comparar o total e *uma* parte; para várias partes entre
+  grupos, indica split bars ou small multiples, e avisa que rotular dentro da
+  pilha piora quanto menores as partes. Foi o que aconteceu: o "Não informado"
+  de 1% do querovagastech tinha 3–5 px e o número não cabia em largura nenhuma.
+  Nas split bars, o % fica fora da barra e aparece sempre, inclusive 0%.
+- **Split bars em linha (1×4).** Dá ~600 px, e o gráfico com facetas tem largura
+  própria, não encolhe. A 400 px o Streamlit cortava os painéis da direita,
+  justamente o "Não informado". A grade 2×2 dá ~340 px.
 - **Parallel Sets (fonte → modalidade).** Mostra o mesmo cruzamento como fluxo,
   mas é pouco familiar e, segundo o catálogo, não dá valores precisos sem anotação.
 - **Treemap e Sunburst.** Pedem hierarquia, e área, fonte e modalidade não formam uma.
@@ -96,7 +106,7 @@ veredito. As frases entre aspas são das fichas, traduzidas.
 | Overview · por área | Comparisons | *Bar Chart*: barras horizontais "acomodam rótulos longos"; eixo começa no zero; muitas barras pedem espaço | mantém; a largura total dá o espaço que 17 nomes pedem |
 | Overview · por fonte | Comparisons | *Bar Chart* | mantém |
 | Overview · por modalidade | Part-to-a-whole, Proportions | *Stacked Bar Graph* 100%; a legibilidade cai "com muitos segmentos" e os segmentos "não ficam numa base comum" | mantém: são 4 segmentos, com o % escrito em cada um. *Pie* e *Donut* estão na mesma função, mas já foram descartados acima |
-| Overview · modalidade por fonte | Part-to-a-whole, Comparisons | *Stacked Bar Graph*: mostra "como uma categoria maior se divide em subcategorias" | **novo** |
+| Overview · modalidade por fonte | Part-to-a-whole, Comparisons | *Stacked Bar Graph*: mostra "como uma categoria maior se divide em subcategorias"; *Multi-set Bar Chart* para comparar várias séries por categoria | **novo** como barra empilhada; virou split bars (barras por série, em painéis) quando os segmentos de 1% ficaram sem número |
 | Histórico · vagas abertas | Data over time | *Line Graph*: valores "num intervalo contínuo"; supõe intervalos regulares | mantém; o ponto em cada dia de coleta mostra onde há medida quando o intervalo não é regular |
 | Histórico · abertas por área | Data over time | *Line Graph*: "evite mais de 3–4 linhas por gráfico"; com muitas séries, gráficos menores separados | mantém os small multiples, que são a recomendação da ficha |
 | Histórico · novas e snapshots | Comparisons | *Bar Chart*: comparação discreta entre categorias (aqui, dias) | mantém as colunas |
@@ -222,6 +232,13 @@ Do guia, ficaram de fora:
   (`largura_rotulo`: 7 px por caractere + 8 de folga). O texto que não cabe fica
   transparente, mas o tooltip continua mostrando o valor. Conferido por captura
   de tela em 1400 e 400 px, nos dois temas.
+
+  Hoje isso vale só para a barra única da "Por modalidade". Na "Modalidade por
+  fonte", mesmo medindo em pixels, o "Não informado" de 1% não cabia, e o gráfico
+  virou split bars, com o % fora da barra.
+- **Legenda da barra de modalidade:** em linha só, cortava o "Não informado"
+  na coluna estreita. Abaixo de 400 px de largura ela quebra em duas colunas
+  (`columns` por expressão sobre `width`).
 - Contagens sem rótulo fracionário: nos painéis de 1 ou 2 vagas o Vega-Lite
   punha marcas em 0,5. `tickMinStep` não vale nos small multiples com escala
   independente, então um `labelExpr` apaga o rótulo das marcas não inteiras.
@@ -254,6 +271,12 @@ Do guia, ficaram de fora:
 - Knaflic, C. N. *Storytelling with Data*. Hoboken: Wiley, 2015.
 - Mackinlay, J. "Automating the Design of Graphical Presentations of Relational
   Information". *ACM Transactions on Graphics*, 5(2), p. 110–141, 1986.
+- Datawrapper. "How to create a split bar chart". *Datawrapper Academy*.
+  Disponível em <https://www.datawrapper.de/academy/how-to-create-a-split-bar-chart>.
+  Acesso em 02/10/2026.
+- Datawrapper. "What to consider when creating stacked column charts".
+  *Datawrapper Blog*. Disponível em
+  <https://www.datawrapper.de/blog/stacked-column-charts>. Acesso em 02/10/2026.
 - Muth, L. C. "A detailed guide to colors in data vis style guides". *Datawrapper
   Blog*, 30/03/2022. Disponível em
   <https://www.datawrapper.de/blog/colors-for-data-vis-style-guides>. Acesso em
