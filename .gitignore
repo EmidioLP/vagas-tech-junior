@@ -62,3 +62,4 @@ node_modules/
 
 # Contexto local do Claude Code (nao versionar).
 CLAUDE.md
+context.md
