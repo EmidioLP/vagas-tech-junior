@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from .. import crud
 from ..database import get_db
-from ..schemas import Erro, TecnologiaOut
+from ..schemas import Erro, TecnologiaOut, TecnologiasDaAreaOut
+from ..vocabulary import AreaEnum
 
 router = APIRouter(prefix="/tecnologias", tags=["tecnologias"])
 
@@ -39,6 +40,29 @@ def listar_tecnologias(
     if com_vagas:
         rows = [r for r in rows if r["vagas"] > 0]
     return [TecnologiaOut(**row) for row in rows]
+
+
+# Declarada antes de `/{nome}`: senao "por-area" seria lido como nome de tecnologia.
+@router.get(
+    "/por-area",
+    response_model=list[TecnologiasDaAreaOut],
+    summary="Ranking de tecnologias por área",
+    description=(
+        "Para cada área com vaga ativa, as tecnologias mais citadas no estado "
+        "atual das vagas dela (a mesma conta do dashboard). Cada área tem a "
+        "própria `base`: as vagas ativas dela que citam alguma tecnologia, que é "
+        "o denominador do percentual. A API não esconde área de base pequena; o "
+        "dashboard só exibe a partir de 15 e trata abaixo de 30 como indicativo. "
+        "Mede menção, não exigência. Ordem: maior base primeiro."
+    ),
+)
+def listar_tecnologias_por_area(
+    db: Session = Depends(get_db),
+    area: AreaEnum | None = Query(default=None, description="Só esta área."),
+    limit: int = Query(default=8, ge=1, le=200, description="Tecnologias por área."),
+) -> list[TecnologiasDaAreaOut]:
+    rows = crud.tecnologias_por_area(db, area=area.value if area else None, limit=limit)
+    return [TecnologiasDaAreaOut(**row) for row in rows]
 
 
 @router.get(

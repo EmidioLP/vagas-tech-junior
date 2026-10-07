@@ -39,10 +39,14 @@ própria máquina).
 |---|---|---|
 | GET | `/vagas` | Lista vagas ativas. Filtros: `area`, `tecnologia`, `modalidade`, `fonte`, `q` (título), `incluir_encerradas`, `limit`, `offset` |
 | GET | `/vagas/{id}` | Detalhe da vaga, ativa ou encerrada, com descrição completa e ciclo de vida (`ativa`, `first_seen_at`, `last_seen_at`, `closed_at`) |
-| GET | `/areas` | As 10 áreas com contagem de vagas ativas e percentual |
+| GET | `/areas` | As 17 áreas com contagem de vagas ativas e percentual |
 | GET | `/areas/{nome}` | Uma área |
 | GET | `/tecnologias` | As 114 tecnologias com contagem de vagas ativas que as citam. Filtros: `grupo`, `com_vagas` |
 | GET | `/tecnologias/{nome}` | Uma tecnologia |
+| GET | `/tecnologias/por-area` | Para cada área com vaga ativa, as tecnologias mais citadas, com `vagas_ativas`, `base` e percentual sobre a base. Filtros: `area`, `limit` (padrão 8) |
+| GET | `/modalidades` | As 4 modalidades com contagem de vagas ativas e percentual. Filtros: `area`, `fonte` (o percentual passa a ser sobre o recorte) |
+| GET | `/execucoes` | Execuções da coleta (`collection_runs`), da mais recente para a mais antiga, inclusive puladas e com falha. Filtros: `status`, `gatilho`, `limit`, `offset` |
+| GET | `/execucoes/{id}` | Uma execução, com contagens por fonte e alertas de qualidade |
 | GET | `/health` | Liveness: processo e banco respondem (é o health check do Render) |
 | GET | `/health/dados` | Frescor dos dados: 200 em dia, **503** se vencidos ou se a coleta parou ([docs/observability.md](observability.md)) |
 
@@ -55,6 +59,32 @@ curl "https://vagas-tech-junior-api.onrender.com/vagas?area=Backend&modalidade=R
 ```bash
 curl "https://vagas-tech-junior-api.onrender.com/tecnologias?grupo=linguagens&com_vagas=true"
 ```
+
+```bash
+curl "https://vagas-tech-junior-api.onrender.com/tecnologias/por-area?area=Data&limit=5"
+```
+
+```bash
+curl "https://vagas-tech-junior-api.onrender.com/modalidades?fonte=gupy"
+```
+
+```bash
+curl "https://vagas-tech-junior-api.onrender.com/execucoes?status=partial&limit=5"
+```
+
+Três cuidados ao ler esses endpoints:
+
+- **`/tecnologias/por-area`** usa a mesma conta dos painéis do dashboard: a `base`
+  de cada área são as vagas ativas dela que citam alguma tecnologia. A API não
+  esconde área de base pequena; o dashboard só exibe a partir de 15 e trata abaixo
+  de 30 como indicativo. Use `base` para decidir.
+- **`/modalidades`** mistura modalidade informada pelo portal e inferida do texto,
+  e o LinkedIn raramente informa: olhe `Não informado` antes dos percentuais
+  ([limitacoes.md](limitacoes.md)). A modalidade por fonte sai com `?fonte=`.
+- **`/execucoes`** não repassa o `summary` inteiro, que é um JSON livre: de cada
+  fonte saem `status`, `requests`, `requests_falhos` e `vagas_brutas`; de cada
+  alerta de qualidade, `regra`, `severidade` e `fonte`. Nunca URL nem mensagem de
+  erro. Para saber se os dados estão em dia, o endpoint é `/health/dados`.
 
 **Não há `POST`, `PUT` nem `DELETE`** — os dados vêm da raspagem, e escrever por
 HTTP criaria um estado que a próxima coleta sobrescreveria. Esses verbos

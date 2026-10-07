@@ -146,7 +146,7 @@ vagas-tech-junior/
 │   ├── crud.py              # consultas e filtros, sobre foto_atual
 │   ├── dates.py             # normalização das datas para DATE
 │   ├── vocabulary.py        # áreas e tecnologias, lidas dos YAMLs
-│   └── routers/             # vagas, areas, tecnologias
+│   └── routers/             # vagas, areas, tecnologias, modalidades, execucoes
 ├── dashboard/               # Streamlit somente leitura
 │   ├── app.py               # entrypoint, cache e navegação
 │   ├── config.py            # engine só de leitura

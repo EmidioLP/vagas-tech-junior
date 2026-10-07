@@ -25,7 +25,7 @@ from scraper import __version__
 
 from .database import get_db, init_db
 from .models import JobRecord
-from .routers import areas, tecnologias, vagas
+from .routers import areas, execucoes, modalidades, tecnologias, vagas
 from .schemas import FrescorOut
 
 DESCRIPTION = """
@@ -36,8 +36,11 @@ gravada no banco a cada execução (`python main.py`). Cada vaga é uma vaga ún
 com o estado da coleta mais recente em que apareceu, a mesma regra do dashboard.
 
 - `/vagas` — vagas ativas, com filtros por área, tecnologia, modalidade e fonte
-- `/areas` — as 10 áreas com contagem de vagas ativas
+- `/areas` — as 17 áreas com contagem de vagas ativas
 - `/tecnologias` — as tecnologias com contagem de vagas ativas que as citam
+- `/tecnologias/por-area` — o ranking de tecnologias de cada área
+- `/modalidades` — vagas ativas por modalidade de trabalho
+- `/execucoes` — o registro das execuções da coleta
 """
 
 @asynccontextmanager
@@ -59,6 +62,8 @@ app = FastAPI(
 app.include_router(vagas.router)
 app.include_router(areas.router)
 app.include_router(tecnologias.router)
+app.include_router(modalidades.router)
+app.include_router(execucoes.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -81,6 +86,8 @@ def raiz() -> dict:
         "somente_leitura": True,
         "docs": "/docs",
         "endpoints": ["/vagas", "/vagas/{id}", "/areas", "/tecnologias",
+                      "/tecnologias/por-area", "/modalidades",
+                      "/execucoes", "/execucoes/{id}",
                       "/health", "/health/dados"],
     }
 

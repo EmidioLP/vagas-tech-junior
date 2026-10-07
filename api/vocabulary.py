@@ -13,12 +13,13 @@ from functools import lru_cache
 import yaml
 
 from scraper.config import RULES_DIR
+from scraper.execucao import FAILED, GATILHOS, PARTIAL, SKIPPED, SUCCESS
 from scraper.models import WORKPLACE_ORDER
 
 
 @lru_cache(maxsize=1)
 def areas() -> list[str]:
-    """As 10 areas: as 9 declaradas no YAML mais a area de fallback."""
+    """As areas declaradas no YAML mais a area de fallback (17 desde o ADR 0008)."""
     with open(RULES_DIR / "areas.yml", encoding="utf-8") as fh:
         rules = yaml.safe_load(fh) or {}
     declared = list((rules.get("areas") or {}).keys())
@@ -65,3 +66,5 @@ def _enum(name: str, values: list[str]) -> type[Enum]:
 AreaEnum = _enum("AreaEnum", areas())
 ModalidadeEnum = _enum("ModalidadeEnum", workplace_types())
 FonteEnum = _enum("FonteEnum", sources())
+StatusExecucaoEnum = _enum("StatusExecucaoEnum", [SUCCESS, PARTIAL, FAILED, SKIPPED])
+GatilhoEnum = _enum("GatilhoEnum", list(GATILHOS))
