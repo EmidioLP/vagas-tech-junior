@@ -16,7 +16,7 @@ router = APIRouter(prefix="/vagas", tags=["vagas"])
 def _validar_tecnologia(tecnologia: str | None) -> str | None:
     """422 para tecnologia fora do vocabulario de `skills.yml`.
 
-    Nao vira Enum como area/modalidade/fonte porque sao 107 valores -- a lista
+    Nao vira Enum como area/modalidade/fonte porque sao 114 valores -- a lista
     inteira dentro do /docs atrapalharia mais do que ajudaria.
     """
     if tecnologia is None:

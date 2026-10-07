@@ -110,6 +110,79 @@ class TecnologiaOut(BaseModel):
     vagas: int = Field(description="Vagas ativas que citam esta tecnologia (estado atual).")
 
 
+class ModalidadeOut(BaseModel):
+    modalidade: str = Field(examples=["Remoto"])
+    vagas: int = Field(description="Vagas ativas com esta modalidade (estado atual).")
+    percentual: float = Field(description="Percentual sobre as vagas ativas do recorte.")
+
+
+class TecnologiaDaArea(BaseModel):
+    nome: str = Field(examples=["Python"])
+    grupo: str = Field(examples=["linguagens"])
+    vagas: int = Field(description="Vagas ativas da área que citam esta tecnologia.")
+    percentual: float = Field(description="Percentual sobre a `base` da área.")
+
+
+class TecnologiasDaAreaOut(BaseModel):
+    area: str = Field(examples=["Data"])
+    vagas_ativas: int = Field(description="Vagas ativas classificadas na área.")
+    base: int = Field(
+        description=(
+            "Vagas ativas da área que citam ao menos uma tecnologia. É o denominador "
+            "do percentual; com base pequena o ranking oscila muito."
+        ),
+    )
+    tecnologias: list[TecnologiaDaArea]
+
+
+class FonteDaExecucao(BaseModel):
+    fonte: str = Field(examples=["gupy"])
+    status: str | None = Field(default=None, examples=["ok"],
+                               description="`ok`, `partial` ou `failed`.")
+    requests: int | None = None
+    requests_falhos: int | None = None
+    vagas_brutas: int | None = Field(
+        default=None, description="Vagas listadas pelo portal, antes de qualquer filtro.")
+
+
+class AlertaDaExecucao(BaseModel):
+    regra: str | None = Field(default=None, examples=["queda_brusca"])
+    severidade: str | None = Field(default=None, examples=["alta"])
+    fonte: str | None = None
+
+
+class ExecucaoOut(BaseModel):
+    """Uma linha de `collection_runs`. Só contagens: nunca URL nem mensagem de erro."""
+
+    id: int
+    iniciada_em: datetime = Field(description="Início da execução (UTC).")
+    finalizada_em: datetime = Field(description="Fim da execução (UTC).")
+    gatilho: str = Field(examples=["schedule"], description="`schedule`, `manual` ou `local`.")
+    status: str = Field(
+        examples=["success"],
+        description="`success`, `partial`, `failed` ou `skipped` (pulada pela guarda de intervalo).",
+    )
+    escopo_completo: bool = Field(
+        description="Todas as fontes padrão, termos padrão e ao menos 5 páginas.")
+    intervalo_dias: int | None = Field(default=None, description="Intervalo X entre coletas.")
+    motivo: str | None = Field(
+        default=None, description="Por que não foi sucesso pleno, ou por que foi pulada.")
+    proxima_coleta: date | None = Field(default=None, description="Próxima coleta prevista (UTC).")
+    vagas: int = Field(description="Vagas de entrada em tecnologia ao fim do pipeline.")
+    falhas: int = Field(description="Vagas que não puderam ser gravadas.")
+    fontes: list[FonteDaExecucao] = Field(default_factory=list)
+    alertas_qualidade: list[AlertaDaExecucao] = Field(default_factory=list)
+
+
+class ExecucaoPage(BaseModel):
+    """Envelope da listagem paginada."""
+
+    total: int = Field(description="Total de execuções que casam com os filtros.")
+    limit: int
+    offset: int
+    items: list[ExecucaoOut]
+
+
 class FrescorOut(BaseModel):
     """Estado das coletas. Nunca inclui URL, host ou mensagem de erro do banco."""
 

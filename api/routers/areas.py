@@ -17,7 +17,7 @@ router = APIRouter(prefix="/areas", tags=["areas"])
     response_model=list[AreaOut],
     summary="Listar áreas com contagem de vagas",
     description=(
-        "As 10 áreas do vocabulário, da mais para a menos frequente. "
+        "As 17 áreas do vocabulário, da mais para a menos frequente. "
         "Conta vagas únicas ativas pela área da coleta mais recente de cada uma "
         "(a mesma regra do dashboard), calculadas do banco e não de um CSV "
         "agregado. Áreas sem vagas aparecem com zero."

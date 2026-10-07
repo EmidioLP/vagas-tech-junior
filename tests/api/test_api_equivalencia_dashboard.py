@@ -17,6 +17,8 @@ from dashboard.consultas import (
     Filtros,
     distribuicao,
     indicadores_atuais,
+    modalidade_por_fonte,
+    tecnologias_por_area,
     top_tecnologias,
     vagas_ativas,
 )
@@ -74,3 +76,44 @@ def test_tecnologias_iguais_ao_ranking_do_dashboard(cenario):
     ranking = top_tecnologias(engine, Filtros(), limite=1000)
     # Java so aparece no snapshot antigo de A e na vaga encerrada B.
     assert api == {c.rotulo: c.vagas for c in ranking.itens} == {"SQL": 2, "Python": 1}
+
+
+@pytest.mark.parametrize("fonte", [None, "gupy", "linkedin"])
+def test_modalidades_iguais_a_distribuicao_do_dashboard(cenario, fonte):
+    client, engine = cenario
+    corpo = client.get("/modalidades", params={"fonte": fonte} if fonte else {}).json()
+    api = {m["modalidade"]: m["vagas"] for m in corpo if m["vagas"]}
+    filtros = Filtros(fontes=(fonte,) if fonte else ())
+    dashboard = {c.rotulo: c.vagas for c in distribuicao(engine, filtros, "modalidade")}
+    # A vaga C nao tem modalidade gravada: conta como "Não informado" nos dois.
+    assert api == dashboard
+
+
+def test_modalidades_por_fonte_iguais_ao_cruzamento_do_dashboard(cenario):
+    client, engine = cenario
+    dashboard = {(c.grupo, c.rotulo): c.vagas for c in modalidade_por_fonte(engine, Filtros())}
+    api = {
+        (fonte, m["modalidade"]): m["vagas"]
+        for fonte in {grupo for grupo, _ in dashboard}
+        for m in client.get("/modalidades", params={"fonte": fonte}).json()
+        if m["vagas"]
+    }
+    assert api == dashboard == {
+        ("gupy", "Remoto"): 1, ("gupy", "Híbrido"): 1, ("vagas", "Não informado"): 1,
+    }
+
+
+def test_tecnologias_por_area_iguais_aos_paineis_do_dashboard(cenario):
+    client, engine = cenario
+    api = [
+        (a["area"], a["vagas_ativas"], a["base"],
+         [(t["nome"], t["vagas"]) for t in a["tecnologias"]])
+        for a in client.get("/tecnologias/por-area").json()
+    ]
+    dashboard = [
+        (p.area, p.ranking.vagas_ativas, p.ranking.base,
+         [(c.rotulo, c.vagas) for c in p.ranking.itens])
+        for p in tecnologias_por_area(engine, Filtros())
+    ]
+    assert api == dashboard
+    assert api[0] == ("Data", 1, 1, [("Python", 1), ("SQL", 1)])
